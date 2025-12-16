@@ -1,0 +1,35 @@
+name: Update Quiniela Predictions
+
+on:
+  schedule:
+    # Ejecutar cada viernes a las 10:00 UTC (ajustar según necesidad)
+    - cron: '0 10 * * 5'
+  workflow_dispatch: # Permite ejecución manual
+
+jobs:
+  run-prediction:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        cd backend
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run prediction script
+      env:
+        GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        G_SHEETS_CREDENTIALS: ${{ secrets.G_SHEETS_CREDENTIALS }}
+        GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+      run: |
+        cd backend
+        python main.py --mode AUTO
