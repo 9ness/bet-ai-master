@@ -228,7 +228,7 @@ export default function BetCard({ type, data }: BetCardProps) {
                                         {items.map((item, i) => {
                                             const { text, odd } = getCleanPickAndOdd(item.pick, item.odd);
                                             return (
-                                                <div key={i} className={`flex justify-between items-center pl-2 border-l-2 ${config.type === 'funbet' ? 'border-amber-500/30' : 'border-violet-500/30'} my-1`}>
+                                                <div key={i} className={`flex justify-between items-center pl-2 border-l-2 ${type === 'funbet' ? 'border-amber-500/30' : 'border-violet-500/30'} my-1`}>
                                                     <span className={`text-sm font-bold ${config.textColor}`}>{text}</span>
                                                     {odd && (
                                                         <span className="text-xs font-mono font-bold text-muted-foreground bg-secondary/80 px-1.5 py-0.5 rounded border border-border/50 whitespace-nowrap ml-2">
