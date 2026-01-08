@@ -1,32 +1,51 @@
-from src.services.scraper import Scraper
+from src.services.fetch_odds import FootballDataService
 from src.services.analyzer import Analyzer
 from src.services.gemini import GeminiService
+from src.services.redis_service import RedisService
 import sys
 import os
 
-def main():
-    print("--- BETTING ADVISOR AI STARTED ---")
-    
-    # 1. SCRAPE
-    scraper = Scraper()
-    print("Step 1: Scraping/Generating Data...")
-    matches = scraper.get_matches()
-    if not matches:
-        print("No matches found. Aborting.")
-        return
+import argparse
 
-    # 2. ANALYZE
-    print("\nStep 2: Analyzing Data...")
-    analyzer = Analyzer()
-    analysis_result = analyzer.analyze()
+def main():
+    parser = argparse.ArgumentParser(description='Bet AI Master Logic')
+    parser.add_argument('--mode', type=str, default='all', choices=['all', 'fetch', 'analyze'], help='Mode of operation: fetch, analyze, or all')
+    args = parser.parse_args()
     
-    # 3. GEMINI SELECTION
-    print("\nStep 3: AI Selection...")
-    gemini = GeminiService()
-    gemini.get_recommendations(analysis_result)
+    print(f"--- BETTING ADVISOR AI STARTED (Mode: {args.mode}) ---")
+    
+    # 1. FETCH ODDS (API SPORTS)
+    if args.mode in ['all', 'fetch']:
+        service = FootballDataService()
+        print("Step 1: Fetching Live Data from API...")
+        matches = service.fetch_matches()
+        if not matches and args.mode == 'fetch':
+            print("No matches found.")
+        elif not matches and args.mode == 'all':
+            print("No matches found. Aborting.")
+            return
+
+    # 2. ANALYZE & 3. GEMINI
+    if args.mode in ['all', 'analyze']:
+        print("\nStep 2: Analyzing Data...")
+        analyzer = Analyzer()
+        analysis_result = analyzer.analyze()
+        
+        print("\nStep 3: AI Selection...")
+        gemini = GeminiService()
+        gemini.get_recommendations(analysis_result)
     
     print("\n--- PROCESS COMPLETED SUCCESSFULLY ---")
-    print(f"Check results in: {os.path.abspath(os.path.join('data', 'recommendations_final.json'))}")
+    print(f"Check results in: {os.path.abspath(os.path.join('data', 'daily_bets.json'))}")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+        # Log success
+        rs = RedisService()
+        if rs.is_active: rs.log_status("Daily Analysis", "SUCCESS", "Completed")
+    except Exception as e:
+        print(f"[CRITICAL] Main Script Failed: {e}")
+        rs = RedisService()
+        if rs.is_active: rs.log_status("Daily Analysis", "ERROR", str(e))
+        exit(1)

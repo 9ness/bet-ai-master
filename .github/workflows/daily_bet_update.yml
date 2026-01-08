@@ -1,0 +1,64 @@
+name: Daily Bet AI Update
+
+on:
+  schedule:
+    # Análisis de apuestas: 08:00 Local (07:00 UTC)
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Execution Mode'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+        - fetch
+        - analyze
+        - all
+
+permissions:
+  contents: write
+
+jobs:
+  run-analysis:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        pip install -r backend/requirements.txt
+        
+    - name: Run AI Prediction Engine
+      env:
+        # Claves API
+        API_KEY: ${{ secrets.API_KEY }}
+        GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        # Variables de Redis (Upstash)
+        UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+        UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+        REDIS_PREFIX: ${{ secrets.REDIS_PREFIX }}
+      run: |
+        cd backend
+        python main.py --mode ${{ inputs.mode || 'all' }}
+        
+    - name: Commit and Push results
+      run: |
+        git config --global user.name "BetAI Bot"
+        git config --global user.email "bot@betaimaster.com"
+        
+        if [[ -n $(git status -s frontend/public/data/daily_bets.json) ]]; then
+          git add frontend/public/data/daily_bets.json
+          git commit -m "🤖 Daily AI Update: $(date +'%Y-%m-%d')"
+          git push
+          echo "✅ Updates pushed successfully."
+        else
+          echo "ℹ️ No changes detected in predictions."
+        fi

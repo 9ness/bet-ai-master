@@ -1,35 +1,39 @@
-name: Update Quiniela Predictions
+name: Check Daily Results
 
 on:
   schedule:
-    # Ejecutar cada viernes a las 10:00 UTC (ajustar según necesidad)
-    - cron: '0 10 * * 5'
-  workflow_dispatch: # Permite ejecución manual
+    # Comprobación de resultados: 07:30 Local (06:30 UTC)
+    - cron: '30 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
-  run-prediction:
+  check-results:
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
-        python-version: '3.9'
+        python-version: '3.11'
 
     - name: Install dependencies
       run: |
-        cd backend
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install -r backend/requirements.txt
 
-    - name: Run prediction script
+    - name: Run Result Checker
       env:
-        GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-        G_SHEETS_CREDENTIALS: ${{ secrets.G_SHEETS_CREDENTIALS }}
-        GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+        # Claves API necesarias para Football-API
+        API_KEY: ${{ secrets.API_KEY }}
+        # Variables de Redis (Upstash)
+        UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+        UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+        REDIS_PREFIX: ${{ secrets.REDIS_PREFIX }}
       run: |
         cd backend
-        python main.py --mode AUTO
+        python -m src.services.check_results

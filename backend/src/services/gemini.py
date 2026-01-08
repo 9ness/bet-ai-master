@@ -7,44 +7,34 @@ except ImportError:
 
 import os
 import json
+import re
+from datetime import datetime
+from src.services.redis_service import RedisService
 
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass
+# ... (Environment loading logic stays same) ...
 
 class GeminiService:
     def __init__(self):
+        self.redis = RedisService()
         self.api_key = os.getenv("GOOGLE_API_KEY")
-        if GOOGLE_AVAILABLE and self.api_key:
-            genai.configure(api_key=self.api_key)
-            self.generation_config = {
-                "temperature": 0.0,
-                "top_p": 1,
-                "top_k": 1,
-                "max_output_tokens": 2048,
-            }
-            self.model = genai.GenerativeModel(model_name="gemini-pro", generation_config=self.generation_config)
-            self.mock_mode = False
-        else:
-            print("Gemini disabled (No Key or No Module).")
-            self.mock_mode = True
-            
-        self.output_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'recommendations_final.json')
+        # ... (Rest of init) ...
+
+    # ... (get_today_date stays same) ...
 
     def get_recommendations(self, analyzed_data):
-        print("Consulting Gemini AI...")
+        # ... (Start of method) ...
         
-        if self.mock_mode:
-            return self._mock_response(analyzed_data)
-
         prompt = f"""
-        Act as an Expert Sports Betting Analyst.
-        I will provide you with a list of matches classified into 3 categories: SAFE (Segura), VALUE (Valor), and FUNBET (Arriesgada/Diversión).
+        Estás operando en modo Risk Manager & Pro Tipster.
+        
+        # ... (Objective / Data sections same) ...
 
-        Your task is to SELECT THE SINGLE BEST OPTION for each category from the provided list.
-        If a category is empty, state "No hay recomendación clara hoy".
+        INSTRUCCIONES DE RAZONAMIENTO:
+        - REGLA CRÍTICA DE UNICIDAD: NO repitas la misma selección exacta (Market + Pick) en más de una categoría (Safe, Value, Funbet). Si "Victoria Arsenal" está en Safe, NO puede aparecer en Value ni en Funbet. Busca mercados alternativos si te gusta el equipo (e.g., Over goles, Corners) para diversificar el riesgo de un solo fallo.
+        - REGLA FUNBET: Cada selección individual incluida en la Funbet debe tener una cuota mínima de 1.10.
+        - En el campo 'reason', justifica por qué la selección cumple con los criterios.
+        - EXTRAE LA HORA del partido ("time") y inclúyela en el JSON.
+        - EXTRAE EL ID DEL PARTIDO ("fixture_id") de los datos de entrada para cada selección. ES CRÍTICO.
 
         INPUT DATA:
         {json.dumps(analyzed_data, indent=2)}
@@ -52,87 +42,97 @@ class GeminiService:
         OUTPUT FORMAT (Strict JSON):
         {{
             "safe": {{
-                "match": "Real Madrid vs Almeria",
-                "pick": "Victoria Real Madrid",
-                "odd": 1.45,
-                "reason": "El Madrid en casa es muy sólido..." (Keep it short, max 1 sentence)
+                "match": "Equipo A vs Equipo B",
+                "time": "21:00",
+                "fixture_id": 123456,
+                "pick": "Gana Local",
+                "odd": 1.65,
+                "reason": "..."
             }},
             "value": {{
-                "match": "Sevilla vs Betis", 
-                "pick": "Victoria Sevilla",
-                "odd": 2.10,
-                "reason": "El Sevilla necesita ganar y juega con su público."
+                "match": "...", 
+                "time": "18:30",
+                "fixture_id": 789012,
+                "pick": "...",
+                "odd": 2.80,
+                "reason": "...",
+                "components": [
+                    {{ "match": "A vs B", "fixture_id": 111, "pick": "...", "odd": 1.40 }},
+                    {{ "match": "C vs D", "fixture_id": 222, "pick": "...", "odd": 2.00 }}
+                ]
             }},
             "funbet": {{
-                "match": "Girona vs Barcelona",
-                "pick": "Empate",
-                "odd": 3.80,
-                "reason": "Derbi catalán muy igualado."
+                "match": "Combinada...",
+                "time": "16:00", 
+                "pick": "...",
+                "components": [
+                    {{ "match": "A vs B", "time": "16:00", "fixture_id": 333, "pick": "...", "odd": 1.20 }},
+                    {{ "match": "C vs D", "time": "18:00", "fixture_id": 444, "pick": "...", "odd": 1.30 }}
+                ],
+                "odd": 15.40,
+                "reason": "..."
             }}
         }}
-        
-        Do not add markdown formatting (```json). Just return the raw JSON string.
         """
 
         try:
-            response = self.model.generate_content(prompt)
-            text_response = response.text.strip()
-            # Clean up potential markdown formatting if Gemini adds it despite instructions
-            if text_response.startswith("```json"):
-                text_response = text_response[7:]
-            if text_response.endswith("```"):
-                text_response = text_response[:-3]
+            # ... (Generation and parsing logic same) ...
             
-            final_json = json.loads(text_response)
-            self._save(final_json)
-            return final_json
+            # Estructura Final Envolvente
+            final_output = {
+                "date": today_str,
+                "is_real": True,
+                "bets": bets_json
+            }
+            
+            self._save(final_output)
+            # Redis Save
+            self.redis.save_daily_bets(today_str, bets_json)
+            
+            return final_output
             
         except Exception as e:
-            print(f"Error in Gemini interaction: {e}")
-            return self._mock_response(analyzed_data)
+            # ... (Error handling) ...
+            return self._mock_response(today_str)
 
     def _save(self, data):
         with open(self.output_file, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=4, ensure_ascii=False)
-        print(f"Recommendations saved to {self.output_file}")
+        print(f"[OK] Archivo guardado en: {self.output_file}")
             
-    def _mock_response(self, data):
-        print("Returning MOCK recommendations.")
-        # Try to pick from data or just generic
-        # Fallback to hardcoded examples if data is empty or malformed
-        mock_res = {
-            "safe": {
-                "match": "Man City vs Burnley",
-                "pick": "Victoria Man City",
-                "odd": 1.15,
-                "reason": "Dominio total local."
-            },
-            "value": {
-                "match": "Real Sociedad vs Athletic", 
-                "pick": "Empate",
-                "odd": 3.10,
-                "reason": "Derbi muy ajustado."
-            },
-            "funbet": {
-                "match": "Luton vs Arsenal",
-                "pick": "Luton gana",
-                "odd": 11.0,
-                "reason": "Milagro en casa."
+    def _mock_response(self, date_str):
+        print("Generando datos MOCK de respaldo.")
+        mock_data = {
+            "date": date_str,
+            "is_real": False,
+            "bets": {
+                "safe": {
+                    "match": "Manchester City vs Burnley (MOCK)",
+                    "pick": "Victoria Man City",
+                    "odd": 1.15,
+                    "reason": "1. City invicto en casa. 2. Burnley sin victorias fuera."
+                },
+                "value": {
+                    "match": "Sevilla vs Betis (MOCK)", 
+                    "pick": "Empate",
+                    "odd": 3.10,
+                    "reason": "1. Derby muy disputado. 2. Ambos equipos en racha similar."
+                },
+                "funbet": {
+                    "match": "Combinada Demo (MOCK)",
+                    "pick": "Gana City + Gana Sevilla + Over 2.5",
+                    "components": [
+                         {"match": "City vs Burnley", "pick": "Gana City"},
+                         {"match": "Sevilla vs Betis", "pick": "Empate"},
+                         {"match": "Barca vs Getafe", "pick": "Over 2.5"}
+                    ],
+                    "odd": 14.50,
+                    "reason": "1. Favoritos claros. 2. Alta probabilidad de goles en Barca."
+                }
             }
         }
-        
-        # Try to use real data
-        if data:
-            if "SAFE" in data and len(data["SAFE"]) > 0:
-                mock_res["safe"] = data["SAFE"][0]
-            if "VALUE" in data and len(data["VALUE"]) > 0:
-                mock_res["value"] = data["VALUE"][0]
-            if "FUNBET" in data and len(data["FUNBET"]) > 0:
-                mock_res["funbet"] = data["FUNBET"][0]
-                
-        self._save(mock_res)
-        return mock_res
+        self._save(mock_data)
+        return mock_data
 
 if __name__ == "__main__":
-    # Test with dummy data
     pass

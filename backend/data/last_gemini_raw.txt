@@ -1,0 +1,22 @@
+```json
+{
+  "safe": {
+    "match": "Arsenal vs Liverpool",
+    "pick": "Victoria Arsenal",
+    "odd": 1.56,
+    "reason": "Arsenal juega en casa y es favorito según las cuotas."
+  },
+  "value": {
+    "match": "Atletico Madrid vs Real Madrid",
+    "pick": "Empate o Victoria Real Madrid",
+    "odd": 1.53,
+    "reason": "El Real Madrid tiene una cuota de 2.32 para ganar, y el empate es 3.50. Cubrir ambos resultados ofrece valor."
+  },
+  "funbet": {
+    "match": "Combinada Arriesgada",
+    "pick": "Victoria Arsenal + Victoria USM Alger + Victoria Leixoes",
+    "odd": 11.78,
+    "reason": "Combinada de las victorias de los equipos que son favoritos en sus respectivos partidos. Arsenal (1.56) + USM Alger (1.62) + Leixoes (3.50) = 8.81. Riesgosa pero con potencial de alta recompensa."
+  }
+}
+```

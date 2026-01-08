@@ -1,0 +1,137 @@
+import os
+import json
+import requests
+from datetime import datetime
+
+try:
+    from dotenv import load_dotenv
+    # Load .env.local from project root PARENT (Since .env.local is one level up from bet-ai-master)
+    base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    # Try project root
+    dotenv_path = os.path.join(base_path, '.env.local')
+    if not os.path.exists(dotenv_path):
+        # Try parent of project root
+        dotenv_path = os.path.join(os.path.dirname(base_path), '.env.local')
+    
+    if os.path.exists(dotenv_path):
+        load_dotenv(dotenv_path)
+        print(f"[Redis] Env loaded from {dotenv_path}")
+except ImportError:
+    pass
+
+class RedisService:
+    def __init__(self):
+        self.url = os.getenv("UPSTASH_REDIS_REST_URL")
+        self.token = os.getenv("UPSTASH_REDIS_REST_TOKEN")
+        self.prefix = os.getenv("REDIS_PREFIX", "betai:")
+        
+        if self.url and self.token:
+            print(f"[Redis] Configurado modo HTTP (Upstash REST). Prefix: '{self.prefix}'")
+            self.is_active = True 
+        else:
+            print(f"[Redis] FALTA CONFIGUTACIÓN. URL={bool(self.url)}, TOKEN={bool(self.token)}")
+            self.is_active = False
+
+    def _get_key(self, key_part):
+        # Ensure we don't double prefix if someone passes an already prefixed key accidentally
+        if key_part.startswith(self.prefix):
+            return key_part
+        return f"{self.prefix}{key_part}"
+
+    def _send_command(self, command, *args):
+        if not self.is_active: return None
+        try:
+            full_url = f"{self.url}"
+            headers = {"Authorization": f"Bearer {self.token}"}
+            # Upstash format: ["COMMAND", "arg1", "arg2"]
+            cmd_list = [command] + list(args)
+            resp = requests.post(full_url, headers=headers, json=cmd_list)
+            data = resp.json()
+            if "error" in data:
+                print(f"[Redis] Error Upstash: {data['error']}")
+                return None
+            return data.get("result")
+        except Exception as e:
+            print(f"[Redis] Exception: {e}")
+            return None
+
+    def save_daily_bets(self, date_str, bets_data):
+        if not self.is_active: return
+        
+        redis_obj = {
+            "date": date_str,
+            "created_at": datetime.now().isoformat(),
+            "bets": []
+        }
+
+        stakes = { "safe": 6, "value": 3, "funbet": 1 }
+
+        for bet_type, data in bets_data.items():
+            if not data: continue
+            
+            fixture_ids = []
+            if "components" in data and data["components"]:
+                for comp in data["components"]:
+                    if "fixture_id" in comp: fixture_ids.append(comp["fixture_id"])
+            elif "fixture_id" in data:
+                fixture_ids.append(data["fixture_id"])
+            
+            bet_entry = {
+                "type": bet_type,
+                "stake": stakes.get(bet_type, 1),
+                "total_odd": data.get("odd", 0),
+                "fixture_ids": fixture_ids,
+                "pick": data.get("pick", ""),
+                "match": data.get("match", "")
+            }
+            redis_obj["bets"].append(bet_entry)
+
+        # Automatic prefixing via _get_key
+        key = self._get_key(f"bets:{date_str}")
+        self._send_command("SET", key, json.dumps(redis_obj))
+        print(f"[Redis] Guardado OK: {key}")
+
+    # Helper for Check Results
+    def get(self, key):
+        # Ensure key is prefixed
+        full_key = self._get_key(key)
+        return self._send_command("GET", full_key)
+    
+    @property
+    def client(self):
+         return self 
+
+    # Mocking redis-py methods used in check_results.py
+    def set(self, key, value):
+        full_key = self._get_key(key)
+        return self._send_command("SET", full_key, value)
+    
+    def hset(self, key, mapping):
+        full_key = self._get_key(key)
+        # HSET key field value [field value ...]
+        args = []
+        for k, v in mapping.items():
+            args.extend([k, v])
+        return self._send_command("HSET", full_key, *args)
+
+    def hget(self, key, field):
+        full_key = self._get_key(key)
+        return self._send_command("HGET", full_key, field)
+    
+    def ping(self):
+        return self._send_command("PING")
+
+    def keys(self, pattern):
+        full_pattern = self._get_key(pattern)
+        return self._send_command("KEYS", full_pattern)
+
+    def log_status(self, script_name, status, message=""):
+        key = self._get_key("status:last_run")
+        data = {
+            "date": datetime.now().strftime("%Y-m-%d %H:%M:%S"),
+            "script": script_name,
+            "status": status, # SUCCESS / ERROR
+            "message": str(message)
+        }
+        self.set("status:last_run", json.dumps(data))
+        print(f"[LOG] Status logged to Redis: {status} ({script_name})")
