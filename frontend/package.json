@@ -9,12 +9,14 @@
         "lint": "next lint"
     },
     "dependencies": {
+        "@upstash/redis": "^1.36.1",
         "clsx": "latest",
         "googleapis": "latest",
         "lucide-react": "latest",
         "next": "latest",
         "react": "latest",
         "react-dom": "latest",
+        "recharts": "^3.6.0",
         "tailwind-merge": "latest",
         "tailwindcss-animate": "^1.0.7"
     },

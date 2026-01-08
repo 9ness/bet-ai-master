@@ -1,55 +1,72 @@
 import React from 'react';
-import { Trophy, Calendar, ArrowRight, Activity, ShieldCheck, TrendingUp, Clock, Zap, Target, PartyPopper, AlertTriangle } from 'lucide-react';
+import { Trophy, Activity, AlertTriangle } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import path from 'path';
-import fs from 'fs';
+import { Redis } from '@upstash/redis';
+import ResultsCalendar from '@/components/ResultsCalendar';
+import AdminAnalytics from '@/components/AdminAnalytics';
+import DailyPredictions from '@/components/DailyPredictions';
+import { getRecommendations } from '@/lib/server-utils';
+
+// Initialize Redis
+const redis = new Redis({
+    url: process.env.UPSTASH_REDIS_REST_URL!,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
+
+async function getSettings() {
+    try {
+        const settings = await redis.hgetall('betai:settings:visibility');
+        return {
+            show_daily_bets: true,
+            show_calendar: true,
+            show_analytics: true,
+            ...settings
+        } as any;
+    } catch (e) {
+        return { show_daily_bets: true, show_calendar: true, show_analytics: true };
+    }
+}
+
+
 
 // Revalidate every 60 seconds
 export const revalidate = 60;
 
-async function getRecommendations() {
-    try {
-        const filePath = path.join(process.cwd(), 'public', 'data', 'daily_bets.json');
-        if (fs.existsSync(filePath)) {
-            const fileContent = fs.readFileSync(filePath, 'utf-8');
-            return JSON.parse(fileContent);
-        }
-        return null;
-    } catch (error) {
-        console.error("Error reading recommendation file:", error);
-        return null;
-    }
-}
 
-// Helper to format numbered reasons
-const FormattedReason = ({ text }: { text?: string }) => {
-    if (!text) return null;
-    // Split by "1. ", "2. " etc. using lookahead to keep the number
-    const parts = text.split(/(?=\d\. )/g).filter(p => p.trim().length > 0);
-
-    if (parts.length <= 1) return <p className="text-sm text-muted-foreground italic">"{text}"</p>;
-
-    return (
-        <ul className="text-sm text-muted-foreground space-y-2 mt-2 text-left">
-            {parts.map((part, idx) => (
-                <li key={idx} className="flex gap-2 bg-background/50 p-2 rounded-md border border-border/30">
-                    <span className="font-bold text-primary/70 shrink-0">{part.substring(0, 2)}</span>
-                    <span className="italic">{part.substring(2)}</span>
-                </li>
-            ))}
-        </ul>
-    );
-};
 
 export default async function Home() {
-    const data = await getRecommendations();
+    const [data, settings] = await Promise.all([
+        getRecommendations(),
+        getSettings()
+    ]);
+
     // Data format: { date: string, is_real: boolean, bets: { safe: ..., value: ..., funbet: ... } }
     const predictions = data?.bets;
     const date = data?.date || "Fecha desconocida";
     const isMock = data?.is_real === false;
 
+    // Format Date to Spanish Long Format
+    let formattedDate = date;
+    if (date && date.includes('-')) {
+        const [y, m, d] = date.split('-').map(Number);
+        const dateObj = new Date(y, m - 1, d);
+        formattedDate = dateObj.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        // Capitalize first letter
+        formattedDate = formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1);
+    }
+
     return (
         <main className="min-h-screen bg-background text-foreground transition-colors duration-300">
+            {/* Navbar & Hero ... (keep existing) */}
+
+            {/* ... (Keep existing Navbar and Hero code via context or re-paste if needed, but here I'm replacing the whole component structure so I need to be careful.
+            Wait, I should probably use a smaller replacement or ensure I duplicate the navbar/hero correctly.
+            Better to target the return block or specific sections if possible, but I need to inject the fetch logic at top.
+            
+            Let's assume I replace from `export default async function Home` down to end.
+            I need to include Navbar and Hero in the replacement.)
+            */}
+
             {/* Navbar */}
             <nav className="border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50">
                 <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -58,7 +75,7 @@ export default async function Home() {
                             <Trophy size={20} strokeWidth={2.5} />
                         </div>
                         <span className="font-bold text-xl tracking-tight">
-                            BETTING <span className="text-fuchsia-500">ADVISOR</span>
+                            BET AI <span className="text-fuchsia-500">MASTER</span>
                         </span>
                     </div>
                     <ThemeToggle />
@@ -76,15 +93,16 @@ export default async function Home() {
                         <span>AI Analysis Active</span>
                     </div>
 
-                    <h1 className="text-5xl md:text-7xl font-black mb-6 tracking-tight leading-tight">
-                        Smart Betting <br className="hidden md:block" />
-                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-fuchsia-500 to-violet-500 animate-gradient">
-                            Daily Picks
+                    <h1 className="text-3xl md:text-7xl font-black mb-6 tracking-tight leading-tight">
+                        BET AI MASTER <br className="hidden md:block" />
+                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-fuchsia-500 to-violet-500 animate-gradient block md:inline mt-2 md:mt-0">
+                            PREDICCIONES DIARIAS
                         </span>
                     </h1>
 
-                    <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-6 leading-relaxed">
-                        Predicciones para el día: <span className="font-bold text-foreground">{date}</span>
+                    <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-6 leading-relaxed capitalize">
+                        Predicciones para el día: <br className="md:hidden" />
+                        <span className="font-bold text-foreground">{formattedDate}</span>
                     </p>
 
                     {isMock && (
@@ -96,133 +114,34 @@ export default async function Home() {
                 </div>
             </div>
 
-            {/* Cards Section */}
-            <section className="max-w-7xl mx-auto px-4 py-12 md:py-20">
-                {!predictions ? (
-                    <div className="text-center py-12">
-                        <div className="inline-block p-4 rounded-full bg-secondary mb-4">
-                            <Clock className="w-8 h-8 text-muted-foreground animate-spin-slow" />
-                        </div>
-                        <h3 className="text-2xl font-bold mb-2">Esperando datos del analista...</h3>
-                        <p className="text-muted-foreground">Ejecuta el script de python para generar las recomendaciones.</p>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                        {/* SAFE CARD */}
-                        <div className="group relative bg-card border border-border rounded-3xl p-6 hover:border-emerald-500/50 transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-500/10">
-                            <div className="absolute inset-x-0 top-0 h-1 bg-emerald-500 rounded-t-3xl" />
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="p-3 bg-emerald-500/10 rounded-2xl text-emerald-500">
-                                    <ShieldCheck size={28} />
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-xl">La Segura</h3>
-                                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Probabilidad Alta</p>
-                                </div>
-                            </div>
+            {/* DAILY BETS SECTION */}
+            {settings.show_daily_bets && (
+                <div className="border-b border-border/50">
+                    <DailyPredictions predictions={predictions} />
+                </div>
+            )}
 
-                            <div className="space-y-4">
-                                <div className="flex justify-between items-start">
-                                    <span className="text-muted-foreground text-sm">Partido</span>
-                                    <span className="font-medium text-right text-sm">{predictions.safe?.match || "N/A"}</span>
-                                </div>
-                                <div className="flex justify-between items-center bg-secondary/50 p-3 rounded-xl">
-                                    <span className="text-muted-foreground text-sm">Pick</span>
-                                    <span className="font-bold text-emerald-500">{predictions.safe?.pick}</span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-muted-foreground text-sm">Cuota</span>
-                                    <span className="font-mono text-2xl font-black">{predictions.safe?.odd}</span>
-                                </div>
-                                <div className="pt-4 border-t border-border mt-4">
-                                    <FormattedReason text={predictions.safe?.reason} />
-                                </div>
-                            </div>
-                        </div>
+            {/* CALENDAR SECTION */}
+            {settings.show_calendar && (
+                <section className="max-w-7xl mx-auto px-4 py-12 border-b border-border/50">
+                    <h2 className="text-3xl font-black mb-8 flex items-center gap-2">
+                        <span className="text-4xl">📅</span>
+                        Resultados Históricos
+                    </h2>
+                    <ResultsCalendar />
+                </section>
+            )}
 
-                        {/* VALUE CARD */}
-                        <div className="group relative bg-card border border-border rounded-3xl p-6 hover:border-violet-500/50 transition-all duration-300 hover:shadow-2xl hover:shadow-violet-500/10 scale-105 z-10 shadow-xl">
-                            <div className="absolute inset-x-0 top-0 h-1 bg-violet-500 rounded-t-3xl" />
-                            <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-violet-600 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest shadow-lg">
-                                Recomendado
-                            </div>
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="p-3 bg-violet-500/10 rounded-2xl text-violet-500">
-                                    <Target size={28} />
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-xl">De Valor</h3>
-                                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Rentabilidad Alta</p>
-                                </div>
-                            </div>
-
-                            <div className="space-y-4">
-                                <div className="flex justify-between items-start">
-                                    <span className="text-muted-foreground text-sm">Partido</span>
-                                    <span className="font-medium text-right text-sm">{predictions.value?.match || "N/A"}</span>
-                                </div>
-                                <div className="flex justify-between items-center bg-secondary/50 p-3 rounded-xl">
-                                    <span className="text-muted-foreground text-sm">Pick</span>
-                                    <span className="font-bold text-violet-500">{predictions.value?.pick}</span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-muted-foreground text-sm">Cuota</span>
-                                    <span className="font-mono text-2xl font-black">{predictions.value?.odd}</span>
-                                </div>
-                                <div className="pt-4 border-t border-border mt-4">
-                                    <FormattedReason text={predictions.value?.reason} />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* FUNBET CARD */}
-                        <div className="group relative bg-card border border-border rounded-3xl p-6 hover:border-amber-500/50 transition-all duration-300 hover:shadow-2xl hover:shadow-amber-500/10">
-                            <div className="absolute inset-x-0 top-0 h-1 bg-amber-500 rounded-t-3xl" />
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="p-3 bg-amber-500/10 rounded-2xl text-amber-500">
-                                    <PartyPopper size={28} />
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-xl">Funbet</h3>
-                                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Arriesgada</p>
-                                </div>
-                            </div>
-
-                            <div className="space-y-4">
-                                <div className="flex justify-between items-start">
-                                    <span className="text-muted-foreground text-sm">Partido</span>
-                                    <span className="font-medium text-right text-sm">{predictions.funbet?.match || "N/A"}</span>
-                                </div>
-
-                                {/* REFACTORED FUNBET PICK SECTION */}
-                                <div className="bg-secondary/50 p-3 rounded-xl">
-                                    <span className="text-muted-foreground text-xs block mb-2 font-semibold">Combinada:</span>
-                                    {predictions.funbet?.components && Array.isArray(predictions.funbet.components) && predictions.funbet.components.length > 0 ? (
-                                        <ul className="space-y-2">
-                                            {predictions.funbet.components.map((comp: any, idx: number) => (
-                                                <li key={idx} className="flex flex-col text-sm border-b border-border/50 last:border-0 pb-1 last:pb-0">
-                                                    <span className="text-xs text-muted-foreground">{comp.match}</span>
-                                                    <span className="font-bold text-amber-500">{comp.pick}</span>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    ) : (
-                                        <span className="font-bold text-amber-500 block">{predictions.funbet?.pick}</span>
-                                    )}
-                                </div>
-
-                                <div className="flex justify-between items-center mt-2">
-                                    <span className="text-muted-foreground text-sm">Cuota Total</span>
-                                    <span className="font-mono text-2xl font-black">{predictions.funbet?.odd}</span>
-                                </div>
-                                <div className="pt-4 border-t border-border mt-4">
-                                    <FormattedReason text={predictions.funbet?.reason} />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </section>
+            {/* ANALYTICS SECTION */}
+            {settings.show_analytics && (
+                <section className="max-w-7xl mx-auto px-4 py-12">
+                    <h2 className="text-3xl font-black mb-8 flex items-center gap-2">
+                        <span className="text-4xl">📊</span>
+                        Rendimiento del Mes
+                    </h2>
+                    <AdminAnalytics />
+                </section>
+            )}
         </main>
     );
 }

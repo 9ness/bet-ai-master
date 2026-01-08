@@ -2,7 +2,7 @@ import './globals.css';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-    title: 'Quiniela AI Master',
+    title: 'BET AI Master',
     description: 'Predicciones de fútbol impulsadas por Inteligencia Artificial',
 };
 

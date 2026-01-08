@@ -1,34 +1,58 @@
 {
-    "date": "2026-01-07",
+    "date": "2026-01-08",
     "is_real": true,
     "bets": {
         "safe": {
-            "match": "Parma vs Inter",
-            "pick": "Inter Ganador (2)",
-            "odd": 1.35,
-            "reason": "1. Disparidad masiva en cuotas (8.70 vs 1.35) indica un choque entre un candidato al título y un equipo en zona de descenso. 2. La línea de gol Over 2.5 en 1.65 sugiere que el Inter tiene capacidad de golear a una defensa débil."
+            "match": "Arsenal vs Liverpool",
+            "pick": "Gana Arsenal (1)",
+            "odd": 1.58,
+            "reason": "Cuota 1.58 entra perfectamente en el rango de seguridad (1.50-1.80). Arsenal juega en casa y la disparidad de cuotas (1.58 vs 5.60) sugiere una fuerte probabilidad implícita (>60%) frente a un Liverpool que las casas de apuestas valoran como muy inferior para este encuentro."
         },
         "value": {
-            "match": "Lazio vs Fiorentina",
-            "pick": "Empate (X)",
-            "odd": 2.98,
-            "reason": "1. ¡ALERTA DE PATRÓN SERIE A! Cuando la cuota del Empate cae por debajo de 3.00 antes del partido, la probabilidad implícita es altísima. 2. El mercado de Goles (Under 2.5 a 1.57) refuerza un partido cerrado, táctico y de pocos espacios, típico escenario de 0-0 o 1-1."
+            "match": "Combinada de Favoritos (Serie A + Premier + AFC U23)",
+            "pick": "AC Milan Gana + Arsenal Gana + Australia U23 Gana",
+            "odd": 2.78,
+            "reason": "Estrategia de Bloque de Favoritos. Combinamos las tres victorias más probables del día: AC Milan (1.41) y Australia U23 (1.25) tienen superioridad técnica evidente, sumado a la solidez del Arsenal en casa (1.58). La cuota conjunta ofrece valor cercano a 3.00 con riesgo controlado."
         },
         "funbet": {
-            "match": "Combinada: Táctica Italiana + Caos Inglés",
-            "pick": "Lazio/Fiorentina (Marcador Exacto 1-1) + Man City/Brighton (Over 3.5 Goles)",
+            "match": "Acumulada Multiligas",
+            "pick": "Milan Win + Arsenal Win + Australia U23 Win + Cremonese 1X + Negelle Arsi X2 + Aus/Thai Over 2.5 + Milan/Genoa Over 1.5 + Ars/Liv Over 1.5",
             "components": [
                 {
-                    "match": "Lazio vs Fiorentina",
-                    "pick": "Marcador Exacto 1-1 (5.00)"
+                    "match": "AC Milan vs Genoa",
+                    "pick": "Gana Milan (1.41)"
                 },
                 {
-                    "match": "Man City vs Brighton",
-                    "pick": "Total Goles: Más de 3.5 (1.85)"
+                    "match": "Arsenal vs Liverpool",
+                    "pick": "Gana Arsenal (1.58)"
+                },
+                {
+                    "match": "Australia U23 vs Thailand U23",
+                    "pick": "Gana Australia U23 (1.25)"
+                },
+                {
+                    "match": "Cremonese vs Cagliari",
+                    "pick": "Doble Oportunidad 1X (1.35)"
+                },
+                {
+                    "match": "Suhul Shire vs Negelle Arsi",
+                    "pick": "Doble Oportunidad X2 (1.20)"
+                },
+                {
+                    "match": "Australia U23 vs Thailand U23",
+                    "pick": "Más de 2.5 Goles (1.55)"
+                },
+                {
+                    "match": "AC Milan vs Genoa",
+                    "pick": "Más de 1.5 Goles (1.36)"
+                },
+                {
+                    "match": "Arsenal vs Liverpool",
+                    "pick": "Más de 1.5 Goles (1.25)"
                 }
             ],
-            "odd": 9.25,
-            "reason": "1. El 1-1 es el marcador exacto con menor cuota (5.00) en el partido de Lazio, alineado con el Value Bet del empate. 2. El City vs Brighton tiene el Over 2.5 a cuota ridícula (1.35), obligando a buscar el Over 3.5 para encontrar valor en un partido que promete ser un festival ofensivo."
+            "odd": 11.88,
+            "reason": "Combinada de 8 selecciones de bajo riesgo individual (ninguna supera 1.60). Se busca volumen de aciertos lógicos: favoritos ganando, dobles oportunidades cubriendo empates en partidos cerrados y líneas de gol muy bajas."
         }
     }
 }
