@@ -103,8 +103,9 @@ const FormattedReason = ({ text }: { text?: string }) => {
 export default function BetCard({ type, data }: BetCardProps) {
     if (!data) return null;
 
-    const config = {
+    const cardConfigs = {
         safe: {
+            type: 'safe',
             icon: ShieldCheck,
             color: 'emerald',
             title: 'La Segura',
@@ -117,6 +118,7 @@ export default function BetCard({ type, data }: BetCardProps) {
             stake: 6
         },
         value: {
+            type: 'value',
             icon: Target,
             color: 'violet',
             title: 'De Valor',
@@ -129,6 +131,7 @@ export default function BetCard({ type, data }: BetCardProps) {
             stake: 3
         },
         funbet: {
+            type: 'funbet',
             icon: PartyPopper,
             color: 'amber',
             title: 'Funbet',
@@ -140,7 +143,8 @@ export default function BetCard({ type, data }: BetCardProps) {
             textColor: 'text-amber-500',
             stake: 1
         }
-    }[type];
+    };
+    const config = cardConfigs[type];
 
     const Icon = config.icon;
     const startTime = getEarliestTime(data);
