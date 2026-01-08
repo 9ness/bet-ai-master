@@ -6,10 +6,16 @@ import { verifyAdminPassword } from './actions';
 import ResultsCalendar from '@/components/ResultsCalendar';
 import AdminAnalytics from '@/components/AdminAnalytics';
 
+import TikTokFactory from '@/components/TikTokFactory';
+
 export default function AdminGuard({
-    children
+    children,
+    predictions,
+    formattedDate
 }: {
-    children: React.ReactNode
+    children: React.ReactNode;
+    predictions?: any;
+    formattedDate?: string;
 }) {
     // Auth State
     const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -18,13 +24,14 @@ export default function AdminGuard({
     const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
     // Tab State
-    const [activeTab, setActiveTab] = useState<'analysis' | 'calendar' | 'analytics' | 'settings'>('analysis');
+    const [activeTab, setActiveTab] = useState<'analysis' | 'calendar' | 'analytics' | 'settings' | 'tiktok'>('analysis');
 
     // Settings State
     const [settings, setSettings] = useState({
         show_daily_bets: true,
         show_calendar: true,
-        show_analytics: true
+        show_analytics: true,
+        show_tiktok: false
     });
     const [savingSettings, setSavingSettings] = useState(false);
     const [lastRun, setLastRun] = useState<{ date: string, status: string, message: string, script: string } | null>(null);
@@ -48,7 +55,8 @@ export default function AdminGuard({
                     setSettings({
                         show_daily_bets: data.show_daily_bets ?? true,
                         show_calendar: data.show_calendar ?? true,
-                        show_analytics: data.show_analytics ?? true
+                        show_analytics: data.show_analytics ?? true,
+                        show_tiktok: data.show_tiktok ?? false
                     });
                     if (data.last_run) {
                         setLastRun(data.last_run);
@@ -202,6 +210,7 @@ export default function AdminGuard({
                                 <ClipboardCheck className="w-3.5 h-3.5" />
                                 <span className="hidden md:inline">Comprobar</span>
                             </button>
+
                         </div>
 
                         {/* Status Log */}
@@ -265,6 +274,14 @@ export default function AdminGuard({
                         <span className="hidden md:block">📊 Estadísticas</span>
                     </button>
                     <button
+                        onClick={() => setActiveTab('tiktok')}
+                        className={`flex-1 md:flex-none py-3 md:py-4 text-xs md:text-sm font-bold border-b-2 transition-colors flex justify-center md:justify-start items-center gap-1.5 md:gap-2
+                        ${activeTab === 'tiktok' ? 'border-fuchsia-500 text-fuchsia-400' : 'border-transparent text-gray-400 hover:text-white'}`}
+                    >
+                        <span className="md:hidden">🏭 Factory</span>
+                        <span className="hidden md:block">🏭 TikTok Factory</span>
+                    </button>
+                    <button
                         onClick={() => setActiveTab('settings')}
                         className={`flex-1 md:flex-none py-3 md:py-4 text-xs md:text-sm font-bold border-b-2 transition-colors flex justify-center md:justify-start items-center gap-1.5 md:gap-2
                         ${activeTab === 'settings' ? 'border-fuchsia-500 text-fuchsia-400' : 'border-transparent text-gray-400 hover:text-white'}`}
@@ -299,7 +316,22 @@ export default function AdminGuard({
                             <AdminAnalytics />
                         </div>
                     )}
-                    {/* Tab 4: Settings */}
+
+                    {/* Tab 4: TikTok Factory */}
+                    {activeTab === 'tiktok' && (
+                        <div className="animate-in fade-in zoom-in-95 duration-200 h-[calc(100vh-12rem)]">
+                            {/* Pass props if available */}
+                            {predictions && formattedDate ? (
+                                <TikTokFactory predictions={predictions} formattedDate={formattedDate} />
+                            ) : (
+                                <div className="flex items-center justify-center h-full text-white/50">
+                                    Cargando datos para TikTok Factory...
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Tab 5: Settings */}
                     {activeTab === 'settings' && (
                         <div className="animate-in fade-in zoom-in-95 duration-200 max-w-2xl mx-auto">
                             <div className="bg-card border border-border/50 rounded-2xl p-6 md:p-8 space-y-8">
@@ -355,6 +387,23 @@ export default function AdminGuard({
                                                 className="sr-only peer"
                                                 checked={settings.show_analytics}
                                                 onChange={(e) => setSettings({ ...settings, show_analytics: e.target.checked })}
+                                            />
+                                            <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-fuchsia-600"></div>
+                                        </label>
+                                    </div>
+
+                                    {/* Item 4: TikTok Factory (Admin Only Visibility) */}
+                                    <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-xl border border-white/5 border-l-4 border-l-fuchsia-500">
+                                        <div>
+                                            <h4 className="font-bold text-fuchsia-400">Mostrar TikTok Factory</h4>
+                                            <p className="text-xs text-muted-foreground mt-1">Habilita el generador de contenido (Solo visible en Admin).</p>
+                                        </div>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                className="sr-only peer"
+                                                checked={settings.show_tiktok}
+                                                onChange={(e) => setSettings({ ...settings, show_tiktok: e.target.checked })}
                                             />
                                             <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-fuchsia-600"></div>
                                         </label>

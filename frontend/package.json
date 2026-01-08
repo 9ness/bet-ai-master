@@ -12,6 +12,7 @@
         "@upstash/redis": "^1.36.1",
         "clsx": "latest",
         "googleapis": "latest",
+        "html2canvas": "^1.4.1",
         "lucide-react": "latest",
         "next": "latest",
         "react": "latest",

@@ -27,7 +27,8 @@ export async function GET(req: NextRequest) {
         const defaults = {
             show_daily_bets: true,
             show_calendar: true,
-            show_analytics: true
+            show_analytics: true,
+            show_tiktok: false
         };
 
         return NextResponse.json({ ...defaults, ...settings, last_run: statusObj });
