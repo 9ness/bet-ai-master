@@ -261,8 +261,8 @@ export default function AdminGuard({
                         className={`flex-1 md:flex-none py-3 md:py-4 text-xs md:text-sm font-bold border-b-2 transition-colors flex justify-center md:justify-start items-center gap-1.5 md:gap-2
                         ${activeTab === 'analytics' ? 'border-fuchsia-500 text-fuchsia-400' : 'border-transparent text-gray-400 hover:text-white'}`}
                     >
-                        <span className="md:hidden">📊 Analítica</span>
-                        <span className="hidden md:block">📊 Analítica</span>
+                        <span className="md:hidden">📊 Estadísticas</span>
+                        <span className="hidden md:block">📊 Estadísticas</span>
                     </button>
                     <button
                         onClick={() => setActiveTab('settings')}

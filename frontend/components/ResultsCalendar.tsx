@@ -179,12 +179,12 @@ export default function ResultsCalendar() {
                     <div className="flex flex-col items-center justify-center h-full w-full md:gap-2">
                         {isPending ? (
                             <>
-                                <Clock size={24} className="text-zinc-400 mb-1 md:hidden" />
+                                <Clock size={16} className="text-zinc-400 md:hidden" />
                                 <span className="hidden md:block text-2xl font-black text-zinc-300">...</span>
                             </>
                         ) : (
                             <span className={`text-[9px] md:text-base lg:text-lg font-black tracking-tighter leading-none ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                {dayData.day_profit > 0 ? '+' : ''}{dayData.day_profit.toFixed(1)}u
+                                {dayData.day_profit > 0 ? '+' : ''}{dayData.day_profit.toFixed(2)}u
                             </span>
                         )}
 

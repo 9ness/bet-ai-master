@@ -53,41 +53,41 @@ export default function AdminAnalytics() {
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
             {/* Top Metrics Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-card/40 border border-border/50 p-6 rounded-3xl flex items-center justify-between">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+                <div className="bg-card/40 border border-border/50 p-4 md:p-6 rounded-3xl flex items-center justify-between">
                     <div>
-                        <p className="text-muted-foreground text-xs uppercase font-bold tracking-widest">Profit Mensual</p>
-                        <h3 className={`text-4xl font-black mt-2 ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        <p className="text-muted-foreground text-[10px] md:text-xs uppercase font-bold tracking-widest">Profit Mensual</p>
+                        <h3 className={`text-3xl md:text-4xl font-black mt-1 md:mt-2 ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
                             {stats?.total_profit > 0 ? '+' : ''}{stats?.total_profit} u
                         </h3>
                     </div>
-                    <div className={`p-4 rounded-full ${isPositive ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
-                        {isPositive ? <TrendingUp size={32} /> : <TrendingDown size={32} />}
+                    <div className={`p-3 md:p-4 rounded-full ${isPositive ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
+                        {isPositive ? <TrendingUp className="w-6 h-6 md:w-8 md:h-8" /> : <TrendingDown className="w-6 h-6 md:w-8 md:h-8" />}
                     </div>
                 </div>
 
-                <div className="bg-card/40 border border-border/50 p-6 rounded-3xl flex items-center justify-between">
+                <div className="bg-card/40 border border-border/50 p-4 md:p-6 rounded-3xl flex items-center justify-between">
                     <div>
-                        <p className="text-muted-foreground text-xs uppercase font-bold tracking-widest">ROI Estimado</p>
-                        <h3 className="text-4xl font-black mt-2 text-violet-400">
+                        <p className="text-muted-foreground text-[10px] md:text-xs uppercase font-bold tracking-widest">ROI Estimado</p>
+                        <h3 className="text-3xl md:text-4xl font-black mt-1 md:mt-2 text-violet-400">
                             {/* Fake/Simple ROI calc: Profit / (Days * ~10u betted) ? Logic needed later. Placeholder. */}
                             ~12.5%
                         </h3>
                     </div>
-                    <div className="p-4 rounded-full bg-violet-500/10 text-violet-500">
-                        <DollarSign size={32} />
+                    <div className="p-3 md:p-4 rounded-full bg-violet-500/10 text-violet-500">
+                        <DollarSign className="w-6 h-6 md:w-8 md:h-8" />
                     </div>
                 </div>
 
-                <div className="bg-card/40 border border-border/50 p-6 rounded-3xl flex items-center justify-between">
+                <div className="bg-card/40 border border-border/50 p-4 md:p-6 rounded-3xl flex items-center justify-between">
                     <div>
-                        <p className="text-muted-foreground text-xs uppercase font-bold tracking-widest">Días Operados</p>
-                        <h3 className="text-4xl font-black mt-2 text-white">
+                        <p className="text-muted-foreground text-[10px] md:text-xs uppercase font-bold tracking-widest">Días Operados</p>
+                        <h3 className="text-3xl md:text-4xl font-black mt-1 md:mt-2 text-white">
                             {data.length}
                         </h3>
                     </div>
-                    <div className="p-4 rounded-full bg-blue-500/10 text-blue-500">
-                        <TrendingUp size={32} />
+                    <div className="p-3 md:p-4 rounded-full bg-blue-500/10 text-blue-500">
+                        <TrendingUp className="w-6 h-6 md:w-8 md:h-8" />
                     </div>
                 </div>
             </div>
