@@ -14,7 +14,7 @@ export default function RootLayout({
     return (
         <html lang="es" className="dark">
             {/* className="dark" establece el tema por defecto */}
-            <body className="antialiased min-h-screen bg-background">
+            <body className="antialiased min-h-screen bg-background" suppressHydrationWarning>
                 {children}
             </body>
         </html>
