@@ -16,6 +16,7 @@ from src.services.redis_service import RedisService
 class GeminiService:
     def __init__(self):
         self.redis = RedisService()
+        self.api_key = os.getenv("GOOGLE_API_KEY")
         if not self.api_key:
             print("[WARNING] GOOGLE_API_KEY no encontrada.")
         
