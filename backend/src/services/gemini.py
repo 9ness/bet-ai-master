@@ -22,7 +22,8 @@ class GeminiService:
     # ... (get_today_date stays same) ...
 
     def get_recommendations(self, analyzed_data):
-        # ... (Start of method) ...
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        print(f"Generando recomendaciones para: {today_str}")
         
         prompt = f"""
         Estás operando en modo Risk Manager & Pro Tipster.

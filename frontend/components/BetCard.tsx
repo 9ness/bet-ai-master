@@ -309,17 +309,24 @@ export default function BetCard({ type, data }: BetCardProps) {
                     )}
                 </div>
 
-                {/* ODD & STAKE */}
+                {/* ODD & STAKE & PROFIT */}
                 <div className="flex items-end justify-between mt-4 px-1 border-t border-border pt-4">
                     <div className="flex flex-col">
-                        <span className="text-muted-foreground text-xs uppercase font-bold tracking-wider mb-1">Profit Est.</span>
-                        <span className={`font-mono font-black ${data.profit && data.profit < 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                        <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider mb-0.5">Profit Est.</span>
+                        <span className={`font-mono font-black text-xl ${data.profit && data.profit < 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
                             {data.profit ? `${data.profit > 0 ? '+' : ''}${data.profit}u` : `${(config.stake * (data.odd - 1)).toFixed(2)}u`}
                         </span>
                     </div>
 
+                    <div className="flex flex-col items-center">
+                        <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider mb-0.5">Stake</span>
+                        <span className={`font-mono font-bold text-lg ${config.textColor}`}>
+                            {config.stake}/10
+                        </span>
+                    </div>
+
                     <div className="flex flex-col items-end">
-                        <span className="text-muted-foreground text-xs uppercase font-bold tracking-wider mb-1">Cuota</span>
+                        <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider mb-0.5">Cuota</span>
                         <span className="font-mono text-4xl font-black tracking-tighter leading-none">{data.odd}</span>
                     </div>
                 </div>
