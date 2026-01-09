@@ -97,24 +97,13 @@ class GeminiService:
                 "bets": bets_json
             }
             
-            self._save(final_output)
-            # La subida a Redis se manejará principalmente en main.py mediante set_data("daily_bets", ...)
-            # Pero mantenemos la compatibilidad si este método espera guardar historial
-            # self.redis.save_daily_bets(today_str, bets_json) # Comentado si queremos centralizar en main.py o lo dejamos como log. 
-            # El usuario pide guardar en redis en main.py. 
-            # Dejaré el return limpio.
-
+            print("[LOG] Data generated successfully. Returning to main flow.")
             return final_output
             
         except Exception as e:
-            # ... (Error handling) ...
+            print(f"Error generating logic: {e}")
             return self._mock_response(today_str)
 
-    def _save(self, data):
-        with open(self.output_file, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=4, ensure_ascii=False)
-        print(f"[OK] Archivo guardado en: {self.output_file}")
-            
     def _mock_response(self, date_str):
         print("Generando datos MOCK de respaldo.")
         mock_data = {
@@ -151,7 +140,7 @@ class GeminiService:
                 }
             }
         }
-        self._save(mock_data)
+        print("[LOG] Mock data ready.")
         return mock_data
 
 if __name__ == "__main__":
