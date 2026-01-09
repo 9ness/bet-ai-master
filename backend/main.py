@@ -33,10 +33,21 @@ def main():
         
         print("\nStep 3: AI Selection...")
         gemini = GeminiService()
-        gemini.get_recommendations(analysis_result)
-    
+        recommendations = gemini.get_recommendations(analysis_result)
+        
+        if recommendations:
+            print("\nStep 4: Saving to Redis (Cloud)...")
+            rs = RedisService()
+            success = rs.set_data("daily_bets", recommendations)
+            if success:
+                print("[SUCCESS] Las apuestas se han guardado en Redis correctamente.")
+            else:
+                print("[WARNING] No se pudo guardar en Redis. Verifica logs.")
+        else:
+            print("[ERROR] No se obtuvieron recomendaciones de Gemini.")
+
     print("\n--- PROCESS COMPLETED SUCCESSFULLY ---")
-    print(f"Check results in: {os.path.abspath(os.path.join('data', 'daily_bets.json'))}")
+    # print(f"Check results in: {os.path.abspath(os.path.join('data', 'daily_bets.json'))}") # Ya no es la fuente de verdad
 
 if __name__ == "__main__":
     try:

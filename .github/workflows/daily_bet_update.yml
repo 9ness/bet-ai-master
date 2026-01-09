@@ -2,8 +2,7 @@ name: Daily Bet AI Update
 
 on:
   schedule:
-    # Análisis de apuestas: 08:00 Local (07:00 UTC)
-    - cron: '0 7 * * *'
+    - cron: '0 7 * * *' # 08:00 AM España
   workflow_dispatch:
     inputs:
       mode:
@@ -11,13 +10,7 @@ on:
         required: true
         default: 'all'
         type: choice
-        options:
-        - fetch
-        - analyze
-        - all
-
-permissions:
-  contents: write
+        options: [fetch, analyze, all]
 
 jobs:
   run-analysis:
@@ -38,27 +31,14 @@ jobs:
         
     - name: Run AI Prediction Engine
       env:
-        # Claves API
+        # AQUÍ mapeamos los Secrets de GitHub a las variables que lee Python
         API_KEY: ${{ secrets.API_KEY }}
-        GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-        # Variables de Redis (Upstash)
-        UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
-        UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
-        REDIS_PREFIX: ${{ secrets.REDIS_PREFIX }}
+        GEMINI_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        REDIS_URL: ${{ secrets.REDIS_URL }}
+        REDIS_TOKEN: ${{ secrets.REDIS_TOKEN }}
       run: |
         cd backend
         python main.py --mode ${{ inputs.mode || 'all' }}
         
-    - name: Commit and Push results
-      run: |
-        git config --global user.name "BetAI Bot"
-        git config --global user.email "bot@betaimaster.com"
-        
-        if [[ -n $(git status -s frontend/public/data/daily_bets.json) ]]; then
-          git add frontend/public/data/daily_bets.json
-          git commit -m "🤖 Daily AI Update: $(date +'%Y-%m-%d')"
-          git push
-          echo "✅ Updates pushed successfully."
-        else
-          echo "ℹ️ No changes detected in predictions."
-        fi
+    # SE HA ELIMINADO EL PASO DE COMMIT Y PUSH
+    # Las apuestas van directo a Redis.

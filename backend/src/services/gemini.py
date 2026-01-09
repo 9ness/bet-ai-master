@@ -86,9 +86,12 @@ class GeminiService:
             }
             
             self._save(final_output)
-            # Redis Save
-            self.redis.save_daily_bets(today_str, bets_json)
-            
+            # La subida a Redis se manejará principalmente en main.py mediante set_data("daily_bets", ...)
+            # Pero mantenemos la compatibilidad si este método espera guardar historial
+            # self.redis.save_daily_bets(today_str, bets_json) # Comentado si queremos centralizar en main.py o lo dejamos como log. 
+            # El usuario pide guardar en redis en main.py. 
+            # Dejaré el return limpio.
+
             return final_output
             
         except Exception as e:

@@ -1,8 +1,18 @@
 import os
+import sys
 import json
 import requests
 import re
 from datetime import datetime, timedelta
+
+# Adjust path to allow imports from src if running from project root
+# This assumes the script is located at `project_root/backend/src/services/check_results.py`
+# and we want to add `project_root/backend` to the Python path.
+script_dir = os.path.dirname(__file__)
+backend_path = os.path.abspath(os.path.join(script_dir, '..', '..'))
+if backend_path not in sys.path:
+    sys.path.insert(0, backend_path)
+
 from src.services.redis_service import RedisService
 
 class ResultChecker:
@@ -12,8 +22,6 @@ class ResultChecker:
         self.base_url = "https://v3.football.api-sports.io"
         self.headers = {"x-apisports-key": self.api_key}
 
-    def _get_target_date(self):
-        # Defaults to Yesterday
         yesterday = datetime.now() - timedelta(days=1)
         return yesterday.strftime("%Y-%m-%d")
 

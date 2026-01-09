@@ -125,6 +125,27 @@ class RedisService:
         full_pattern = self._get_key(pattern)
         return self._send_command("KEYS", full_pattern)
 
+    def set_data(self, key, data):
+        """
+        Guarda datos genéricos en Redis serializados como JSON.
+        Clave: string
+        Data: dict/list -> JSON
+        """
+        if not self.is_active:
+            print(f"[Redis] Ignorado (Inactivo): SET {key}")
+            return False
+            
+        try:
+            # Aseguramos que la data sea JSON
+            json_val = json.dumps(data)
+            # Usamos el método interno set que ya maneja el prefijo
+            self.set(key, json_val)
+            print(f"[Redis] set_data OK: {key}")
+            return True
+        except Exception as e:
+            print(f"[Redis] Error en set_data para {key}: {e}")
+            return False
+
     def log_status(self, script_name, status, message=""):
         key = self._get_key("status:last_run")
         data = {
