@@ -47,32 +47,41 @@ class GeminiService:
                 "time": "21:00",
                 "selections": [
                     {{ "fixture_id": 123456, "match": "A vs B", "pick": "Gana Local", "odd": 1.65 }}
+        {{
+            "safe": {{
+                "match": "Real Madrid vs Barcelona",
+                "time": "21:00",
+                "selections": [
+                    {{ "fixture_id": 123456, "match": "Real Madrid vs Barcelona", "pick": "Gana Local", "odd": 1.65, "status": "PENDING" }}
                 ],
                 "pick": "Gana Local",
                 "odd": 1.65,
-                "reason": "..."
+                "reason": "...",
+                "status": "PENDING"
             }},
             "value": {{
                 "match": "Título Combinada o Partido", 
                 "time": "18:30",
                 "selections": [
-                    {{ "fixture_id": 111, "match": "A vs B", "pick": "...", "odd": 1.40 }},
-                    {{ "fixture_id": 222, "match": "C vs D", "pick": "...", "odd": 2.00 }}
+                    {{ "fixture_id": 111, "match": "A vs B", "pick": "...", "odd": 1.40, "status": "PENDING" }},
+                    {{ "fixture_id": 222, "match": "C vs D", "pick": "...", "odd": 2.00, "status": "PENDING" }}
                 ],
                 "pick": "Pick Resumen",
                 "odd": 2.80,
-                "reason": "..."
+                "reason": "...",
+                "status": "PENDING"
             }},
             "funbet": {{
                 "match": "Combinada Loca",
                 "time": "16:00", 
                 "selections": [
-                    {{ "fixture_id": 333, "match": "A vs B", "pick": "...", "odd": 1.20 }},
-                    {{ "fixture_id": 444, "match": "C vs D", "pick": "...", "odd": 1.30 }}
+                    {{ "fixture_id": 333, "match": "A vs B", "pick": "...", "odd": 1.20, "status": "PENDING" }},
+                    {{ "fixture_id": 444, "match": "C vs D", "pick": "...", "odd": 1.30, "status": "PENDING" }}
                 ],
                 "pick": "Resumen Picks",
                 "odd": 15.40,
-                "reason": "..."
+                "reason": "...",
+                "status": "PENDING"
             }}
         }}
         """
@@ -115,24 +124,29 @@ class GeminiService:
                     "match": "Manchester City vs Burnley (MOCK)",
                     "pick": "Victoria Man City",
                     "odd": 1.15,
-                    "reason": "1. City invicto en casa. 2. Burnley sin victorias fuera."
+                    "reason": "1. City invicto en casa. 2. Burnley sin victorias fuera.",
+                    "status": "PENDING",
+                    "selections": [{ "match": "Manchester City vs Burnley", "pick": "Victoria Man City", "odd": 1.15, "fixture_id": 999001, "status": "PENDING" }]
                 },
                 "value": {
                     "match": "Sevilla vs Betis (MOCK)", 
                     "pick": "Empate",
                     "odd": 3.10,
-                    "reason": "1. Derby muy disputado. 2. Ambos equipos en racha similar."
+                    "reason": "1. Derby muy disputado. 2. Ambos equipos en racha similar.",
+                    "status": "PENDING",
+                    "selections": [{ "match": "Sevilla vs Betis", "pick": "Empate", "odd": 3.10, "fixture_id": 999002, "status": "PENDING" }]
                 },
                 "funbet": {
                     "match": "Combinada Demo (MOCK)",
                     "pick": "Gana City + Gana Sevilla + Over 2.5",
-                    "components": [
-                         {"match": "City vs Burnley", "pick": "Gana City"},
-                         {"match": "Sevilla vs Betis", "pick": "Empate"},
-                         {"match": "Barca vs Getafe", "pick": "Over 2.5"}
+                    "selections": [
+                         {"match": "City vs Burnley", "pick": "Gana City", "odd": 1.15, "fixture_id": 999001, "status": "PENDING"},
+                         {"match": "Sevilla vs Betis", "pick": "Empate", "odd": 3.10, "fixture_id": 999002, "status": "PENDING"},
+                         {"match": "Barca vs Getafe", "pick": "Over 2.5", "odd": 1.90, "fixture_id": 999003, "status": "PENDING"}
                     ],
                     "odd": 14.50,
-                    "reason": "1. Favoritos claros. 2. Alta probabilidad de goles en Barca."
+                    "reason": "1. Favoritos claros. 2. Alta probabilidad de goles en Barca.",
+                    "status": "PENDING"
                 }
             }
         }

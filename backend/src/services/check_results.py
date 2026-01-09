@@ -15,6 +15,7 @@ from src.services.redis_service import RedisService
 
 class ResultChecker:
     def __init__(self):
+        # Inicialización limpia sin return
         self.redis = RedisService()
         self.api_key = os.getenv("API_KEY")
         self.base_url = "https://v3.football.api-sports.io"
@@ -144,7 +145,6 @@ class ResultChecker:
             odd = bet_data.get("odd", 0)
             
             # --- SELECCIONES ---
-            # Si no existe 'selections', migramos desde 'components' o simple
             selections = bet_data.get("selections", [])
             if not selections and bet_data.get("components"):
                 selections = bet_data["components"]
@@ -154,20 +154,37 @@ class ResultChecker:
                     "fixture_id": bet_data.get("fixture_id"),
                     "match": bet_data.get("match"),
                     "pick": bet_data.get("pick"),
-                    "odd": odd
+                    "odd": odd,
+                    "status": "PENDING"
                 }]
             
+            # --- GLOBAL STATUS CHECK ---
+            current_status = bet_data.get("status", "PENDING")
+            
+            # Logic Rule: Only process if Global Status is PENDING 
+            # OR if we want to allow updating PENDING selections within a PENDING bet.
+            # User said: "Si una apuesta ya está como 'WON' o 'LOST', el script NO debe tocarla"
+            
+            if current_status in ["WON", "LOST", "GANADA", "PERDIDA"]:
+                print(f"   [SKIP] Apuesta {cat_name} ya está finalizada ({current_status}).")
+                # Ensure selections are saved back if we modified them above (migration)
+                bet_data["selections"] = selections
+                continue
+                
             # Evaluar cada selección
             sel_results = []
             
             for sel in selections:
                 fid = sel.get("fixture_id")
                 pick = sel.get("pick")
+                sel_status = sel.get("status", "PENDING")
                 
-                # Manual Override Check (si el admin ya puso status, lo respetamos? 
-                # El prompt dice "El script actualiza...". Si admin fuerza, quizás deberíamos respetar 'MANUAL_' prefix?
-                # Por simplicidad: script siempre verifica API. Si admin quiere forzar, debe ser post-script o flag.)
-                
+                # Logic Rule: Only process selection if output is currently PENDING
+                if sel_status not in ["PENDING", "PENDIENTE", "UNKNOWN"]:
+                     print(f"   [SKIP] Selección {fid} ya tiene estado {sel_status}.")
+                     sel_results.append(sel_status)
+                     continue
+
                 res = self.fetch_match_result(fid)
                 status = "PENDING"
                 result_txt = "?"
@@ -188,20 +205,26 @@ class ResultChecker:
             # Guardar array actualizado
             bet_data["selections"] = selections
             
-            # Determinar Estado Global
+            # Determinar Estado Global (Solo si estaba PENDING, que ya filtramos arriba)
             final_status = "PENDING"
-            if "LOST" in sel_results:
+            
+            # Logic: 
+            # If ANY selection is LOST -> Bet is LOST
+            # If ALL selections are WON -> Bet is WON
+            # Else -> PENDING
+            
+            if any(s in ["LOST", "PERDIDA"] for s in sel_results):
                 final_status = "LOST"
-            elif "PENDING" in sel_results:
-                 final_status = "PENDING"
-                 all_bets_finished = False
+            elif all(s in ["WON", "GANADA"] for s in sel_results) and len(sel_results) > 0:
+                 final_status = "WON"
             else:
-                final_status = "WON"
+                 final_status = "PENDING"
 
             # Calcular Profit
             profit = 0.0
             status_display = "PENDIENTE"
             
+            # Use bet_data["status"] update only if changed or re-calculated
             if final_status == "LOST":
                 profit = -float(stake)
                 status_display = "PERDIDA"

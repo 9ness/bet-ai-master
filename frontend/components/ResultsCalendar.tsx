@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, X, CircleCheck, CircleX, TrendingUp, ChevronDown, Check, MonitorPlay, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, RefreshCw, Check, X, CircleCheck, CircleX, Clock, ChevronDown, Save, Loader2, TrendingUp, MonitorPlay } from 'lucide-react';
 
 // Type definitions
 type PickDetail = {
@@ -36,36 +36,81 @@ type MonthStats = {
 
 // Sub-component for individual Bet Cards in Modal
 // Sub-component for individual Bet Cards in Modal
+// Sub-component for individual Bet Cards in Modal
 const BetDetailCard = ({ bet, date, isAdmin, onUpdate }: { bet: BetResult, date: string, isAdmin: boolean, onUpdate: () => void }) => {
     const [expanded, setExpanded] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-    // Use local state for optimistic UI updates if needed, 
-    // but for now let's rely on re-fetch or just simple API call.
+    const [pendingChanges, setPendingChanges] = useState<Record<number, string>>({});
+    // Key: selectionId, Value: newStatus
 
-    // Fallback if picks_detail is empty but we have selections in bet object (if API returns it)
-    // The Type definition needs 'selections' or we map 'picks_detail' to it?
-    // In API/Python we save 'selections'. In this file 'BetResult' has 'picks_detail'.
-    // We should probably accept 'selections' too.
-    const details = bet.selections || bet.picks_detail || [];
+    // Reset pending changes when bet prop updates (e.g. after save/refresh)
+    useEffect(() => {
+        setPendingChanges({});
+    }, [bet]);
+
+    const details = bet.selections || bet.picks_detail || bet.components || [];
     const hasDetails = details.length > 0;
+    const hasChanges = Object.keys(pendingChanges).length > 0;
 
-    const handleStatusUpdate = async (type: string, id: number | undefined, newStatus: string) => {
-        if (!id) return;
+    // Helper to get unique ID for selection (legacy compatibility)
+    const getSelId = (detail: any) => detail.fixture_id ? detail.fixture_id.toString() : detail.match;
+
+    const handleLocalStatusChange = (id: string, newStatus: string) => {
+        setPendingChanges(prev => ({
+            ...prev,
+            [id]: newStatus
+        }));
+    };
+
+    const handleSaveBatch = async () => {
         setIsSaving(true);
         try {
-            const res = await fetch('/api/admin/update-bet', {
+            // Convert pendingChanges to array
+            // Format: { selectionId, newStatus } 
+            // We verify if mapped ID is numeric-ish or string
+            const updates = Object.entries(pendingChanges).map(([idStr, status]) => ({
+                selectionId: idStr,
+                newStatus: status
+            }));
+
+            if (updates.length === 0) return;
+
+            await fetch('/api/admin/update-bet', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     date,
-                    betType: bet.type, // 'safe', 'value', 'funbet'
-                    selectionId: id,
+                    betType: bet.type,
+                    updates // Send batch
+                })
+            });
+
+            setPendingChanges({});
+            onUpdate(); // Refresh Parent
+        } catch (e) {
+            console.error(e);
+            alert("Error saving updates");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    // Global override
+    const handleGlobalStatusUpdate = async (newStatus: string) => {
+        setIsSaving(true);
+        try {
+            await fetch('/api/admin/update-bet', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    date,
+                    betType: bet.type,
+                    selectionId: null, // Explicit global update
                     newStatus
                 })
             });
-            if (res.ok) {
-                onUpdate(); // Refresh parent
-            }
+            console.log("Global status updated, refreshing data...");
+            onUpdate(); // Mutate/Refresh parent data
         } catch (e) {
             console.error(e);
         } finally {
@@ -74,7 +119,7 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate }: { bet: BetResult, date:
     };
 
     return (
-        <div className="bg-secondary/30 rounded-xl p-4 border border-border/50 transition-all hover:bg-secondary/40">
+        <div className="bg-secondary/30 rounded-xl p-4 border border-border/50 transition-all hover:bg-secondary/40 relative">
             <div className="flex justify-between items-start mb-2">
                 <span className={`text-xs font-bold uppercase px-2 py-1 rounded-full 
                     ${bet.type === 'safe' ? 'bg-emerald-500/10 text-emerald-500' :
@@ -82,7 +127,7 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate }: { bet: BetResult, date:
                             'bg-amber-500/10 text-amber-500'}`}>
                     {bet.type === 'safe' ? 'SEGURA' : bet.type === 'value' ? 'DE VALOR' : bet.type}
                 </span>
-                <span className={`font-mono font-bold ${bet.profit >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                <span className={`font-mono font-bold ${bet.profit > 0 ? 'text-emerald-500' : bet.profit < 0 ? 'text-rose-500' : 'text-muted-foreground'}`}>
                     {bet.profit > 0 ? '+' : ''}{bet.profit.toFixed(2)}u
                 </span>
             </div>
@@ -90,42 +135,75 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate }: { bet: BetResult, date:
             <p className="font-semibold text-sm mb-1">{bet.match}</p>
             <p className="text-xs text-muted-foreground mb-3 italic">{bet.pick}</p>
 
-            {/* Expansion Toggle */}
+            {/* Expansion Toggle & Save Bar */}
             {hasDetails && (
-                <button
-                    onClick={() => setExpanded(!expanded)}
-                    className="flex items-center gap-1 text-[10px] uppercase font-bold text-primary mb-3 hover:underline"
-                >
-                    <ChevronDown size={14} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
-                    Ver Desglose ({details.length})
-                </button>
+                <div className="flex justify-between items-center mb-3">
+                    <button
+                        onClick={() => setExpanded(!expanded)}
+                        className="flex items-center gap-1 text-[10px] uppercase font-bold text-primary hover:underline"
+                    >
+                        <ChevronDown size={14} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                        Ver Desglose ({details.length})
+                    </button>
+
+                    {/* Batch Save Button - Inline */}
+                    {hasChanges && (
+                        <button
+                            onClick={handleSaveBatch}
+                            disabled={isSaving}
+                            className="bg-primary/90 hover:bg-primary text-primary-foreground text-[10px] font-bold px-2 py-1 rounded shadow flex items-center gap-1 animate-in fade-in zoom-in duration-200"
+                        >
+                            {isSaving ? <Loader2 size={10} className="animate-spin" /> : <Save size={10} />}
+                            Guardar ({Object.keys(pendingChanges).length})
+                        </button>
+                    )}
+                </div>
             )}
 
             {/* Expanded List */}
-            {expanded && hasDetails && (
-                <div className="mb-3 space-y-1 bg-background/50 p-2 rounded-lg border border-border/30">
-                    {details.map((detail: any, idx: number) => (
-                        <div key={idx} className="flex justify-between items-center text-xs p-1 border-b border-white/5 last:border-0">
-                            <div className="flex bg-black/20 rounded px-1.5 py-0.5 max-w-[65%]">
-                                <span className="truncate text-muted-foreground mr-1">{detail.match}:</span>
-                                <span className="font-medium truncate text-foreground">{detail.pick}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                {(detail.status === 'SUCCESS' || detail.status === 'WON' || detail.status === 'GANADA') && <CircleCheck size={14} className="text-emerald-500" />}
-                                {(detail.status === 'FAIL' || detail.status === 'LOST' || detail.status === 'PERDIDA') && <CircleX size={14} className="text-rose-500" />}
-                                {(detail.status === 'PENDING' || detail.status === 'PENDIENTE') && <Clock size={14} className="text-amber-500/50" />}
+            {
+                expanded && hasDetails && (
+                    <div className="mb-3 space-y-1 bg-background/50 p-2 rounded-lg border border-border/30">
+                        {details.map((detail: any, idx: number) => {
+                            const uniqueId = getSelId(detail);
+                            // Determine value: pending > current > default
+                            const currentStatus = pendingChanges[uniqueId] || detail.status || "PENDING";
 
-                                {isAdmin && (
-                                    <div className="flex gap-1 ml-2">
-                                        <button disabled={isSaving} onClick={() => handleStatusUpdate(bet.type, detail.fixture_id, 'WON')} className="p-0.5 hover:bg-emerald-500/20 rounded text-emerald-500"><Check size={12} /></button>
-                                        <button disabled={isSaving} onClick={() => handleStatusUpdate(bet.type, detail.fixture_id, 'LOST')} className="p-0.5 hover:bg-rose-500/20 rounded text-rose-500"><X size={12} /></button>
+                            return (
+                                <div key={idx} className="flex justify-between items-center text-xs p-1 border-b border-white/5 last:border-0 gap-2">
+                                    <div className="flex bg-black/20 rounded px-1.5 py-0.5 flex-1 min-w-0">
+                                        <span className="text-muted-foreground mr-1 shrink-0">{detail.match}:</span>
+                                        <span className="font-medium truncate text-foreground">{detail.pick}</span>
                                     </div>
-                                )}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
+
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        {isAdmin ? (
+                                            <select
+                                                className={`border text-[10px] rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary transition-colors
+                                                ${pendingChanges[uniqueId] ? 'bg-primary/10 border-primary text-primary' : 'bg-background border-white/10 text-foreground'}`}
+                                                value={currentStatus}
+                                                onChange={(e) => handleLocalStatusChange(uniqueId, e.target.value)}
+                                                disabled={isSaving}
+                                            >
+                                                <option value="PENDING">PEND</option>
+                                                <option value="WON">WON</option>
+                                                <option value="LOST">LOST</option>
+                                                <option value="VOID">VOID</option>
+                                            </select>
+                                        ) : (
+                                            <>
+                                                {(detail.status === 'SUCCESS' || detail.status === 'WON' || detail.status === 'GANADA') && <CircleCheck size={14} className="text-emerald-500" />}
+                                                {(detail.status === 'FAIL' || detail.status === 'LOST' || detail.status === 'PERDIDA') && <CircleX size={14} className="text-rose-500" />}
+                                                {(!detail.status || detail.status === 'PENDING' || detail.status === 'PENDIENTE') && <Clock size={14} className="text-amber-500" />}
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )
+            }
 
             <div className="flex justify-between items-center text-xs border-t border-border/30 pt-2">
                 <div className="flex gap-4">
@@ -133,13 +211,28 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate }: { bet: BetResult, date:
                     <span>Cuota: <b className="text-foreground">{bet.total_odd}</b></span>
                 </div>
                 <div className="flex items-center gap-1 font-bold">
-                    {(bet.status === 'WON' || bet.status === 'GANADA') && <><CircleCheck size={14} className="text-emerald-500" /> GANADA</>}
-                    {(bet.status === 'LOST' || bet.status === 'PERDIDA') && <><CircleX size={14} className="text-rose-500" /> PERDIDA</>}
-                    {(bet.status === 'PENDING' || bet.status === 'PENDIENTE') && <span className="text-amber-500">PENDIENTE</span>}
-                    {bet.status === 'UNKNOWN' && <span className="text-gray-500">? DESC.</span>}
+                    {isAdmin ? (
+                        <select
+                            className="bg-secondary text-xs rounded px-2 py-1 font-bold focus:outline-none focus:ring-1 focus:ring-primary"
+                            value={bet.status}
+                            onChange={(e) => handleGlobalStatusUpdate(e.target.value)}
+                            disabled={isSaving}
+                        >
+                            <option value="PENDING">PENDIENTE</option>
+                            <option value="WON">GANADA</option>
+                            <option value="LOST">PERDIDA</option>
+                        </select>
+                    ) : (
+                        <>
+                            {(bet.status === 'WON' || bet.status === 'GANADA') && <><CircleCheck size={14} className="text-emerald-500" /> GANADA</>}
+                            {(bet.status === 'LOST' || bet.status === 'PERDIDA') && <><CircleX size={14} className="text-rose-500" /> PERDIDA</>}
+                            {(bet.status === 'PENDING' || bet.status === 'PENDIENTE') && <span className="text-amber-500">PENDIENTE</span>}
+                            {bet.status === 'UNKNOWN' && <span className="text-gray-500">? DESC.</span>}
+                        </>
+                    )}
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 
@@ -149,12 +242,15 @@ export default function ResultsCalendar() {
     const [stats, setStats] = useState<MonthStats | null>(null);
     const [history, setHistory] = useState<Record<string, DayHistory>>({});
     const [loading, setLoading] = useState(false);
-    const [selectedDay, setSelectedDay] = useState<DayHistory | null>(null);
+    const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const [isAdmin, setIsAdmin] = useState(false);
     const [isChecking, setIsChecking] = useState(false);
 
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
+
+    // Derived state for live updates
+    const selectedDayData = selectedDate ? history[selectedDate] : null;
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -220,67 +316,68 @@ export default function ResultsCalendar() {
 
     const renderDay = (day: number) => {
         const dateStr = `${year}-${(month + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-        // @ts-ignore - Dynamic key access
+        // @ts-ignore
         const dayData = history[dateStr];
         const hasData = !!dayData;
+        const isToday = new Date().toISOString().split('T')[0] === dateStr;
 
         // Valid statuses from API: 'PENDING'
-        // Or if we check day_profit only? No, use the status flag I added in API.
-        // But Typescript might not know about it. `DayHistory` type definition needs update too?
-        // Let's rely on checking property existence or implicit any.
-        // In API I added `status: 'PENDING'`.
         const isPending = hasData && (dayData as any).status === 'PENDING';
-        const isPositive = hasData && dayData.day_profit >= 0;
+
+        const profitClass = hasData ? (dayData.day_profit > 0 ? 'text-emerald-400' : dayData.day_profit < 0 ? 'text-rose-400' : 'text-muted-foreground') : '';
+        const profitBg = hasData ? (dayData.day_profit > 0 ? 'bg-emerald-500/10' : dayData.day_profit < 0 ? 'bg-rose-500/10' : 'bg-secondary/20') : 'bg-secondary/5';
+
+        if (!hasData) {
+            return (
+                <div key={day} className={`aspect-square md:aspect-auto md:h-32 lg:h-40 bg-secondary/5 rounded-xl border border-white/5 p-2 transition-all hover:bg-secondary/10 group relative`}>
+                    <div className="flex justify-between items-start">
+                        <span className={`text-sm font-bold ${isToday ? 'bg-primary text-primary-foreground w-6 h-6 rounded-full flex items-center justify-center' : 'text-muted-foreground'}`}>
+                            {day}
+                        </span>
+                    </div>
+                </div>
+            );
+        }
 
         return (
             <div
                 key={day}
-                onClick={() => hasData && setSelectedDay(dayData)}
+                onClick={() => setSelectedDate(dateStr)}
                 className={`
-                    relative aspect-square md:aspect-auto border rounded-lg md:rounded-xl p-1 md:p-4 flex flex-col items-center justify-between transition-all group overflow-hidden
+                    relative aspect-square md:aspect-auto border rounded-xl p-3 flex flex-col justify-between transition-all group overflow-hidden cursor-pointer hover:shadow-lg hover:scale-[1.02]
                     md:h-32 lg:h-40
-                    ${hasData ? 'cursor-pointer hover:shadow-lg' : 'opacity-30 pointer-events-none border-border/40'}
-                    ${selectedDay?.date === dateStr ? 'ring-2 ring-primary bg-secondary/30' : ''}
-                    ${hasData && !isPending && !selectedDay ? 'hover:bg-secondary/50 hover:border-primary/50 hover:shadow-primary/5 border-border/40' : ''}
-                    ${isPending ? 'bg-zinc-500/5 border-zinc-500/20 hover:border-zinc-500/40' : ''}
+                    ${profitBg}
+                    border-white/5
+                    ${selectedDate === dateStr ? 'ring-2 ring-primary' : ''}
                 `}
             >
-                <div className="hidden md:block absolute top-2 right-2 md:top-3 md:right-3 opacity-50 group-hover:opacity-100 transition-opacity">
-                    {hasData && (
-                        isPending ? <Clock size={16} className="text-zinc-500" /> :
-                            isPositive ? <TrendingUp size={16} className="text-emerald-500" /> : <TrendingUp size={16} className="text-rose-500 rotate-180" />
-                    )}
+                <div className="flex justify-between items-start mb-2 relative z-10">
+                    <span className={`text-lg font-bold ${isToday ? 'bg-primary text-primary-foreground w-8 h-8 rounded-full flex items-center justify-center shadow-lg' : 'text-foreground'}`}>
+                        {day}
+                    </span>
+                    {isPending && <Clock size={16} className="text-amber-500 animate-pulse" />}
                 </div>
 
-                <span className="text-[10px] md:text-xl font-bold text-muted-foreground group-hover:text-foreground transition-colors self-start md:self-auto pl-1 md:pl-0">{day}</span>
-
-                {hasData && (
-                    <div className="flex flex-col items-center justify-center h-full w-full md:gap-2">
-                        {isPending ? (
-                            <>
-                                <Clock size={16} className="text-zinc-400 md:hidden" />
-                                <span className="hidden md:block text-2xl font-black text-zinc-300">...</span>
-                            </>
-                        ) : (
-                            <span className={`text-[9px] md:text-base lg:text-lg font-black tracking-tighter leading-none ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                {dayData.day_profit > 0 ? '+' : ''}{dayData.day_profit.toFixed(2)}u
-                            </span>
-                        )}
-
-                        <div className="hidden md:flex items-center gap-1">
-                            <div className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full ${isPending ? 'bg-zinc-500 shadow-[0_0_8px_rgba(113,113,122,0.8)]' : isPositive ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]'}`} />
-                            <span className="text-[10px] uppercase font-bold text-muted-foreground">
-                                {isPending ? 'Pendiente' : isPositive ? 'Profit' : 'Loss'}
-                            </span>
-                        </div>
+                <div className="flex flex-col gap-1 relative z-10">
+                    <div className="text-xs font-medium text-muted-foreground">Profit</div>
+                    <div className={`text-xl font-bold ${profitClass}`}>
+                        {dayData.day_profit > 0 ? '+' : ''}{dayData.day_profit.toFixed(2)}u
                     </div>
-                )}
+                </div>
+
+                <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="bg-background/80 backdrop-blur-sm p-1.5 rounded-full shadow-lg">
+                        <ChevronRight size={16} className="text-primary" />
+                    </div>
+                </div>
             </div>
         );
     };
 
+
+
     return (
-        <div className="w-full max-w-7xl mx-auto bg-card/30 backdrop-blur-sm border border-border/50 rounded-3xl p-4 md:p-8 shadow-2xl">
+        <div className="w-full max-w-7xl mx-auto p-4 md:p-8 space-y-8">
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-6">
                 <div className="flex items-center gap-4 bg-background/50 p-2 rounded-full border border-border/50 shadow-inner">
@@ -304,15 +401,10 @@ export default function ResultsCalendar() {
                 </div>
             </div>
 
-            {/* Grid Headers */}
-            <div className="grid grid-cols-7 gap-2 md:gap-4 mb-3 border-b border-border/30 pb-2">
-                {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map((d, i) => (
-                    <div key={d} className="text-center text-xs md:text-sm font-bold text-muted-foreground uppercase tracking-widest hidden md:block">
-                        {d}
-                    </div>
-                ))}
-                {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((d, i) => (
-                    <div key={d} className="text-center text-xs font-bold text-muted-foreground md:hidden">
+            {/* Calendar Grid Header */}
+            <div className="grid grid-cols-7 gap-2 md:gap-4 mb-2">
+                {['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM'].map((d, i) => (
+                    <div key={d} className="text-center text-xs font-bold text-muted-foreground hidden md:block">
                         {d}
                     </div>
                 ))}
@@ -327,7 +419,7 @@ export default function ResultsCalendar() {
             </div>
 
             {/* Detail Modal */}
-            {selectedDay && (
+            {selectedDate && selectedDayData && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
                     <div className="bg-card w-full max-w-2xl border border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-300">
 
@@ -335,15 +427,15 @@ export default function ResultsCalendar() {
                         <div className="p-6 border-b border-border flex justify-between items-center bg-gradient-to-r from-secondary/50 to-background/50">
                             <div>
                                 <h3 className="font-bold text-2xl text-white flex items-center gap-2">
-                                    {new Date(selectedDay.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
+                                    {new Date(selectedDate).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
                                 </h3>
                                 <div className="flex items-center gap-2 mt-1">
-                                    <span className={`text-sm font-bold px-2 py-0.5 rounded ${selectedDay.day_profit >= 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
-                                        {selectedDay.day_profit > 0 ? '+' : ''}{selectedDay.day_profit.toFixed(2)} unidades
+                                    <span className={`text-sm font-bold px-2 py-0.5 rounded ${selectedDayData.day_profit >= 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
+                                        {selectedDayData.day_profit > 0 ? '+' : ''}{selectedDayData.day_profit.toFixed(2)} unidades
                                     </span>
                                 </div>
                             </div>
-                            <button onClick={() => setSelectedDay(null)} className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/70 hover:text-white">
+                            <button onClick={() => setSelectedDate(null)} className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/70 hover:text-white">
                                 <X size={28} />
                             </button>
                         </div>
@@ -353,7 +445,7 @@ export default function ResultsCalendar() {
                             {isAdmin && (
                                 <div className="flex justify-end mb-2">
                                     <button
-                                        onClick={() => handleTriggerCheck(selectedDay.date)}
+                                        onClick={() => handleTriggerCheck(selectedDate)}
                                         disabled={isChecking}
                                         className="text-xs bg-primary/20 hover:bg-primary/30 text-primary px-3 py-1 rounded-full font-bold flex items-center gap-1 transition-colors"
                                     >
@@ -362,11 +454,12 @@ export default function ResultsCalendar() {
                                     </button>
                                 </div>
                             )}
-                            {selectedDay.bets.map((bet, idx) => (
+
+                            {selectedDayData.bets.map((bet: any, idx: number) => (
                                 <BetDetailCard
                                     key={idx}
                                     bet={bet}
-                                    date={selectedDay.date}
+                                    date={selectedDate}
                                     isAdmin={isAdmin}
                                     onUpdate={handleUpdate}
                                 />

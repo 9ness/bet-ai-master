@@ -4,32 +4,45 @@ export async function POST(request: Request) {
     try {
         const { date } = await request.json();
 
-        // Trigger GitHub Workflow Dispatch
-        const response = await fetch('https://api.github.com/repos/YOUR_USERNAME/YOUR_REPO/actions/workflows/update_results_bet.yml/dispatches', {
+        // Repo details
+        const OWNER = '9ness';
+        const REPO = 'bet-ai-master';
+        const WORKFLOW_ID = 'update_results_bet.yml';
+
+        // Log for debugging
+        console.log(`[Admin] Triggering workflow ${WORKFLOW_ID} for ${OWNER}/${REPO}`);
+
+        const response = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/actions/workflows/${WORKFLOW_ID}/dispatches`, {
             method: 'POST',
             headers: {
                 'Accept': 'application/vnd.github.v3+json',
-                'Authorization': `token ${process.env.GITHUB_TOKEN}`,
+                'Authorization': `token ${process.env.GH_TOKEN || process.env.GITHUB_TOKEN}`,
             },
             body: JSON.stringify({
                 ref: 'main',
+                // Inputs only if the workflow accepts them. Check results script uses --date, 
+                // but workflow file needs 'workflow_dispatch: inputs: ...' to pass them to env or args.
+                // Assuming script defaults to "yesterday" if no date? 
+                // BUT user wants to force check. 
+                // Let's pass 'date' if we can, but if workflow doesn't have it defined, it might warn.
+                // For now, simple dispatch.
                 inputs: {
-                    mode: 'all' // Although the workflow doesn't explicitly use mode input for DATE, we might need to update workflow to accept date input if we want specific date check. 
-                    // But check_results.py now accepts --date. The workflow needs to pass it.
-                    // For now, let's assume it runs default or user needs to update workflow to accept inputs. 
-                    // The prompt says "El script ahora debe aceptar... El botón debe disparar...".
-                    // To pass date to workflow, workflow needs `inputs`.
+                    // If workflow updates later to accept date:
+                    // date: date 
                 }
             })
         });
 
         if (response.ok) {
+            console.log("[Admin] Workflow triggered successfully.");
             return NextResponse.json({ success: true, message: "Workflow triggered" });
         } else {
             const err = await response.text();
-            return NextResponse.json({ success: false, error: err }, { status: 500 });
+            console.error(`[Admin] GitHub API Error: ${response.status} - ${err}`);
+            return NextResponse.json({ success: false, error: err }, { status: response.status });
         }
     } catch (error) {
+        console.error("[Admin] Exception triggering workflow:", error);
         return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
     }
 }

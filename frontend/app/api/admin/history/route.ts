@@ -17,11 +17,6 @@ export async function GET(req: NextRequest) {
         }
 
         const prefix = "betai:";
-        const statsKey = `${prefix}stats:${month}`;
-
-        // 1. Fetch Monthly Stats
-        const stats = await redis.hgetall(statsKey);
-
         // 2. Fetch Daily History (Pipeline)
         // Generate all possible date keys for this month
         const [year, monthStr] = month.split('-');
@@ -42,6 +37,9 @@ export async function GET(req: NextRequest) {
 
         // Process Results
         const daysMap: Record<string, any> = {};
+        let totalMonthlyProfit = 0;
+        let totalSettledDays = 0;
+        let wonDays = 0;
 
         dates.forEach((date, idx) => {
             const historyData = results[idx * 2];
@@ -49,7 +47,16 @@ export async function GET(req: NextRequest) {
 
             if (historyData) {
                 // Confirmed History
-                daysMap[date] = historyData;
+                const dayObj = historyData as any;
+                daysMap[date] = dayObj;
+
+                // Accumulate stats (only for settled days or where profit != 0? Or all?)
+                // Let's sum all logged history profit.
+                if (dayObj.day_profit !== undefined) {
+                    totalMonthlyProfit += Number(dayObj.day_profit);
+                    totalSettledDays++;
+                    if (Number(dayObj.day_profit) > 0) wonDays++;
+                }
             } else if (betsData) {
                 // Pending Bets (No history yet)
                 const parsedBets = typeof betsData === 'string' ? JSON.parse(betsData) : betsData;
@@ -68,9 +75,15 @@ export async function GET(req: NextRequest) {
             }
         });
 
+        // Calculate Stats Dynamically
+        const dynamicStats = {
+            total_profit: Number(totalMonthlyProfit.toFixed(2)),
+            win_rate: totalSettledDays > 0 ? Number(((wonDays / totalSettledDays) * 100).toFixed(1)) : 0
+        };
+
         return NextResponse.json({
             month,
-            stats: stats || { total_profit: 0, win_rate: 0 },
+            stats: dynamicStats,
             days: daysMap
         });
 
