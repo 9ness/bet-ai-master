@@ -21,8 +21,10 @@ except ImportError:
 
 class RedisService:
     def __init__(self):
-        self.url = os.getenv("UPSTASH_REDIS_REST_URL")
-        self.token = os.getenv("UPSTASH_REDIS_REST_TOKEN")
+        # Support both UPSTASH specific and generic REDIS env vars (for GitHub Actions)
+        # Prioritize UPSTASH vars if local, but REDIS_URL is standard in workflows
+        self.url = os.getenv("REDIS_URL") or os.getenv("UPSTASH_REDIS_REST_URL")
+        self.token = os.getenv("REDIS_TOKEN") or os.getenv("UPSTASH_REDIS_REST_TOKEN")
         self.prefix = os.getenv("REDIS_PREFIX", "betai:")
         
         if self.url and self.token:

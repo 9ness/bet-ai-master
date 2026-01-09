@@ -1,4 +1,4 @@
-name: Update Daily Results to Redis
+name: 1º - Actualiza resultados día anterior
 
 on:
   schedule:
@@ -26,10 +26,10 @@ jobs:
     - name: Process Results and Update Redis
       env:
         # Credenciales mapeadas desde Secrets
-        API_KEY: ${{ secrets.API_KEY }}
-        GEMINI_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         REDIS_URL: ${{ secrets.REDIS_URL }}
         REDIS_TOKEN: ${{ secrets.REDIS_TOKEN }}
+        API_KEY: ${{ secrets.API_KEY }}
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       run: |
         # Añadida la carpeta raíz al PYTHONPATH para que encuentre 'backend.src'
         export PYTHONPATH=$PYTHONPATH:$(pwd)

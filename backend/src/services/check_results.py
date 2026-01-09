@@ -22,9 +22,6 @@ class ResultChecker:
         self.base_url = "https://v3.football.api-sports.io"
         self.headers = {"x-apisports-key": self.api_key}
 
-        yesterday = datetime.now() - timedelta(days=1)
-        return yesterday.strftime("%Y-%m-%d")
-
     def _fetch_fixture_result(self, fixture_id):
         try:
             url = f"{self.base_url}/fixtures"
