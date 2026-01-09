@@ -30,11 +30,12 @@ class GeminiService:
         # ... (Objective / Data sections same) ...
 
         INSTRUCCIONES DE RAZONAMIENTO:
-        - REGLA CRÍTICA DE UNICIDAD: NO repitas la misma selección exacta (Market + Pick) en más de una categoría (Safe, Value, Funbet). Si "Victoria Arsenal" está en Safe, NO puede aparecer en Value ni en Funbet. Busca mercados alternativos si te gusta el equipo (e.g., Over goles, Corners) para diversificar el riesgo de un solo fallo.
-        - REGLA FUNBET: Cada selección individual incluida en la Funbet debe tener una cuota mínima de 1.10.
-        - En el campo 'reason', justifica por qué la selección cumple con los criterios.
-        - EXTRAE LA HORA del partido ("time") y inclúyela en el JSON.
-        - EXTRAE EL ID DEL PARTIDO ("fixture_id") de los datos de entrada para cada selección. ES CRÍTICO.
+        - REGLA CRÍTICA DE UNICIDAD: NO repitas la misma selección exacta.
+        - REGLA FUNBET: Cuota mínima 1.10 por selección.
+        - ESTRUCTURA 'SELECTIONS': Para CADA apuesta (Safe, Value, Funbet), DEBES generar un array "selections" que contenga CADA evento individual.
+          - Si es una apuesta simple, "selections" tendrá 1 elemento.
+          - Si es combinada, "selections" tendrá todos los eventos.
+          - Cada selección debe tener: "fixture_id", "match", "pick", "odd".
 
         INPUT DATA:
         {json.dumps(analyzed_data, indent=2)}
@@ -44,31 +45,32 @@ class GeminiService:
             "safe": {{
                 "match": "Equipo A vs Equipo B",
                 "time": "21:00",
-                "fixture_id": 123456,
+                "selections": [
+                    {{ "fixture_id": 123456, "match": "A vs B", "pick": "Gana Local", "odd": 1.65 }}
+                ],
                 "pick": "Gana Local",
                 "odd": 1.65,
                 "reason": "..."
             }},
             "value": {{
-                "match": "...", 
+                "match": "Título Combinada o Partido", 
                 "time": "18:30",
-                "fixture_id": 789012,
-                "pick": "...",
+                "selections": [
+                    {{ "fixture_id": 111, "match": "A vs B", "pick": "...", "odd": 1.40 }},
+                    {{ "fixture_id": 222, "match": "C vs D", "pick": "...", "odd": 2.00 }}
+                ],
+                "pick": "Pick Resumen",
                 "odd": 2.80,
-                "reason": "...",
-                "components": [
-                    {{ "match": "A vs B", "fixture_id": 111, "pick": "...", "odd": 1.40 }},
-                    {{ "match": "C vs D", "fixture_id": 222, "pick": "...", "odd": 2.00 }}
-                ]
+                "reason": "..."
             }},
             "funbet": {{
-                "match": "Combinada...",
+                "match": "Combinada Loca",
                 "time": "16:00", 
-                "pick": "...",
-                "components": [
-                    {{ "match": "A vs B", "time": "16:00", "fixture_id": 333, "pick": "...", "odd": 1.20 }},
-                    {{ "match": "C vs D", "time": "18:00", "fixture_id": 444, "pick": "...", "odd": 1.30 }}
+                "selections": [
+                    {{ "fixture_id": 333, "match": "A vs B", "pick": "...", "odd": 1.20 }},
+                    {{ "fixture_id": 444, "match": "C vs D", "pick": "...", "odd": 1.30 }}
                 ],
+                "pick": "Resumen Picks",
                 "odd": 15.40,
                 "reason": "..."
             }}

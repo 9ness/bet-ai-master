@@ -33,7 +33,7 @@ jobs:
       env:
         # AQUÍ mapeamos los Secrets de GitHub a las variables que lee Python
         API_KEY: ${{ secrets.API_KEY }}
-        GEMINI_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         REDIS_URL: ${{ secrets.REDIS_URL }}
         REDIS_TOKEN: ${{ secrets.REDIS_TOKEN }}
       run: |
