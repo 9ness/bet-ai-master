@@ -48,7 +48,7 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate }: { bet: BetResult, date:
         setPendingChanges({});
     }, [bet]);
 
-    const details = bet.selections || bet.picks_detail || bet.components || [];
+    const details = bet.selections || bet.picks_detail || (bet as any).components || [];
     const hasDetails = details.length > 0;
     const hasChanges = Object.keys(pendingChanges).length > 0;
 
