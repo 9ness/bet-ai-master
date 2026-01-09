@@ -16,18 +16,15 @@ from src.services.redis_service import RedisService
 class GeminiService:
     def __init__(self):
         self.redis = RedisService()
-        self.api_key = os.getenv("GOOGLE_API_KEY")
-        if not self.api_key:
-            print("[WARNING] GOOGLE_API_KEY no encontrada.")
+        self.api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
         
-        if GOOGLE_AVAILABLE and self.api_key:
-            genai.configure(api_key=self.api_key)
-            # Using 'gemini-3-pro-preview' as the absolute best model for analysis available in the list
-            self.model = genai.GenerativeModel('gemini-3-pro-preview') 
-            print("[INIT] Gemini Service initialized with model: gemini-3-pro-preview (Deep Analysis Mode)")
-        else:
-            self.model = None
-            print("[WARNING] Gemini disabled (No API Key or Library).")
+        if not self.api_key:
+            raise ValueError("FALTA CONFIGURAR API KEY EN GITHUB SECRETS")
+        
+        genai.configure(api_key=self.api_key)
+        # Using 'gemini-3-pro-preview' as requested
+        self.model = genai.GenerativeModel('gemini-3-pro-preview') 
+        print("[INIT] Gemini Service initialized with model: gemini-3-pro-preview (Deep Analysis Mode)")
 
     # ... (get_today_date stays same) ...
 
