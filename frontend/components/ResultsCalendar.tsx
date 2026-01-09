@@ -14,12 +14,13 @@ type BetResult = {
     type: 'safe' | 'value' | 'funbet';
     stake: number;
     total_odd: number;
-    status: 'WON' | 'LOST' | 'PENDING' | 'UNKNOWN';
+    status: 'WON' | 'LOST' | 'PENDING' | 'UNKNOWN' | 'GANADA' | 'PERDIDA' | 'PENDIENTE';
     profit: number;
     match: string;
     pick: string;
     fixture_ids?: number[];
     picks_detail?: PickDetail[];
+    selections?: any[]; // Allow selections array
 };
 
 type DayHistory = {
@@ -34,9 +35,43 @@ type MonthStats = {
 };
 
 // Sub-component for individual Bet Cards in Modal
-const BetDetailCard = ({ bet }: { bet: BetResult }) => {
+// Sub-component for individual Bet Cards in Modal
+const BetDetailCard = ({ bet, date, isAdmin, onUpdate }: { bet: BetResult, date: string, isAdmin: boolean, onUpdate: () => void }) => {
     const [expanded, setExpanded] = useState(false);
-    const hasDetails = bet.picks_detail && bet.picks_detail.length > 0;
+    const [isSaving, setIsSaving] = useState(false);
+    // Use local state for optimistic UI updates if needed, 
+    // but for now let's rely on re-fetch or just simple API call.
+
+    // Fallback if picks_detail is empty but we have selections in bet object (if API returns it)
+    // The Type definition needs 'selections' or we map 'picks_detail' to it?
+    // In API/Python we save 'selections'. In this file 'BetResult' has 'picks_detail'.
+    // We should probably accept 'selections' too.
+    const details = bet.selections || bet.picks_detail || [];
+    const hasDetails = details.length > 0;
+
+    const handleStatusUpdate = async (type: string, id: number | undefined, newStatus: string) => {
+        if (!id) return;
+        setIsSaving(true);
+        try {
+            const res = await fetch('/api/admin/update-bet', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    date,
+                    betType: bet.type, // 'safe', 'value', 'funbet'
+                    selectionId: id,
+                    newStatus
+                })
+            });
+            if (res.ok) {
+                onUpdate(); // Refresh parent
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setIsSaving(false);
+        }
+    };
 
     return (
         <div className="bg-secondary/30 rounded-xl p-4 border border-border/50 transition-all hover:bg-secondary/40">
@@ -62,22 +97,30 @@ const BetDetailCard = ({ bet }: { bet: BetResult }) => {
                     className="flex items-center gap-1 text-[10px] uppercase font-bold text-primary mb-3 hover:underline"
                 >
                     <ChevronDown size={14} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
-                    Ver Desglose ({bet.picks_detail?.length})
+                    Ver Desglose ({details.length})
                 </button>
             )}
 
             {/* Expanded List */}
             {expanded && hasDetails && (
                 <div className="mb-3 space-y-1 bg-background/50 p-2 rounded-lg border border-border/30">
-                    {bet.picks_detail?.map((detail, idx) => (
+                    {details.map((detail: any, idx: number) => (
                         <div key={idx} className="flex justify-between items-center text-xs p-1 border-b border-white/5 last:border-0">
-                            <div className="flex bg-black/20 rounded px-1.5 py-0.5 max-w-[85%]">
+                            <div className="flex bg-black/20 rounded px-1.5 py-0.5 max-w-[65%]">
                                 <span className="truncate text-muted-foreground mr-1">{detail.match}:</span>
                                 <span className="font-medium truncate text-foreground">{detail.pick}</span>
                             </div>
-                            <div>
-                                {detail.status === 'SUCCESS' && <CircleCheck size={14} className="text-emerald-500" />}
-                                {detail.status === 'FAIL' && <CircleX size={14} className="text-rose-500" />}
+                            <div className="flex items-center gap-2">
+                                {(detail.status === 'SUCCESS' || detail.status === 'WON' || detail.status === 'GANADA') && <CircleCheck size={14} className="text-emerald-500" />}
+                                {(detail.status === 'FAIL' || detail.status === 'LOST' || detail.status === 'PERDIDA') && <CircleX size={14} className="text-rose-500" />}
+                                {(detail.status === 'PENDING' || detail.status === 'PENDIENTE') && <Clock size={14} className="text-amber-500/50" />}
+
+                                {isAdmin && (
+                                    <div className="flex gap-1 ml-2">
+                                        <button disabled={isSaving} onClick={() => handleStatusUpdate(bet.type, detail.fixture_id, 'WON')} className="p-0.5 hover:bg-emerald-500/20 rounded text-emerald-500"><Check size={12} /></button>
+                                        <button disabled={isSaving} onClick={() => handleStatusUpdate(bet.type, detail.fixture_id, 'LOST')} className="p-0.5 hover:bg-rose-500/20 rounded text-rose-500"><X size={12} /></button>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     ))}
@@ -90,9 +133,9 @@ const BetDetailCard = ({ bet }: { bet: BetResult }) => {
                     <span>Cuota: <b className="text-foreground">{bet.total_odd}</b></span>
                 </div>
                 <div className="flex items-center gap-1 font-bold">
-                    {bet.status === 'WON' && <><CircleCheck size={14} className="text-emerald-500" /> GANADA</>}
-                    {bet.status === 'LOST' && <><CircleX size={14} className="text-rose-500" /> PERDIDA</>}
-                    {bet.status === 'PENDING' && <span className="text-amber-500">PENDIENTE</span>}
+                    {(bet.status === 'WON' || bet.status === 'GANADA') && <><CircleCheck size={14} className="text-emerald-500" /> GANADA</>}
+                    {(bet.status === 'LOST' || bet.status === 'PERDIDA') && <><CircleX size={14} className="text-rose-500" /> PERDIDA</>}
+                    {(bet.status === 'PENDING' || bet.status === 'PENDIENTE') && <span className="text-amber-500">PENDIENTE</span>}
                     {bet.status === 'UNKNOWN' && <span className="text-gray-500">? DESC.</span>}
                 </div>
             </div>
@@ -107,13 +150,49 @@ export default function ResultsCalendar() {
     const [history, setHistory] = useState<Record<string, DayHistory>>({});
     const [loading, setLoading] = useState(false);
     const [selectedDay, setSelectedDay] = useState<DayHistory | null>(null);
+    const [isAdmin, setIsAdmin] = useState(false);
+    const [isChecking, setIsChecking] = useState(false);
 
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
 
     useEffect(() => {
+        if (typeof window !== 'undefined') {
+            // Check path for /admin
+            if (window.location.pathname.startsWith('/admin')) {
+                setIsAdmin(true);
+            }
+        }
         fetchData();
     }, [currentDate]);
+
+    const handleTriggerCheck = async (date: string) => {
+        if (!confirm(`¿Ejecutar comprobación para ${date}?`)) return;
+        setIsChecking(true);
+        try {
+            await fetch('/api/admin/trigger-check', {
+                method: 'POST',
+                body: JSON.stringify({ date })
+            });
+            alert("Comprobación iniciada. Espera unos segundos y recarga.");
+        } catch (e) {
+            console.error(e);
+            alert("Error al iniciar comprobación");
+        } finally {
+            setIsChecking(false);
+        }
+    };
+
+    const handleUpdate = () => {
+        // Refresh data after manual edit
+        fetchData();
+        // Also update selected day data locally if needed or close modal?
+        // Simple approach: close modal to force refresh from main list later, or re-fetch specific day?
+        // Since fetchData gets whole month, calling it refreshes history.
+        // We need to update selectedDay reference too.
+        // For now, let's just re-fetch and rely on user closing/reopening or update generic.
+        // Better: fetchData matches selectedDay date and updates it.
+    };
 
     const fetchData = async () => {
         setLoading(true);
@@ -271,8 +350,26 @@ export default function ResultsCalendar() {
 
                         {/* Modal Content */}
                         <div className="p-6 overflow-y-auto space-y-4 bg-background/95">
+                            {isAdmin && (
+                                <div className="flex justify-end mb-2">
+                                    <button
+                                        onClick={() => handleTriggerCheck(selectedDay.date)}
+                                        disabled={isChecking}
+                                        className="text-xs bg-primary/20 hover:bg-primary/30 text-primary px-3 py-1 rounded-full font-bold flex items-center gap-1 transition-colors"
+                                    >
+                                        <MonitorPlay size={12} />
+                                        {isChecking ? 'Ejecutando...' : 'Forzar Check API'}
+                                    </button>
+                                </div>
+                            )}
                             {selectedDay.bets.map((bet, idx) => (
-                                <BetDetailCard key={idx} bet={bet} />
+                                <BetDetailCard
+                                    key={idx}
+                                    bet={bet}
+                                    date={selectedDay.date}
+                                    isAdmin={isAdmin}
+                                    onUpdate={handleUpdate}
+                                />
                             ))}
                         </div>
                     </div>

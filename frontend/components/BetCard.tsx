@@ -1,5 +1,14 @@
 import React from 'react';
-import { ShieldCheck, Target, PartyPopper, Clock } from 'lucide-react';
+import { ShieldCheck, Target, PartyPopper, Clock, Check, X as XIcon } from 'lucide-react';
+
+type Selection = {
+    fixture_id?: number;
+    match: string;
+    pick: string;
+    odd?: number;
+    status?: 'WON' | 'LOST' | 'PENDING' | 'GANADA' | 'PERDIDA' | 'PENDIENTE';
+    result?: string;
+};
 
 type BetComponent = {
     match: string;
@@ -15,6 +24,9 @@ type BetData = {
     reason: string;
     time?: string;
     components?: BetComponent[];
+    selections?: Selection[];
+    status?: string;
+    profit?: number;
 };
 
 type BetCardProps = {
@@ -151,6 +163,7 @@ export default function BetCard({ type, data }: BetCardProps) {
 
     // Smart Component Detection
     let componentsToRender: BetComponent[] | undefined = data.components;
+    const showSelections = (data.selections && data.selections.length > 0);
 
     // Fallback: If no components but is 'value' combinada (contains '+')
     if (!componentsToRender && type === 'value' && data.pick.includes('+')) {
@@ -173,8 +186,19 @@ export default function BetCard({ type, data }: BetCardProps) {
             {/* Header Line */}
             <div className={`absolute inset-x-0 top-0 h-1 ${config.headerBg} rounded-t-3xl`} />
 
-            {/* Start Time Badge */}
-            {startTime && (
+            {/* Status Badge (if available) */}
+            {data.status && (
+                <div className={`absolute top-4 right-6 flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-full border 
+                    ${data.status === 'GANADA' ? 'bg-emerald-500/20 text-emerald-500 border-emerald-500/20' :
+                        data.status === 'PERDIDA' ? 'bg-rose-500/20 text-rose-500 border-rose-500/20' :
+                            'bg-secondary text-muted-foreground border-border/50'}`}>
+                    {data.status === 'GANADA' ? <Check size={12} /> : data.status === 'PERDIDA' ? <XIcon size={12} /> : <Clock size={12} />}
+                    <span>{data.status}</span>
+                </div>
+            )}
+
+            {/* Start Time Badge (Only if no Status to avoid clutter?) - Let's keep both or prioritize Status? Keep both but shift time if Needed. */}
+            {startTime && !data.status && (
                 <div className="absolute top-4 right-6 flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground bg-secondary px-2 py-1 rounded-full border border-border/50">
                     <Clock size={12} className="text-primary/70" />
                     <span>{startTime}</span>
@@ -201,7 +225,7 @@ export default function BetCard({ type, data }: BetCardProps) {
 
             <div className="space-y-4">
                 {/* MATCH INFO */}
-                {(!isListLayout || (componentsToRender && componentsToRender[0]?.match === "Combinada" && type === 'value')) && (
+                {(!isListLayout || (componentsToRender && componentsToRender[0]?.match === "Combinada" && type === 'value')) && !showSelections && (
                     // Show original match title above the list for Value bets if using fallback
                     <div className="flex justify-between items-start mb-2">
                         <span className="text-muted-foreground text-sm">Partido</span>
@@ -209,12 +233,43 @@ export default function BetCard({ type, data }: BetCardProps) {
                     </div>
                 )}
 
-                {/* MATCH INFO for Funbets or structured value bets where match name might be different per item or grouped */}
-                {/* Logic handled inside list loop for groupings */}
+                {/* MATCH HEADER IF SELECTIONS PRESENT */}
+                {showSelections && (
+                    <div className="flex justify-between items-start mb-2">
+                        <span className="text-muted-foreground text-sm">Evento</span>
+                        <span className="font-medium text-right text-sm">{data.match}</span>
+                    </div>
+                )}
 
-                {/* PICK INFO (Standard vs List) */}
+
+                {/* PICK INFO (Standard vs List vs Selections) */}
                 <div className="bg-secondary/50 p-3 rounded-xl border border-secondary">
-                    {isListLayout && componentsToRender ? (
+                    {showSelections ? (
+                        <div className="space-y-3">
+                            {data.selections?.map((sel, idx) => (
+                                <div key={idx} className="flex flex-col border-b border-border/50 last:border-0 pb-2 last:pb-0">
+                                    <div className="flex justify-between items-center mb-1">
+                                        <span className="text-xs font-semibold text-foreground/80 truncate max-w-[220px]">{sel.match}</span>
+                                        {sel.odd && <span className="text-[10px] bg-secondary px-1 rounded text-muted-foreground">{sel.odd}</span>}
+                                    </div>
+                                    <div className="flex justify-between items-center pl-2 border-l-2 border-primary/20">
+                                        <span className={`text-sm font-bold ${config.textColor}`}>{sel.pick}</span>
+                                        {/* Status Icon per selection */}
+                                        <div className="flex items-center gap-1">
+                                            {(sel.status === 'WON' || sel.status === 'GANADA') && <Check size={14} className="text-emerald-500" />}
+                                            {(sel.status === 'LOST' || sel.status === 'PERDIDA') && <XIcon size={14} className="text-rose-500" />}
+                                            {(sel.status === 'PENDING' || sel.status === 'PENDIENTE') && <Clock size={14} className="text-amber-500/50" />}
+                                        </div>
+                                    </div>
+                                    {sel.result && sel.result !== '?' && (
+                                        <div className="text-[10px] text-right text-muted-foreground mt-0.5">
+                                            {sel.result}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    ) : isListLayout && componentsToRender ? (
                         <>
                             <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider block mb-3">
                                 {type === 'value' ? 'Selecciones:' : 'Combinada:'}
@@ -254,20 +309,17 @@ export default function BetCard({ type, data }: BetCardProps) {
                     )}
                 </div>
 
-                {/* ODD Info */}
+                {/* ODD & STAKE */}
                 <div className="flex items-end justify-between mt-4 px-1 border-t border-border pt-4">
                     <div className="flex flex-col">
-                        <span className="text-muted-foreground text-xs uppercase font-bold tracking-wider mb-1">Stake</span>
-                        <div className="flex items-center gap-2">
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-lg text-white shadow-lg ${config.headerBg}`}>
-                                {config.stake}
-                            </div>
-                            <span className="text-xs text-muted-foreground font-medium">Unidades</span>
-                        </div>
+                        <span className="text-muted-foreground text-xs uppercase font-bold tracking-wider mb-1">Profit Est.</span>
+                        <span className={`font-mono font-black ${data.profit && data.profit < 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                            {data.profit ? `${data.profit > 0 ? '+' : ''}${data.profit}u` : `${(config.stake * (data.odd - 1)).toFixed(2)}u`}
+                        </span>
                     </div>
 
                     <div className="flex flex-col items-end">
-                        <span className="text-muted-foreground text-xs uppercase font-bold tracking-wider mb-1">Cuota Total</span>
+                        <span className="text-muted-foreground text-xs uppercase font-bold tracking-wider mb-1">Cuota</span>
                         <span className="font-mono text-4xl font-black tracking-tighter leading-none">{data.odd}</span>
                     </div>
                 </div>
