@@ -5,7 +5,9 @@ from src.services.redis_service import RedisService
 import sys
 import os
 
+import json
 import argparse
+from src.services.fetch_odds import FootballDataService
 
 def main():
     parser = argparse.ArgumentParser(description='Bet AI Master Logic')
@@ -14,11 +16,33 @@ def main():
     
     print(f"--- BETTING ADVISOR AI STARTED (Mode: {args.mode}) ---")
     
+    # Initialize Redis early for caching
+    rs = RedisService()
+    
     # 1. FETCH ODDS (API SPORTS)
     if args.mode in ['all', 'fetch']:
         service = FootballDataService()
+        today_str = service.get_today_date()
+        raw_matches_key = f"raw_matches:{today_str}"
+        
         print("Step 1: Fetching Live Data from API...")
-        matches = service.fetch_matches()
+        
+        # Check Redis Cache first
+        cached_matches = rs.get(raw_matches_key) if rs.is_active else None
+        
+        if cached_matches:
+            print(f"[CACHE] Match data found in Redis ({raw_matches_key}). Using cached data.")
+            matches = json.loads(cached_matches)
+            # Ensure data is on disk for Analyzer (compat)
+            with open(service.output_file, 'w', encoding='utf-8') as f:
+                json.dump(matches, f, indent=4, ensure_ascii=False)
+        else:
+            print("[API] Fetching fresh data from API-Sports...")
+            matches = service.fetch_matches()
+            if matches and rs.is_active:
+                rs.set_data(raw_matches_key, matches)
+                print(f"[CACHE] Saved raw matches to Redis: {raw_matches_key}")
+
         if not matches and args.mode == 'fetch':
             print("No matches found.")
         elif not matches and args.mode == 'all':
