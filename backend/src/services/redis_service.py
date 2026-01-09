@@ -71,10 +71,15 @@ class RedisService:
         for bet_type, data in bets_data.items():
             if not data: continue
             
+            # Extract selections (Gemini uses 'selections', legacy 'components')
+            selections = data.get("selections", data.get("components", []))
+            
             fixture_ids = []
-            if "components" in data and data["components"]:
-                for comp in data["components"]:
+            if selections:
+                for comp in selections:
                     if "fixture_id" in comp: fixture_ids.append(comp["fixture_id"])
+                    # Ensure each selection has a status for the frontend
+                    if "status" not in comp: comp["status"] = "PENDING"
             elif "fixture_id" in data:
                 fixture_ids.append(data["fixture_id"])
             
@@ -84,7 +89,10 @@ class RedisService:
                 "total_odd": data.get("odd", 0),
                 "fixture_ids": fixture_ids,
                 "pick": data.get("pick", ""),
-                "match": data.get("match", "")
+                "match": data.get("match", ""),
+                "status": "PENDING",
+                "profit": 0,
+                "selections": selections
             }
             redis_obj["bets"].append(bet_entry)
 

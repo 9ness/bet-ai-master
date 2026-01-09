@@ -72,13 +72,17 @@ def main():
             # User specifically asked for unconditional overwrite.
             success = rs.set_data(today_key, recommendations)
             
+            # CRITICAL: Also save formatted data for the Calendar/History
+            date_str = datetime.now().strftime("%Y-%m-%d")
+            rs.save_daily_bets(date_str, recommendations['bets'])
+            
             # Also update the 'latest' pointer if needed, or just relying on date.
             # Assuming frontend reads from a specific endpoint or by date. 
             # If frontend reads "daily_bets", we should update that too or user means the specific key IS the main one.
             # User instruction: "Confirma que la clave usada sea exactamente 'daily_bets:YYYY-MM-DD'"
             
             if success:
-                print(f"[SUCCESS] Las apuestas se han guardado en Redis correctamente bajo la clave {today_key}.")
+                print(f"[SUCCESS] Las apuestas se han guardado en Redis correctamente bajo la clave {today_key} y bets:{date_str}.")
             else:
                 print("[WARNING] No se pudo guardar en Redis. Verifica logs.")
         else:

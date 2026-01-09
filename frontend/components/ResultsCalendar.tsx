@@ -324,8 +324,8 @@ export default function ResultsCalendar() {
         // Valid statuses from API: 'PENDING'
         const isPending = hasData && (dayData as any).status === 'PENDING';
 
-        const profitClass = hasData ? (dayData.day_profit > 0 ? 'text-emerald-400' : dayData.day_profit < 0 ? 'text-rose-400' : 'text-muted-foreground') : '';
-        const profitBg = hasData ? (dayData.day_profit > 0 ? 'bg-emerald-500/10' : dayData.day_profit < 0 ? 'bg-rose-500/10' : 'bg-secondary/20') : 'bg-secondary/5';
+        const profitClass = hasData ? (dayData.day_profit > 0 ? 'text-emerald-400' : dayData.day_profit < 0 ? 'text-rose-400' : 'text-amber-400') : '';
+        const profitBg = hasData ? (dayData.day_profit > 0 ? 'bg-emerald-500/10' : dayData.day_profit < 0 ? 'bg-rose-500/10' : 'bg-amber-500/10 border-amber-500/20') : 'bg-secondary/5';
 
         if (!hasData) {
             return (

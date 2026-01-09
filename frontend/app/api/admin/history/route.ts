@@ -7,6 +7,8 @@ const redis = new Redis({
     token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
@@ -31,6 +33,7 @@ export async function GET(req: NextRequest) {
             dates.push(date);
             pipeline.get(`${prefix}history:${date}`);
             pipeline.get(`${prefix}bets:${date}`);
+            pipeline.get(`${prefix}daily_bets:${date}`);
         }
 
         const results = await pipeline.exec<(string | null)[]>();
@@ -42,36 +45,67 @@ export async function GET(req: NextRequest) {
         let wonDays = 0;
 
         dates.forEach((date, idx) => {
-            const historyData = results[idx * 2];
-            const betsData = results[idx * 2 + 1];
+            const historyData = results[idx * 3];
+            const betsData = results[idx * 3 + 1];
+            const dailyDataRaw = results[idx * 3 + 2];
 
             if (historyData) {
                 // Confirmed History
                 const dayObj = historyData as any;
                 daysMap[date] = dayObj;
 
-                // Accumulate stats (only for settled days or where profit != 0? Or all?)
-                // Let's sum all logged history profit.
+                // Accumulate stats
                 if (dayObj.day_profit !== undefined) {
                     totalMonthlyProfit += Number(dayObj.day_profit);
                     totalSettledDays++;
                     if (Number(dayObj.day_profit) > 0) wonDays++;
                 }
             } else if (betsData) {
-                // Pending Bets (No history yet)
+                // Pending Bets (Explicitly saved for calendar)
                 const parsedBets = typeof betsData === 'string' ? JSON.parse(betsData) : betsData;
 
-                // Map to DayHistory format with PENDING status
                 daysMap[date] = {
                     date: date,
                     day_profit: 0,
-                    status: 'PENDING', // Custom flag for UI
+                    status: 'PENDING',
                     bets: (parsedBets.bets || []).map((b: any) => ({
                         ...b,
                         status: 'PENDING',
                         profit: 0
                     }))
                 };
+            } else if (dailyDataRaw) {
+                // Fallback: Smart Sync with Daily Analysis
+                const dailyCtx = typeof dailyDataRaw === 'string' ? JSON.parse(dailyDataRaw) : dailyDataRaw;
+                const betsMap = dailyCtx.bets || {};
+                const transformedBets: any[] = [];
+
+                const stakes: Record<string, number> = { "safe": 10, "value": 5, "funbet": 1 };
+
+                ['safe', 'value', 'funbet'].forEach(type => {
+                    if (betsMap[type]) {
+                        const b = betsMap[type];
+                        transformedBets.push({
+                            type: type,
+                            stake: stakes[type] || 1,
+                            total_odd: b.odd,
+                            match: b.match,
+                            pick: b.pick,
+                            status: 'PENDING',
+                            profit: 0,
+                            selections: b.selections || []
+                        });
+                    }
+                });
+
+                if (transformedBets.length > 0) {
+                    daysMap[date] = {
+                        date: date,
+                        day_profit: 0,
+                        status: 'PENDING',
+                        bets: transformedBets
+                    };
+                }
             }
         });
 

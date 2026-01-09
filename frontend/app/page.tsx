@@ -2,7 +2,6 @@ import React from 'react';
 import { Trophy } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Redis } from '@upstash/redis';
-import { getRecommendations } from '@/lib/server-utils';
 import HomeTabs from '@/components/HomeTabs';
 
 // Initialize Redis
@@ -25,27 +24,55 @@ async function getSettings() {
     }
 }
 
-// Revalidate every 60 seconds
-export const revalidate = 60;
+// Disable caching to ensure fresh Redis data
+export const revalidate = 0;
+export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-    const [data, settings] = await Promise.all([
-        getRecommendations(),
+    // Dynamic Date Calculation (Europe/Madrid)
+    const now = new Date();
+    const today = new Intl.DateTimeFormat('en-CA', {
+        year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Europe/Madrid'
+    }).format(now);
+
+    const yesterdayDate = new Date(now);
+    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+    const yesterday = new Intl.DateTimeFormat('en-CA', {
+        year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Europe/Madrid'
+    }).format(yesterdayDate);
+
+    console.log(`[Page] Loading Analysis for Date: ${today}`);
+
+    // Fetch Bets Dynamic within betai: prefix
+    let betsData: any = await redis.get(`betai:daily_bets:${today}`);
+
+    if (!betsData) {
+        console.log(`[Frontend] No bets for ${today}, checking ${yesterday}...`);
+        betsData = await redis.get(`betai:daily_bets:${yesterday}`);
+    }
+
+    const [settings] = await Promise.all([
         getSettings()
     ]);
 
     // Data format
+    const data = betsData;
     const predictions = data?.bets;
-    const date = data?.date || "Fecha desconocida";
+    const dateStr = data?.date || today; // Fallback to 'today' if date is missing in data
     const isMock = data?.is_real === false;
 
     // Format Date
-    let formattedDate = date;
-    if (date && date.includes('-')) {
-        const [y, m, d] = date.split('-').map(Number);
-        const dateObj = new Date(y, m - 1, d);
-        formattedDate = dateObj.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-        formattedDate = formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1);
+    let formattedDate = dateStr;
+    try {
+        if (dateStr && dateStr.includes('-')) {
+            const [y, m, d] = dateStr.split('-').map(Number);
+            const dateObj = new Date(y, m - 1, d);
+            formattedDate = dateObj.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            formattedDate = formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1);
+        }
+    } catch (e) {
+        // Fallback if formatting fails
+        formattedDate = new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     }
 
     return (

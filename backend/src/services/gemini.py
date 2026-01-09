@@ -39,7 +39,8 @@ class GeminiService:
 
         INSTRUCCIONES DE RAZONAMIENTO:
         - REGLA CRÍTICA DE UNICIDAD: NO repitas la misma selección exacta.
-        - REGLA FUNBET: Cuota mínima 1.10 por selección.
+        - REGLA VALUE (VIOLETA): La cuota TOTAL de la apuesta (simple o combinada) DEBE estar OBLIGATORIAMENTE entre 2.50 y 3.50.
+        - REGLA FUNBET: Para las combinadas de Funbet, CADA selección individual NO PUEDE superar la cuota 2.00. (Ej: 1.80 + 1.90 + 1.50). NUNCA uses partidos con cuota > 2.00 dentro de una Funbet.
         - ESTRUCTURA 'SELECTIONS': Para CADA apuesta (Safe, Value, Funbet), DEBES generar un array "selections" que contenga CADA evento individual.
           - Si es una apuesta simple, "selections" tendrá 1 elemento.
           - Si es combinada, "selections" tendrá todos los eventos.
