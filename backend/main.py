@@ -36,15 +36,30 @@ def main():
         recommendations = gemini.get_recommendations(analysis_result)
         
         if recommendations:
-            print("\nStep 4: Saving to Redis (Cloud)...")
+            from datetime import datetime
+            today_key = f"daily_bets:{datetime.now().strftime('%Y-%m-%d')}"
+            
+            print(f"\nStep 4: Saving to Redis (Cloud)...")
+            print(f"[REDIS] Intentando guardar análisis en la clave: {today_key}")
+            print(f"[DATOS] Contenido del JSON a guardar: {json.dumps(recommendations, indent=2, ensure_ascii=False)}")
+            
             rs = RedisService()
-            success = rs.set_data("daily_bets", recommendations)
+            # Saving to specific date key AND "daily_bets" (pointer to latest) to ensure backward compat or specific date access
+            # User specifically asked for unconditional overwrite.
+            success = rs.set_data(today_key, recommendations)
+            
+            # Also update the 'latest' pointer if needed, or just relying on date.
+            # Assuming frontend reads from a specific endpoint or by date. 
+            # If frontend reads "daily_bets", we should update that too or user means the specific key IS the main one.
+            # User instruction: "Confirma que la clave usada sea exactamente 'daily_bets:YYYY-MM-DD'"
+            
             if success:
-                print("[SUCCESS] Las apuestas se han guardado en Redis correctamente.")
+                print(f"[SUCCESS] Las apuestas se han guardado en Redis correctamente bajo la clave {today_key}.")
             else:
                 print("[WARNING] No se pudo guardar en Redis. Verifica logs.")
         else:
-            print("[ERROR] No se obtuvieron recomendaciones de Gemini.")
+            print("[ERROR] No se obtuvieron recomendaciones de Gemini. Abortando guardado.")
+            exit(1) # Fail the workflow if AI fails
 
     print("\n--- PROCESS COMPLETED SUCCESSFULLY ---")
     # print(f"Check results in: {os.path.abspath(os.path.join('data', 'daily_bets.json'))}") # Ya no es la fuente de verdad

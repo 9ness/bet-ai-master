@@ -88,7 +88,24 @@ class GeminiService:
         """
 
         try:
-            # ... (Generation and parsing logic same) ...
+            # 1. Generate Content
+            response = self.model.generate_content(prompt)
+            
+            # 2. Extract JSON
+            text_response = response.text
+            # Clean markdown code blocks if present
+            text_response = text_response.replace('```json', '').replace('```', '')
+            
+            start_idx = text_response.find('{')
+            end_idx = text_response.rfind('}') + 1
+            
+            if start_idx == -1 or end_idx == 0:
+                raise ValueError("No Valid JSON found in Gemini response")
+                
+            json_str = text_response[start_idx:end_idx]
+            
+            # 3. Parse JSON -> This is 'bets_json'
+            bets_json = json.loads(json_str) 
             
             # Estructura Final Envolvente
             final_output = {
@@ -101,47 +118,10 @@ class GeminiService:
             return final_output
             
         except Exception as e:
-            print(f"Error generating logic: {e}")
-            return self._mock_response(today_str)
-
-    def _mock_response(self, date_str):
-        print("Generando datos MOCK de respaldo.")
-        mock_data = {
-            "date": date_str,
-            "is_real": False,
-            "bets": {
-                "safe": {
-                    "match": "Manchester City vs Burnley (MOCK)",
-                    "pick": "Victoria Man City",
-                    "odd": 1.15,
-                    "reason": "1. City invicto en casa. 2. Burnley sin victorias fuera.",
-                    "status": "PENDING",
-                    "selections": [{ "match": "Manchester City vs Burnley", "pick": "Victoria Man City", "odd": 1.15, "fixture_id": 999001, "status": "PENDING" }]
-                },
-                "value": {
-                    "match": "Sevilla vs Betis (MOCK)", 
-                    "pick": "Empate",
-                    "odd": 3.10,
-                    "reason": "1. Derby muy disputado. 2. Ambos equipos en racha similar.",
-                    "status": "PENDING",
-                    "selections": [{ "match": "Sevilla vs Betis", "pick": "Empate", "odd": 3.10, "fixture_id": 999002, "status": "PENDING" }]
-                },
-                "funbet": {
-                    "match": "Combinada Demo (MOCK)",
-                    "pick": "Gana City + Gana Sevilla + Over 2.5",
-                    "selections": [
-                         {"match": "City vs Burnley", "pick": "Gana City", "odd": 1.15, "fixture_id": 999001, "status": "PENDING"},
-                         {"match": "Sevilla vs Betis", "pick": "Empate", "odd": 3.10, "fixture_id": 999002, "status": "PENDING"},
-                         {"match": "Barca vs Getafe", "pick": "Over 2.5", "odd": 1.90, "fixture_id": 999003, "status": "PENDING"}
-                    ],
-                    "odd": 14.50,
-                    "reason": "1. Favoritos claros. 2. Alta probabilidad de goles en Barca.",
-                    "status": "PENDING"
-                }
-            }
-        }
-        print("[LOG] Mock data ready.")
-        return mock_data
+            print(f"[ERROR] Failed to generate recommendations: {e}")
+            # Raise exception to fail the workflow instead of returning mock data
+            # User wants to avoid saving false data.
+            return None
 
 if __name__ == "__main__":
     pass
