@@ -5,11 +5,14 @@ import { ShieldCheck, Target, PartyPopper, Clock, Check, X as XIcon, RefreshCw, 
 
 type Selection = {
     fixture_id?: number;
+    sport?: string;
     match: string;
     pick: string;
     odd?: number;
     status?: 'WON' | 'LOST' | 'PENDING' | 'GANADA' | 'PERDIDA' | 'PENDIENTE';
     result?: string;
+    time?: string;
+    league?: string;
 };
 
 type BetComponent = {
@@ -20,6 +23,7 @@ type BetComponent = {
 };
 
 type BetData = {
+    sport?: string;
     match: string;
     pick: string;
     odd: number;
@@ -29,7 +33,11 @@ type BetData = {
     selections?: Selection[];
     status?: string;
     profit?: number;
+    estimated_units?: number;
+    stake?: number;
+    total_odd?: number;
     date?: string; // Sometimes present in data
+    startTime?: string;
 };
 
 type BetCardProps = {
@@ -37,6 +45,16 @@ type BetCardProps = {
     data?: BetData;
     isAdmin?: boolean;
     date?: string; // Explicit date prop
+};
+
+const SportIcon = ({ sport, className }: { sport?: string; className?: string }) => {
+    // Normalization
+    const s = sport?.toLowerCase().trim();
+    if (s === 'football' || s === 'soccer' || s === 'futbol') return <span className={className}>⚽</span>;
+    if (s === 'basketball' || s === 'basket' || s === 'baloncesto') return <span className={className}>🏀</span>;
+    if (s === 'tennis' || s === 'tenis') return <span className={className}>🎾</span>;
+    // Default fallback if unknown, maybe football or empty?
+    return <span className={className}>⚽</span>;
 };
 
 // Helper: Group components by match name
@@ -54,12 +72,32 @@ const groupComponents = (components: BetComponent[]) => {
 // Helper: Get earliest time
 const getEarliestTime = (data: BetData): string | null => {
     let times: string[] = [];
+    if (data.startTime) times.push(data.startTime);
     if (data.time) times.push(data.time);
+
+    // Check components
     if (data.components) {
         data.components.forEach(c => {
             if (c.time) times.push(c.time);
         });
     }
+
+    // Check selections (New Format)
+    if (data.selections) {
+        data.selections.forEach(s => {
+            // Selection might have 'time' property? Use 'any' cast if generic or check type
+            // The type Selection has 'fixture_id', 'match', 'pick', 'odd', 'status', 'result', 'sport'.
+            // It does NOT have 'time' in the type definition I wrote earlier!
+            // BUT the JSON has 'time'. 
+            // I should Update Selection type too? Or just cast to any here to be safe.
+            // Let's assume the JSON has it. I will add it to the type in a separate move or here if I can.
+            // I can't edit the type definition block (lines 6-13) in this replace block easily without overwriting logic.
+            // I'll cast to any for now to be safe.
+            const sAny = s as any;
+            if (sAny.time) times.push(sAny.time);
+        });
+    }
+
     if (times.length === 0) return null;
     return times.sort()[0];
 };
@@ -100,19 +138,36 @@ const findOddInReason = (pick: string, reason: string): string | null => {
     return null;
 };
 
+// Helper: Extract HH:mm from any date string
+const extractTime = (dateStr?: string) => {
+    if (!dateStr) return null;
+    // Match HH:mm pattern (e.g., 21:00, 09:30)
+    const match = dateStr.match(/(\d{1,2}:\d{2})/);
+    return match ? match[1] : null;
+};
+
+// Helper: Formatted Reason 
 // Helper: Formatted Reason 
 const FormattedReason = ({ text }: { text?: string }) => {
     if (!text) return null;
-    const parts = text.split(/(?=\d\. )/g).filter(p => p.trim().length > 0);
-    if (parts.length <= 1) return <p className="text-sm text-muted-foreground italic">"{text}"</p>;
+
+    // Split by ". " to separate sentences
+    const parts = text.split('. ').filter(p => p.trim().length > 0);
+
     return (
-        <ul className="text-sm text-muted-foreground space-y-2 mt-2 text-left">
-            {parts.map((part, idx) => (
-                <li key={idx} className="flex gap-2 bg-secondary/30 p-2 rounded-md border border-border/30">
-                    <span className="font-bold text-primary/70 shrink-0">{part.substring(0, 2)}</span>
-                    <span className="italic">{part.substring(2)}</span>
-                </li>
-            ))}
+        <ul className="text-sm text-muted-foreground space-y-1.5 mt-3 text-left">
+            {parts.map((part, idx) => {
+                let content = part.trim();
+                // Add period back if missing (since split removes it from the middle ones, and last one might have it)
+                if (!content.endsWith('.')) content += '.';
+
+                return (
+                    <li key={idx} className="flex gap-2 items-start">
+                        <span className="text-primary font-bold mt-[3px] text-[10px]">•</span>
+                        <span className="italic leading-relaxed opacity-90">{content}</span>
+                    </li>
+                );
+            })}
         </ul>
     );
 };
@@ -131,10 +186,9 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
     const handleStatusChange = async (newStatus: string) => {
         if (!isAdmin) return;
         setIsUpdating(true);
-        console.log(`[BetCard] Enviando a API: Type=${type}, NewStatus=${newStatus}`); // Debug log requested by user
+        console.log(`[BetCard] Enviando a API: Type=${type}, NewStatus=${newStatus}`);
 
         try {
-            // Use received prop date, or data.date, or fallback to today (Europe/Madrid)
             const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Madrid' });
             const targetDate = date || data.date || today;
 
@@ -156,7 +210,6 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
                 const data = await res.json();
                 if (data.success) {
                     console.log(`[BetCard] Guardado exitoso en Vercel: ${data.filtered?.status}`);
-                    // Trigger a router refresh if needed, but the API calls revalidatePath
                 }
             }
         } catch (e) {
@@ -275,7 +328,7 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
             {startTime && (!data.status || isAdmin) && (
                 <div className={`absolute top-4 ${isAdmin ? 'right-28' : 'right-6'} flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground bg-secondary px-2 py-1 rounded-full border border-border/50  transition-all`}>
                     <Clock size={12} className="text-primary/70" />
-                    <span>{startTime}</span>
+                    <span>{extractTime(startTime)}</span>
                 </div>
             )}
 
@@ -323,8 +376,11 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
                             {data.selections?.map((sel, idx) => (
                                 <div key={idx} className="flex flex-col border-b border-border/50 last:border-0 pb-2 last:pb-0">
                                     <div className="flex justify-between items-center mb-1">
-                                        <span className="text-xs font-semibold text-foreground/80 truncate max-w-[220px]">{sel.match}</span>
-                                        {sel.odd && <span className="text-[10px] bg-secondary px-1 rounded text-muted-foreground">{sel.odd}</span>}
+                                        <div className="flex items-center gap-1 overflow-hidden mr-2">
+                                            <span className="text-xs font-semibold text-foreground/80 truncate">{sel.match}</span>
+                                            {sel.league && <span className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">({sel.league})</span>}
+                                        </div>
+                                        {sel.odd && <span className="text-[10px] bg-secondary px-1 rounded text-muted-foreground whitespace-nowrap">{sel.odd}</span>}
                                     </div>
                                     <div className="flex justify-between items-center pl-2 border-l-2 border-primary/20">
                                         <span className={`text-sm font-bold ${config.textColor}`}>{sel.pick}</span>
@@ -332,7 +388,14 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
                                         <div className="flex items-center gap-1">
                                             {(sel.status === 'WON' || sel.status === 'GANADA') && <Check size={14} className="text-emerald-500" />}
                                             {(sel.status === 'LOST' || sel.status === 'PERDIDA') && <XIcon size={14} className="text-rose-500" />}
-                                            {(sel.status === 'PENDING' || sel.status === 'PENDIENTE') && <Clock size={14} className="text-amber-500/50" />}
+                                            {(sel.status === 'PENDING' || sel.status === 'PENDIENTE' || !sel.status) && (
+                                                <>
+                                                    <span className="text-[10px] font-mono text-muted-foreground mr-1.5 font-bold opacity-80 decoration-0 align-middle">
+                                                        {extractTime(sel.time || data.startTime || data.time)}
+                                                    </span>
+                                                    <SportIcon sport={sel.sport || data.sport} className="text-base" />
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                     {sel.result && sel.result !== '?' && (
@@ -388,20 +451,22 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
                     <div className="flex flex-col">
                         <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider mb-0.5">Profit Est.</span>
                         <span className={`font-mono font-black text-xl ${data.profit && data.profit < 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
-                            {data.profit ? `${data.profit > 0 ? '+' : ''}${data.profit}u` : `${(config.stake * (data.odd - 1)).toFixed(2)}u`}
+                            {data.profit ? `${data.profit > 0 ? '+' : ''}${data.profit}u` :
+                                data.estimated_units ? `+${data.estimated_units}u` :
+                                    `+${((data.stake || config.stake) * ((data.total_odd || data.odd) - 1)).toFixed(2)}u`}
                         </span>
                     </div>
 
                     <div className="flex flex-col items-center">
                         <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider mb-0.5">Stake</span>
                         <span className={`font-mono font-bold text-lg ${config.textColor}`}>
-                            {config.stake}/10
+                            {data.stake || config.stake}/10
                         </span>
                     </div>
 
                     <div className="flex flex-col items-end">
                         <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider mb-0.5">Cuota</span>
-                        <span className="font-mono text-4xl font-black tracking-tighter leading-none">{data.odd}</span>
+                        <span className="font-mono text-4xl font-black tracking-tighter leading-none">{data.total_odd || data.odd}</span>
                     </div>
                 </div>
 

@@ -20,34 +20,21 @@ export default function DailyPredictions({ predictions, isAdmin }: DailyPredicti
         );
     }
 
+    // Normalize Data: Handle Array input (New Format) vs Object (Old Format)
+    let safeBet, valueBet, funbetBet;
+
+    if (Array.isArray(predictions)) {
+        safeBet = predictions.find((p: any) => (p.betType === 'safe' || p.type === 'safe'));
+        valueBet = predictions.find((p: any) => (p.betType === 'value' || p.type === 'value'));
+        funbetBet = predictions.find((p: any) => (p.betType === 'funbet' || p.type === 'funbet'));
+    } else {
+        safeBet = predictions?.safe;
+        valueBet = predictions?.value;
+        funbetBet = predictions?.funbet;
+    }
+
     // Dynamic Profit Calculation
-    const calculateProfit = () => {
-        let total = 0;
-        const stake = 10; // Base stake assumption
 
-        const bets = [predictions.safe, predictions.value, predictions.funbet];
-
-        bets.forEach(bet => {
-            if (!bet) return;
-
-            // Normalize Status
-            let status = bet.status;
-            if (status === 'GANADA') status = 'WON';
-            if (status === 'PERDIDA') status = 'LOST';
-            if (status === 'PENDIENTE') status = 'PENDING';
-
-            if (status === 'WON') {
-                total += stake * (bet.odd - 1);
-            } else if (status === 'LOST') {
-                total -= stake;
-            }
-        });
-
-        return total.toFixed(2);
-    };
-
-    const profit = calculateProfit();
-    const isPositive = parseFloat(profit) >= 0;
 
     return (
         <section className="max-w-7xl mx-auto px-4 py-8">
@@ -58,16 +45,13 @@ export default function DailyPredictions({ predictions, isAdmin }: DailyPredicti
                 </h2>
 
                 {/* Profit Display */}
-                <div className={`mt-4 md:mt-0 inline-flex items-center gap-2 px-6 py-3 rounded-2xl border ${isPositive ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-rose-500/10 border-rose-500/30 text-rose-400'}`}>
-                    <span className="text-sm font-bold uppercase tracking-wider opacity-80">Profit del Día:</span>
-                    <span className="text-2xl font-black tracking-tight">{isPositive ? '+' : ''}{profit}u</span>
-                </div>
+
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <BetCard type="safe" data={predictions.safe} isAdmin={isAdmin} />
-                <BetCard type="value" data={predictions.value} isAdmin={isAdmin} />
-                <BetCard type="funbet" data={predictions.funbet} isAdmin={isAdmin} />
+                <BetCard type="safe" data={safeBet} isAdmin={isAdmin} />
+                <BetCard type="value" data={valueBet} isAdmin={isAdmin} />
+                <BetCard type="funbet" data={funbetBet} isAdmin={isAdmin} />
             </div>
         </section>
     );

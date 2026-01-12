@@ -43,8 +43,18 @@ export default async function Home() {
 
     console.log(`[Page] Loading Analysis for Date: ${today}`);
 
-    // Fetch Bets Dynamic within betai: prefix
-    let betsData: any = await redis.get(`betai:daily_bets:${today}`);
+    // Fetch Bets from Master Key (Primary Source of Truth as per user request)
+    let betsData: any = await redis.get('betai:daily_bets');
+
+    if (!betsData) {
+        // Fallback: If master key is missing, try date-specific
+        console.log(`[Frontend] Master key empty, trying betai:daily_bets:${today}`);
+        betsData = await redis.get(`betai:daily_bets:${today}`);
+    }
+
+    if (betsData) {
+        console.log('[Page Debug] Data fetched successfully.');
+    }
 
     if (!betsData) {
         console.log(`[Frontend] No bets for ${today}, checking ${yesterday}...`);
