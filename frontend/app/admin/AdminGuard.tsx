@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Lock, ArrowRight, RefreshCw, LayoutDashboard, DownloadCloud, BrainCircuit, ClipboardCheck } from 'lucide-react';
+import { Lock, ArrowRight, RefreshCw, LayoutDashboard, DownloadCloud, BrainCircuit, ClipboardCheck, Activity as ActivityIcon, AlertTriangle } from 'lucide-react';
 import { verifyAdminPassword } from './actions';
 import ResultsCalendar from '@/components/ResultsCalendar';
 import AdminAnalytics from '@/components/AdminAnalytics';
@@ -36,9 +36,10 @@ export default function AdminGuard({
     const [savingSettings, setSavingSettings] = useState(false);
     const [lastRun, setLastRun] = useState<{ date: string, status: string, message: string, script: string } | null>(null);
 
-    // Trigger States... (keep existing)
+    // Trigger States
     const [fetchStatus, setFetchStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [analyzeStatus, setAnalyzeStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+    const [checkStatus, setCheckStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
 
     useEffect(() => {
         const sessionAuth = sessionStorage.getItem("admin_auth");
@@ -66,8 +67,6 @@ export default function AdminGuard({
             .catch(err => console.error("Failed to fetch settings", err));
     }, []);
 
-    // ... (keep handleLogin and triggers) ...
-
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoginError("");
@@ -83,15 +82,15 @@ export default function AdminGuard({
         }
     };
 
-    const triggerGitHubAction = async (mode: 'fetch' | 'analyze', setStatus: React.Dispatch<any>) => {
-        if (!confirm(`¿Estás seguro de ejecutar: ${mode.toUpperCase()}? \n\nEsto iniciará una acción en GitHub. Tardará unos minutos.`)) return;
+    const triggerGitHubAction = async (endpoint: string, payload: any, setStatus: React.Dispatch<any>) => {
+        if (!confirm(`¿Estás seguro de ejecutar esta acción? \n\nEsto iniciará un proceso en segundo plano.`)) return;
 
         setStatus('loading');
         try {
-            const res = await fetch('/api/admin/trigger', {
+            const res = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mode: mode })
+                body: JSON.stringify(payload)
             });
 
             if (res.ok) {
@@ -100,7 +99,7 @@ export default function AdminGuard({
             } else {
                 setStatus('error');
                 const data = await res.json();
-                alert(`Error: ${data.details || 'Error desconocido'}`);
+                alert(`Error: ${data.details || data.error || 'Error desconocido'}`);
                 setTimeout(() => setStatus('idle'), 3000);
             }
         } catch (e) {
@@ -111,8 +110,14 @@ export default function AdminGuard({
         }
     };
 
+    // Button 1: Comprobar -> calls /api/admin/trigger-check (triggers update_results_bet.yml)
     const handleCheckBets = () => {
-        alert("⚠️ Funcionalidad integrada en backend. Revisa el calendario para ver resultados históricos.");
+        triggerGitHubAction('/api/admin/trigger-check', { date: formattedDate }, setCheckStatus);
+    };
+
+    // Button 2: Analizar -> calls /api/admin/trigger (triggers daily_bet_update.yml)
+    const handleAnalyze = () => {
+        triggerGitHubAction('/api/admin/trigger', { mode: 'all' }, setAnalyzeStatus);
     };
 
     const handleSaveSettings = async () => {
@@ -133,11 +138,10 @@ export default function AdminGuard({
 
     if (isCheckingAuth) return null;
 
-    // LOGIN UI (Same as before)
+    // LOGIN UI
     if (!isAuthenticated) {
         return (
             <div className="min-h-screen relative flex items-center justify-center overflow-hidden bg-background">
-                {/* ... (Keep existing login UI structure) ... */}
                 <div className="absolute inset-0 blur-xl opacity-30 pointer-events-none select-none overflow-hidden scale-105">
                     {children}
                 </div>
@@ -191,39 +195,42 @@ export default function AdminGuard({
                     <div className="flex-1 flex flex-col items-center justify-center gap-1">
                         <div className="flex items-center justify-center gap-2 md:gap-3">
                             <button
-                                onClick={() => triggerGitHubAction('fetch', setFetchStatus)}
-                                disabled={fetchStatus === 'loading'}
-                                className={`flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-bold border transition-all ${fetchStatus === 'loading' ? 'opacity-50' : 'bg-sky-600 border-sky-400 hover:scale-105'}`}>
-                                <DownloadCloud className="w-3.5 h-3.5" />
-                                <span className="hidden md:inline">Recuperar</span>
+                                onClick={handleCheckBets}
+                                disabled={checkStatus === 'loading'}
+                                className={`flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-bold border border-slate-500 transition-all ${checkStatus === 'loading' ? 'opacity-50' : 'bg-slate-700 hover:scale-105'}`}>
+                                <ClipboardCheck className="w-3.5 h-3.5" />
+                                {checkStatus === 'loading' ? 'Comprobando...' : 'Comprobar'}
                             </button>
                             <button
-                                onClick={() => triggerGitHubAction('analyze', setAnalyzeStatus)}
+                                onClick={handleAnalyze}
                                 disabled={analyzeStatus === 'loading'}
                                 className={`flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-bold border transition-all ${analyzeStatus === 'loading' ? 'opacity-50' : 'bg-emerald-600 border-emerald-400 hover:scale-105'}`}>
                                 <BrainCircuit className="w-3.5 h-3.5" />
-                                <span className="hidden md:inline">Analizar</span>
+                                {analyzeStatus === 'loading' ? 'Analizando...' : 'Analizar'}
                             </button>
-                            <button
-                                onClick={handleCheckBets}
-                                className="flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-bold border border-slate-500 bg-slate-700 hover:scale-105 transition-all">
-                                <ClipboardCheck className="w-3.5 h-3.5" />
-                                <span className="hidden md:inline">Comprobar</span>
-                            </button>
-
                         </div>
+
 
                         {/* Status Log */}
                         {lastRun && (
-                            <div className="flex items-center gap-1.5 text-[2px] md:text-[10px] font-mono leading-none opacity-80 mt-0.5">
-                                <span className="text-gray-400">Último chequeo ({lastRun.script}): {lastRun.date}</span>
-                                <span className="text-gray-600">-</span>
+                            <div className="flex flex-col md:flex-row items-center gap-1.5 text-[10px] md:text-xs font-mono leading-none opacity-80 mt-1">
+                                <span className="text-gray-400 font-semibold">
+                                    Última Actividad:
+                                </span>
+                                <span className="text-fuchsia-300">
+                                    {lastRun.script === 'Daily Analysis' ? 'Análisis Diario' :
+                                        lastRun.script === 'Check Results' ? 'Comprobación de Resultados' :
+                                            lastRun.script}
+                                </span>
+                                <span className="hidden md:inline text-gray-600">|</span>
+                                <span className="text-gray-500">{lastRun.date}</span>
+                                <span className="hidden md:inline text-gray-600">|</span>
                                 <span className={`font-bold ${lastRun.status === 'SUCCESS' ? 'text-emerald-400' : 'text-rose-400'}`}>
                                     {lastRun.status}
                                 </span>
                                 {lastRun.status === 'ERROR' && (
-                                    <span className="text-rose-400 max-w-[100px] md:max-w-xs truncate" title={lastRun.message}>
-                                        ({lastRun.message})
+                                    <span className="text-rose-400 max-w-[100px] md:max-w-xs truncate ml-1" title={lastRun.message}>
+                                        - {lastRun.message}
                                     </span>
                                 )}
                             </div>
@@ -242,6 +249,31 @@ export default function AdminGuard({
                             <Lock className="w-4 h-4" />
                         </button>
                     </div>
+                </div>
+            </div>
+
+            {/* HERO SECTION (Mirrored from Home) */}
+            <div className="relative overflow-hidden border-b border-border bg-background">
+                <div className="absolute top-0 left-1/4 w-96 h-96 bg-fuchsia-500/20 rounded-full blur-[128px] pointer-events-none opacity-50" />
+                <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-violet-500/20 rounded-full blur-[128px] pointer-events-none opacity-50" />
+
+                <div className="max-w-4xl mx-auto px-4 py-8 md:py-16 text-center relative z-10">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-secondary text-secondary-foreground text-sm font-medium mb-6 hover:bg-secondary/80 transition-colors cursor-default">
+                        <ActivityIcon size={14} className="text-fuchsia-500 animate-pulse" />
+                        <span>Vista de Administrador</span>
+                    </div>
+
+                    <h1 className="text-3xl md:text-7xl font-black mb-6 tracking-tight leading-tight">
+                        BET AI MASTER <br className="hidden md:block" />
+                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-fuchsia-500 to-violet-500 animate-gradient block md:inline mt-2 md:mt-0">
+                            PANEL DE CONTROL
+                        </span>
+                    </h1>
+
+                    <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-6 leading-relaxed capitalize">
+                        Visualizando predicciones para el día: <br className="md:hidden" />
+                        <span className="font-bold text-foreground">{formattedDate}</span>
+                    </p>
                 </div>
             </div>
 

@@ -10,6 +10,10 @@ try:
     # Try project root
     dotenv_path = os.path.join(base_path, '.env.local')
     if not os.path.exists(dotenv_path):
+        # Try frontend folder
+        dotenv_path = os.path.join(base_path, 'frontend', '.env.local')
+    
+    if not os.path.exists(dotenv_path):
         # Try parent of project root
         dotenv_path = os.path.join(os.path.dirname(base_path), '.env.local')
     
@@ -159,7 +163,7 @@ class RedisService:
     def log_status(self, script_name, status, message=""):
         key = self._get_key("status:last_run")
         data = {
-            "date": datetime.now().strftime("%Y-m-%d %H:%M:%S"),
+            "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "script": script_name,
             "status": status, # SUCCESS / ERROR
             "message": str(message)

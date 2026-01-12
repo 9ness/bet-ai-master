@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { Redis } from '@upstash/redis';
+import { revalidatePath, revalidateTag } from 'next/cache';
 
 // Initialize Redis directly (server-side)
 const redis = new Redis({
@@ -24,6 +25,7 @@ export async function POST(request: Request) {
             `history:${date}`,
             `${prefix}history:${date}`,
             `${prefix}bets:${date}`,
+            `${prefix}daily_bets:${date}`, // PRIMARY SOURCE OF TRUTH
             "daily_bets"
         ];
 
@@ -198,6 +200,12 @@ export async function POST(request: Request) {
         console.log(`[UPDATE-BET] Saving to Redis key: ${redisKey}`);
         await redis.set(redisKey, historyData);
         console.log(`[UPDATE-BET] --- SUCCESS ---\n`);
+
+        // 7. REVALIDATE
+        console.log(`[UPDATE-BET] Revalidating cache...`);
+        revalidatePath('/', 'layout'); // Refresh everything
+        revalidatePath('/admin', 'page'); // Refresh admin
+        revalidateTag('bets'); // Refresh data tags (if used)
 
         return NextResponse.json({ success: true, filtered: bet });
 

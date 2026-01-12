@@ -64,7 +64,7 @@ def main():
             today_key = f"daily_bets:{datetime.now().strftime('%Y-%m-%d')}"
             
             print(f"\nStep 4: Saving to Redis (Cloud)...")
-            print(f"[REDIS] Intentando guardar análisis en la clave: {today_key}")
+            print(f"Guardando cambio en Redis: {today_key}")
             print(f"[DATOS] Contenido del JSON a guardar: {json.dumps(recommendations, indent=2, ensure_ascii=False)}")
             
             rs = RedisService()
