@@ -32,7 +32,6 @@ export async function GET(req: NextRequest) {
             const date = `${month}-${dayStr}`;
             dates.push(date);
             pipeline.get(`${prefix}history:${date}`);
-            pipeline.get(`${prefix}bets:${date}`);
             pipeline.get(`${prefix}daily_bets:${date}`);
         }
 
@@ -46,9 +45,8 @@ export async function GET(req: NextRequest) {
         let wonDays = 0;
 
         dates.forEach((date, idx) => {
-            const historyData = results[idx * 3];
-            const betsData = results[idx * 3 + 1];
-            const dailyDataRaw = results[idx * 3 + 2];
+            const historyData = results[idx * 2];
+            const dailyDataRaw = results[idx * 2 + 1];
 
             if (historyData) {
                 // Confirmed History
@@ -78,54 +76,58 @@ export async function GET(req: NextRequest) {
                     totalSettledDays++;
                     if (Number(dayObj.day_profit) > 0) wonDays++;
                 }
-            } else if (betsData) {
-                // Pending Bets (Explicitly saved for calendar)
-                const parsedBets = typeof betsData === 'string' ? JSON.parse(betsData) : betsData;
-                const betsArray = parsedBets.bets || [];
-
-                daysMap[date] = {
-                    date: date,
-                    day_profit: 0,
-                    status: 'PENDING',
-                    bets: betsArray.map((b: any) => ({
-                        ...b,
-                        status: 'PENDING',
-                        profit: 0
-                    }))
-                };
             } else if (dailyDataRaw) {
-                // Fallback: Smart Sync with Daily Analysis
+                // Primary Source (Previously Fallback)
                 const dailyCtx = typeof dailyDataRaw === 'string' ? JSON.parse(dailyDataRaw) : dailyDataRaw;
-                const betsMap = dailyCtx.bets || {};
-                const transformedBets: any[] = [];
+                // Support both list (new standard) and dict (legacy)
+                let transformedBets: any[] = [];
 
-                const stakes: Record<string, number> = { "safe": 6, "value": 3, "funbet": 1 };
-
-                ['safe', 'value', 'funbet'].forEach(type => {
-                    if (betsMap[type]) {
-                        const b = betsMap[type];
-                        // Check if this fallback data actually has a status update
+                if (Array.isArray(dailyCtx.bets)) {
+                    // NEW STANDARD: List
+                    transformedBets = dailyCtx.bets.map((b: any) => ({
+                        ...b,
+                        status: b.status || 'PENDING',
+                        profit: b.profit || 0
+                    }));
+                    // Accumulate stakes if any are settled (rare for raw daily but possible)
+                    const DEFAULT_STAKES: Record<string, number> = { safe: 6, value: 3, funbet: 1 };
+                    transformedBets.forEach(b => {
                         let s = (b.status || 'PENDING').toUpperCase();
-                        if (s === 'GANADA') s = 'WON';
-                        if (s === 'PERDIDA') s = 'LOST';
-
-                        // Accumulate stake if settled (even if not in history key yet)
-                        if (s === 'WON' || s === 'LOST') {
-                            totalMonthlyStake += Number(stakes[type] || 0);
+                        if (['WON', 'LOST'].includes(s)) {
+                            const betType = (b.betType || b.type || '').toLowerCase();
+                            totalMonthlyStake += (Number(b.stake) || DEFAULT_STAKES[betType] || 0);
                         }
+                    });
 
-                        transformedBets.push({
-                            type: type,
-                            stake: stakes[type] || 0,
-                            total_odd: b.odd,
-                            match: b.match,
-                            pick: b.pick,
-                            status: s === 'WON' || s === 'LOST' ? s : 'PENDING', // Visual only
-                            profit: 0,
-                            selections: b.selections || []
-                        });
-                    }
-                });
+                } else {
+                    // LEGACY: Dict (fallback logic)
+                    const betsMap = dailyCtx.bets || {};
+                    const stakes: Record<string, number> = { "safe": 6, "value": 3, "funbet": 1 };
+
+                    ['safe', 'value', 'funbet'].forEach(type => {
+                        if (betsMap[type]) {
+                            const b = betsMap[type];
+                            let s = (b.status || 'PENDING').toUpperCase();
+                            if (s === 'GANADA') s = 'WON';
+                            if (s === 'PERDIDA') s = 'LOST';
+
+                            if (s === 'WON' || s === 'LOST') {
+                                totalMonthlyStake += Number(stakes[type] || 0);
+                            }
+
+                            transformedBets.push({
+                                type: type,
+                                stake: stakes[type] || 0,
+                                total_odd: b.odd,
+                                match: b.match,
+                                pick: b.pick,
+                                status: s === 'WON' || s === 'LOST' ? s : 'PENDING',
+                                profit: 0,
+                                selections: b.selections || []
+                            });
+                        }
+                    });
+                }
 
                 if (transformedBets.length > 0) {
                     daysMap[date] = {
