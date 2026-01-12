@@ -1,5 +1,7 @@
-import React from 'react';
-import { ShieldCheck, Target, PartyPopper, Clock, Check, X as XIcon } from 'lucide-react';
+'use client';
+
+import React, { useState } from 'react';
+import { ShieldCheck, Target, PartyPopper, Clock, Check, X as XIcon, RefreshCw, Save } from 'lucide-react';
 
 type Selection = {
     fixture_id?: number;
@@ -27,11 +29,14 @@ type BetData = {
     selections?: Selection[];
     status?: string;
     profit?: number;
+    date?: string; // Sometimes present in data
 };
 
 type BetCardProps = {
     type: 'safe' | 'value' | 'funbet';
     data?: BetData;
+    isAdmin?: boolean;
+    date?: string; // Explicit date prop
 };
 
 // Helper: Group components by match name
@@ -112,8 +117,55 @@ const FormattedReason = ({ text }: { text?: string }) => {
     );
 };
 
-export default function BetCard({ type, data }: BetCardProps) {
+export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
+    const [isUpdating, setIsUpdating] = useState(false);
+
     if (!data) return null;
+
+    // Normalize incoming status for default value
+    let currentStatus = data.status || 'PENDING';
+    if (currentStatus === 'GANADA') currentStatus = 'WON';
+    if (currentStatus === 'PERDIDA') currentStatus = 'LOST';
+    if (currentStatus === 'PENDIENTE') currentStatus = 'PENDING';
+
+    const handleStatusChange = async (newStatus: string) => {
+        if (!isAdmin) return;
+        setIsUpdating(true);
+        console.log(`[BetCard] Enviando a API: Type=${type}, NewStatus=${newStatus}`); // Debug log requested by user
+
+        try {
+            // Use received prop date, or data.date, or fallback to today (Europe/Madrid)
+            const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Madrid' });
+            const targetDate = date || data.date || today;
+
+            const res = await fetch('/api/admin/update-bet', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    date: targetDate,
+                    betType: type,
+                    newStatus: newStatus
+                })
+            });
+
+            if (!res.ok) {
+                const errData = await res.json();
+                console.error("[BetCard] Error API:", errData);
+                alert(`Error al guardar: ${errData.error || 'Desconocido'}`);
+            } else {
+                const data = await res.json();
+                if (data.success) {
+                    console.log(`[BetCard] Guardado exitoso en Vercel: ${data.filtered?.status}`);
+                    // Trigger a router refresh if needed, but the API calls revalidatePath
+                }
+            }
+        } catch (e) {
+            console.error("[BetCard] Exception:", e);
+            alert("Error de conexión al guardar.");
+        } finally {
+            setIsUpdating(false);
+        }
+    };
 
     const cardConfigs = {
         safe: {
@@ -187,19 +239,41 @@ export default function BetCard({ type, data }: BetCardProps) {
             <div className={`absolute inset-x-0 top-0 h-1 ${config.headerBg} rounded-t-3xl`} />
 
             {/* Status Badge (if available) */}
-            {data.status && (
-                <div className={`absolute top-4 right-6 flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-full border 
-                    ${data.status === 'GANADA' ? 'bg-emerald-500/20 text-emerald-500 border-emerald-500/20' :
-                        data.status === 'PERDIDA' ? 'bg-rose-500/20 text-rose-500 border-rose-500/20' :
-                            'bg-secondary text-muted-foreground border-border/50'}`}>
-                    {data.status === 'GANADA' ? <Check size={12} /> : data.status === 'PERDIDA' ? <XIcon size={12} /> : <Clock size={12} />}
-                    <span>{data.status}</span>
+            {isAdmin ? (
+                // ADMIN INTERACTIVE STATUS
+                <div className="absolute top-4 right-6 z-20">
+                    <select
+                        value={currentStatus}
+                        onChange={(e) => handleStatusChange(e.target.value)}
+                        disabled={isUpdating}
+                        className={`text-[10px] font-bold px-2 py-1 rounded-full border cursor-pointer outline-none appearance-none pr-6 text-center shadow-lg transition-colors
+                            ${currentStatus === 'WON' ? 'bg-emerald-500 text-white border-emerald-600' :
+                                currentStatus === 'LOST' ? 'bg-rose-500 text-white border-rose-600' :
+                                    'bg-secondary text-foreground border-border'}`}
+                    >
+                        <option value="PENDING">PENDING</option>
+                        <option value="WON">WON</option>
+                        <option value="LOST">LOST</option>
+                    </select>
+                    {isUpdating && <RefreshCw size={10} className="absolute right-1 top-1.5 animate-spin text-white/50" />}
                 </div>
+            ) : (
+                // NORMAL READ-ONLY STATUS
+                data.status && (
+                    <div className={`absolute top-4 right-6 flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-full border 
+                        ${currentStatus === 'WON' ? 'bg-emerald-500/20 text-emerald-500 border-emerald-500/20' :
+                            currentStatus === 'LOST' ? 'bg-rose-500/20 text-rose-500 border-rose-500/20' :
+                                'bg-secondary text-muted-foreground border-border/50'}`}>
+                        {currentStatus === 'WON' ? <Check size={12} /> : currentStatus === 'LOST' ? <XIcon size={12} /> : <Clock size={12} />}
+                        <span>{data.status === 'WON' || data.status === 'GANADA' ? 'GANADA' :
+                            data.status === 'LOST' || data.status === 'PERDIDA' ? 'PERDIDA' : 'PENDIENTE'}</span>
+                    </div>
+                )
             )}
 
-            {/* Start Time Badge (Only if no Status to avoid clutter?) - Let's keep both or prioritize Status? Keep both but shift time if Needed. */}
-            {startTime && !data.status && (
-                <div className="absolute top-4 right-6 flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground bg-secondary px-2 py-1 rounded-full border border-border/50">
+            {/* Start Time Badge */}
+            {startTime && (!data.status || isAdmin) && (
+                <div className={`absolute top-4 ${isAdmin ? 'right-28' : 'right-6'} flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground bg-secondary px-2 py-1 rounded-full border border-border/50  transition-all`}>
                     <Clock size={12} className="text-primary/70" />
                     <span>{startTime}</span>
                 </div>

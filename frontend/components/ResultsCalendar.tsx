@@ -37,16 +37,44 @@ type MonthStats = {
 // Sub-component for individual Bet Cards in Modal
 // Sub-component for individual Bet Cards in Modal
 // Sub-component for individual Bet Cards in Modal
-const BetDetailCard = ({ bet, date, isAdmin, onUpdate }: { bet: BetResult, date: string, isAdmin: boolean, onUpdate: () => void }) => {
+const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: BetResult, date: string, isAdmin: boolean, onUpdate: () => void, onLocalChange: (betType: string, newStatus: string) => void }) => {
     const [expanded, setExpanded] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-    const [pendingChanges, setPendingChanges] = useState<Record<number, string>>({});
-    // Key: selectionId, Value: newStatus
+    const [status, setStatus] = useState<string>(bet.status === 'GANADA' ? 'WON' : bet.status === 'PERDIDA' ? 'LOST' : bet.status);
+    const [pendingChanges, setPendingChanges] = useState<Record<string | number, string>>({});
 
-    // Reset pending changes when bet prop updates (e.g. after save/refresh)
+    // Sync state when prop changes (e.g. after full refresh)
+    // Sync state when prop changes (e.g. after full refresh)
     useEffect(() => {
-        setPendingChanges({});
-    }, [bet]);
+        let norm = bet.status || 'PENDING';
+        if (norm === 'GANADA') norm = 'WON';
+        if (norm === 'PERDIDA') norm = 'LOST';
+        if (norm === 'PENDIENTE') norm = 'PENDING';
+
+        // Auto-Check Children Consistency (Self-Healing)
+        const details = bet.selections || bet.picks_detail || (bet as any).components || [];
+        if (details.length > 0) {
+            const childrenStatus = details.map((d: any) => {
+                let s = (d.status || 'PENDING').toUpperCase();
+                return s === 'GANADA' ? 'WON' : s === 'PERDIDA' ? 'LOST' : s === 'PENDIENTE' ? 'PENDING' : s;
+            });
+
+            const hasLost = childrenStatus.some((s: string) => s === 'LOST');
+            const allWon = childrenStatus.every((s: string) => s === 'WON');
+
+            if (hasLost) norm = 'LOST';
+            else if (allWon) norm = 'WON';
+        }
+
+        // Only update if different to avoid loop
+        setStatus(prev => prev !== norm ? norm : prev);
+
+        // Also inform parent if we "healed" the status from PENDING to WON/LOST
+        if (norm !== bet.status && (norm === 'WON' || norm === 'LOST')) {
+            // Use timeout to avoid update-during-render
+            setTimeout(() => onLocalChange(bet.type, norm), 0);
+        }
+    }, [bet.status, bet]);
 
     const details = bet.selections || bet.picks_detail || (bet as any).components || [];
     const hasDetails = details.length > 0;
@@ -55,38 +83,64 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate }: { bet: BetResult, date:
     // Helper to get unique ID for selection (legacy compatibility)
     const getSelId = (detail: any) => detail.fixture_id ? detail.fixture_id.toString() : detail.match;
 
-    const handleLocalStatusChange = (id: string, newStatus: string) => {
-        setPendingChanges(prev => ({
-            ...prev,
-            [id]: newStatus
-        }));
+    const handleLocalDetailChange = (id: string, selNewStatus: string) => {
+        // 1. Update selection change map
+        const updatedPending = {
+            ...pendingChanges,
+            [id]: selNewStatus
+        };
+        setPendingChanges(updatedPending);
+
+        // 2. Derive Parent Status
+        // Merge current details with pending changes
+        const mergedDetails = details.map((d: any) => {
+            const uid = getSelId(d);
+            const s = updatedPending[uid] || d.status || 'PENDING';
+            // Normalize
+            return s === 'GANADA' ? 'WON' : s === 'PERDIDA' ? 'LOST' : s === 'PENDIENTE' ? 'PENDING' : s;
+        });
+
+        const hasLost = mergedDetails.some((s: string) => s === 'LOST');
+        const allWon = mergedDetails.every((s: string) => s === 'WON');
+
+        let computedStatus = status;
+        if (hasLost) computedStatus = 'LOST';
+        else if (allWon) computedStatus = 'WON';
+        // Else keep current? Or set PENDING? Usually keep current unless explicit override.
+        // If transitioning from WON back to Pending (e.g. undoing a WON selection), we might want to revert?
+        // For now, adhere to rule: Any Lost -> Lost, All Won -> Won.
+
+        if (computedStatus !== status) {
+            setStatus(computedStatus);
+            onLocalChange(bet.type, computedStatus); // Triggers Parent + Header Refresh
+        }
     };
 
     const handleSaveBatch = async () => {
         setIsSaving(true);
         try {
-            // Convert pendingChanges to array
-            // Format: { selectionId, newStatus } 
-            // We verify if mapped ID is numeric-ish or string
-            const updates = Object.entries(pendingChanges).map(([idStr, status]) => ({
+            const updates = Object.entries(pendingChanges).map(([idStr, s]) => ({
                 selectionId: idStr,
-                newStatus: status
+                newStatus: s
             }));
 
             if (updates.length === 0) return;
 
+            // Include current (derived) status to ensure backend sync if needed, 
+            // though backend should also auto-derive.
             await fetch('/api/admin/update-bet', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     date,
                     betType: bet.type,
-                    updates // Send batch
+                    updates,
+                    newStatus: status // Send the derived status too
                 })
             });
 
             setPendingChanges({});
-            onUpdate(); // Refresh Parent
+            onUpdate(); // Full refresh
         } catch (e) {
             console.error(e);
             alert("Error saving updates");
@@ -97,20 +151,42 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate }: { bet: BetResult, date:
 
     // Global override
     const handleGlobalStatusUpdate = async (newStatus: string) => {
+        // STRICT VALIDATION
+        if (!bet.type) {
+            console.error("CRITICAL: Bet Type is undefined in Component. Bet Data:", bet);
+            alert("Error Crítico: No se encuentra el 'betType'. No se puede guardar. Revisa la consola.");
+            return;
+        }
+
+        setStatus(newStatus); // Immediate UI update
+        onLocalChange(bet.type, newStatus); // Notify parent for profit calc
+
         setIsSaving(true);
+        console.log(`[Admin] Saving Check: Date=${date}, Type=${bet.type}, Status=${newStatus}`);
+
         try {
-            await fetch('/api/admin/update-bet', {
+            const res = await fetch('/api/admin/update-bet', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     date,
                     betType: bet.type,
-                    selectionId: null, // Explicit global update
+                    selectionId: null,
                     newStatus
                 })
             });
-            console.log("Global status updated, refreshing data...");
-            onUpdate(); // Mutate/Refresh parent data
+
+            if (!res.ok) {
+                const err = await res.json();
+                console.error("API Error:", err);
+                alert("Error al guardar en el servidor");
+            } else {
+                const data = await res.json();
+                if (data.success) {
+                    console.log(`[Admin] Saved ${bet.type} -> ${newStatus} (Confirmed by Vercel)`);
+                    onUpdate(); // CRITICAL: Trigger calendar refresh
+                }
+            }
         } catch (e) {
             console.error(e);
         } finally {
@@ -119,7 +195,9 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate }: { bet: BetResult, date:
     };
 
     return (
-        <div className="bg-secondary/30 rounded-xl p-4 border border-border/50 transition-all hover:bg-secondary/40 relative">
+        <div className={`bg-secondary/30 rounded-xl p-4 border transition-all hover:bg-secondary/40 relative
+            ${status === 'WON' ? 'border-emerald-500/30 bg-emerald-500/5' : status === 'LOST' ? 'border-rose-500/30 bg-rose-500/5' : 'border-border/50'}`}>
+
             <div className="flex justify-between items-start mb-2">
                 <span className={`text-xs font-bold uppercase px-2 py-1 rounded-full 
                     ${bet.type === 'safe' ? 'bg-emerald-500/10 text-emerald-500' :
@@ -128,15 +206,15 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate }: { bet: BetResult, date:
                     {bet.type === 'safe' ? 'SEGURA' : bet.type === 'value' ? 'DE VALOR' : bet.type}
                 </span>
                 <span className={`font-mono font-bold ${bet.profit > 0 ? 'text-emerald-500' : bet.profit < 0 ? 'text-rose-500' : 'text-muted-foreground'}`}>
-                    {bet.profit > 0 ? '+' : ''}{bet.profit.toFixed(2)}u
+                    {(bet.profit || 0) > 0 ? '+' : ''}{(bet.profit || 0).toFixed(2)}u
                 </span>
             </div>
 
             <p className="font-semibold text-sm mb-1">{bet.match}</p>
             <p className="text-xs text-muted-foreground mb-3 italic">{bet.pick}</p>
 
-            {/* Expansion Toggle & Save Bar */}
-            {hasDetails && (
+            {/* Expansion Toggle & Save Bar - Only show if > 1 selection (Combinada) */}
+            {hasDetails && details.length > 1 && (
                 <div className="flex justify-between items-center mb-3">
                     <button
                         onClick={() => setExpanded(!expanded)}
@@ -166,8 +244,17 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate }: { bet: BetResult, date:
                     <div className="mb-3 space-y-1 bg-background/50 p-2 rounded-lg border border-border/30">
                         {details.map((detail: any, idx: number) => {
                             const uniqueId = getSelId(detail);
-                            // Determine value: pending > current > default
-                            const currentStatus = pendingChanges[uniqueId] || detail.status || "PENDING";
+                            let rawStatus = pendingChanges[uniqueId] || detail.status || "PENDING";
+                            // Ensure string and uppercase
+                            if (typeof rawStatus !== 'string') rawStatus = String(rawStatus);
+                            rawStatus = rawStatus.toUpperCase();
+
+                            let currentStatus = rawStatus;
+
+                            // Normalization for UI Select
+                            if (currentStatus === 'GANADA') currentStatus = 'WON';
+                            if (currentStatus === 'PERDIDA') currentStatus = 'LOST';
+                            if (currentStatus === 'PENDIENTE') currentStatus = 'PENDING';
 
                             return (
                                 <div key={idx} className="flex justify-between items-center text-xs p-1 border-b border-white/5 last:border-0 gap-2">
@@ -182,7 +269,7 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate }: { bet: BetResult, date:
                                                 className={`border text-[10px] rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary transition-colors
                                                 ${pendingChanges[uniqueId] ? 'bg-primary/10 border-primary text-primary' : 'bg-background border-white/10 text-foreground'}`}
                                                 value={currentStatus}
-                                                onChange={(e) => handleLocalStatusChange(uniqueId, e.target.value)}
+                                                onChange={(e) => handleLocalDetailChange(uniqueId, e.target.value)}
                                                 disabled={isSaving}
                                             >
                                                 <option value="PENDING">PEND</option>
@@ -207,27 +294,27 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate }: { bet: BetResult, date:
 
             <div className="flex justify-between items-center text-xs border-t border-border/30 pt-2">
                 <div className="flex gap-4">
-                    <span>Stake: <b className="text-foreground">{bet.stake}</b></span>
-                    <span>Cuota: <b className="text-foreground">{bet.total_odd}</b></span>
+                    <span>Stake: <b className="text-foreground">{bet.stake || (bet.type === 'safe' ? 6 : bet.type === 'value' ? 3 : 1)}</b></span>
+                    <span>Cuota: <b className="text-foreground">{bet.total_odd || (bet as any).odd || 0}</b></span>
                 </div>
                 <div className="flex items-center gap-1 font-bold">
                     {isAdmin ? (
                         <select
-                            className="bg-secondary text-xs rounded px-2 py-1 font-bold focus:outline-none focus:ring-1 focus:ring-primary"
-                            value={bet.status}
+                            className={`text-xs rounded px-2 py-1 font-bold focus:outline-none focus:ring-1 focus:ring-primary appearance-none cursor-pointer text-center
+                                ${status === 'WON' ? 'bg-emerald-500 text-white' : status === 'LOST' ? 'bg-rose-500 text-white' : 'bg-secondary text-foreground'}`}
+                            value={status}
                             onChange={(e) => handleGlobalStatusUpdate(e.target.value)}
                             disabled={isSaving}
                         >
                             <option value="PENDING">PENDIENTE</option>
-                            <option value="WON">GANADA</option>
-                            <option value="LOST">PERDIDA</option>
+                            <option value="WON">WON</option>
+                            <option value="LOST">LOST</option>
                         </select>
                     ) : (
                         <>
-                            {(bet.status === 'WON' || bet.status === 'GANADA') && <><CircleCheck size={14} className="text-emerald-500" /> GANADA</>}
-                            {(bet.status === 'LOST' || bet.status === 'PERDIDA') && <><CircleX size={14} className="text-rose-500" /> PERDIDA</>}
-                            {(bet.status === 'PENDING' || bet.status === 'PENDIENTE') && <span className="text-amber-500">PENDIENTE</span>}
-                            {bet.status === 'UNKNOWN' && <span className="text-gray-500">? DESC.</span>}
+                            {(status === 'WON' || status === 'GANADA') && <><CircleCheck size={14} className="text-emerald-500" /> GANADA</>}
+                            {(status === 'LOST' || status === 'PERDIDA') && <><CircleX size={14} className="text-rose-500" /> PERDIDA</>}
+                            {(status === 'PENDING' || status === 'PENDIENTE') && <span className="text-amber-500">PENDIENTE</span>}
                         </>
                     )}
                 </div>
@@ -235,7 +322,6 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate }: { bet: BetResult, date:
         </div >
     );
 };
-
 
 export default function ResultsCalendar() {
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -246,11 +332,92 @@ export default function ResultsCalendar() {
     const [isAdmin, setIsAdmin] = useState(false);
     const [isChecking, setIsChecking] = useState(false);
 
+    // LOCAL MUTABLE STATE FOR MODAL
+    const [localDayData, setLocalDayData] = useState<DayHistory | null>(null);
+
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
 
-    // Derived state for live updates
-    const selectedDayData = selectedDate ? history[selectedDate] : null;
+    // Init local day data when selectedDate changes
+    useEffect(() => {
+        if (selectedDate && history[selectedDate]) {
+            setLocalDayData(history[selectedDate]); // Initial copy
+        } else {
+            setLocalDayData(null);
+        }
+    }, [selectedDate, history]);
+
+    // Dynamic Profit Recalculation
+    useEffect(() => {
+        if (!localDayData) return;
+
+        const bets = Array.isArray(localDayData.bets)
+            ? localDayData.bets
+            : Object.entries(localDayData.bets || {}).map(([k, v]) => ({ ...(v as any), type: (v as any).type || k }));
+
+        let total = 0;
+        bets.forEach((b: any) => {
+            let s = b.status;
+            if (s === 'GANADA') s = 'WON';
+            if (s === 'PERDIDA') s = 'LOST';
+
+            const stake = Number(b.stake) || 0; // Use real stake
+
+            if (s === 'WON') {
+                total += (stake * (b.total_odd - 1));
+            } else if (s === 'LOST') {
+                total -= stake;
+            }
+        });
+
+        // Loop issue, we don't need to do anything here if we calculate on event/render
+    }, [localDayData]);
+
+    // Handle Local Status Change (Updates the Copy)
+    const handleLocalBetUpdate = (betType: string, newStatus: any) => {
+        if (!localDayData) return;
+
+        // Ensure bets is array for processing, PRESERVING TYPE from keys if needed
+        const currentBets = Array.isArray(localDayData.bets)
+            ? localDayData.bets
+            : Object.entries(localDayData.bets || {}).map(([k, v]) => ({ ...(v as any), type: (v as any).type || k }));
+
+        const newBets = currentBets.map((b: any) => {
+            if (b.type === betType) {
+                // Update specific bet
+                let profit = 0;
+                // Use robust formula from route.ts: Stake * (Odd - 1)
+                const stake = Number(b.stake) || 0; // Don't invent default here either, just use what's there. 
+                // Visual defaults are handled in render.
+
+                if (newStatus === 'WON') profit = stake * (b.total_odd - 1);
+                if (newStatus === 'LOST') profit = -stake;
+
+                return { ...b, status: newStatus, profit };
+            }
+            return b;
+        });
+
+        // Recalculate Day Profit
+        let newDayProfit = 0;
+        newBets.forEach((b: any) => {
+            let s = b.status;
+            if (s === 'GANADA') s = 'WON';
+            if (s === 'PERDIDA') s = 'LOST';
+            if (s === 'PENDIENTE') s = 'PENDING';
+
+            const stake = Number(b.stake) || 0;
+
+            if (s === 'WON') newDayProfit += (stake * (b.total_odd - 1));
+            else if (s === 'LOST') newDayProfit -= stake;
+        });
+
+        setLocalDayData({
+            ...localDayData,
+            bets: newBets, // This will turn it into an array locally, which is fine for UI
+            day_profit: newDayProfit
+        });
+    };
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -261,6 +428,8 @@ export default function ResultsCalendar() {
         }
         fetchData();
     }, [currentDate]);
+
+    // ... (keep handleTriggerCheck, fetchData, nextMonth, prevMonth, renderDay)
 
     const handleTriggerCheck = async (date: string) => {
         if (!confirm(`¿Ejecutar comprobación para ${date}?`)) return;
@@ -282,12 +451,6 @@ export default function ResultsCalendar() {
     const handleUpdate = () => {
         // Refresh data after manual edit
         fetchData();
-        // Also update selected day data locally if needed or close modal?
-        // Simple approach: close modal to force refresh from main list later, or re-fetch specific day?
-        // Since fetchData gets whole month, calling it refreshes history.
-        // We need to update selectedDay reference too.
-        // For now, let's just re-fetch and rely on user closing/reopening or update generic.
-        // Better: fetchData matches selectedDay date and updates it.
     };
 
     const fetchData = async () => {
@@ -324,8 +487,13 @@ export default function ResultsCalendar() {
         // Valid statuses from API: 'PENDING'
         const isPending = hasData && (dayData as any).status === 'PENDING';
 
+        // Stronger colors for mobile visibility
         const profitClass = hasData ? (dayData.day_profit > 0 ? 'text-emerald-400' : dayData.day_profit < 0 ? 'text-rose-400' : 'text-amber-400') : '';
-        const profitBg = hasData ? (dayData.day_profit > 0 ? 'bg-emerald-500/10' : dayData.day_profit < 0 ? 'bg-rose-500/10' : 'bg-amber-500/10 border-amber-500/20') : 'bg-secondary/5';
+        const profitBg = hasData ?
+            (dayData.day_profit > 0 ? 'bg-emerald-500/25 border-emerald-500/20' :
+                dayData.day_profit < 0 ? 'bg-rose-500/25 border-rose-500/20' :
+                    'bg-amber-500/25 border-amber-500/20')
+            : 'bg-secondary/5';
 
         if (!hasData) {
             return (
@@ -351,16 +519,23 @@ export default function ResultsCalendar() {
                     ${selectedDate === dateStr ? 'ring-2 ring-primary' : ''}
                 `}
             >
-                <div className="flex justify-between items-start mb-2 relative z-10">
-                    <span className={`text-lg font-bold ${isToday ? 'bg-primary text-primary-foreground w-8 h-8 rounded-full flex items-center justify-center shadow-lg' : 'text-foreground'}`}>
+                {/* Day Number Container: Centered on Mobile, Top-Left on Desktop */}
+                <div className="flex flex-col justify-center items-center md:flex-row md:justify-between md:items-start relative z-10 w-full h-full md:h-auto md:mb-2 md:w-full">
+                    <span className={`text-base md:text-xl font-bold flex items-center justify-center w-7 h-7 md:w-8 md:h-8 rounded-full transition-all relative
+                        ${isToday ? 'text-primary scale-110 md:bg-primary md:text-primary-foreground md:shadow-lg' : 'text-foreground/80 md:text-foreground'}`}>
                         {day}
+
+                        {/* Mobile Today Dot */}
+                        {isToday && (
+                            <div className="md:hidden absolute -bottom-1 w-1 h-1 bg-primary rounded-full shadow-[0_0_5px_rgba(59,130,246,0.8)]" />
+                        )}
                     </span>
-                    {isPending && <Clock size={16} className="text-amber-500 animate-pulse" />}
                 </div>
 
-                <div className="flex flex-col gap-1 relative z-10">
-                    <div className="text-xs font-medium text-muted-foreground">Profit</div>
-                    <div className={`text-xl font-bold ${profitClass}`}>
+                {/* Profit Details - Hidden on Mobile, Large on Desktop */}
+                <div className="hidden md:flex flex-col gap-1 relative z-10 items-center text-center w-full mt-auto mb-2">
+                    <div className="text-[10px] uppercase font-bold text-muted-foreground/70 tracking-wider">Profit</div>
+                    <div className={`text-xl lg:text-2xl font-black tracking-tight ${profitClass}`}>
                         {dayData.day_profit > 0 ? '+' : ''}{dayData.day_profit.toFixed(2)}u
                     </div>
                 </div>
@@ -374,7 +549,10 @@ export default function ResultsCalendar() {
         );
     };
 
-
+    // Use localDayData if available and matches selectedDate, else use history fallback (safeguard)
+    // Actually best to rely on localDayData while modal is open to see live changes.
+    // Sync issues: If history updates, localDayData might be stale. But modal interaction is short lived.
+    const displayData = localDayData && (localDayData.date === selectedDate) ? localDayData : (selectedDate ? history[selectedDate] : null);
 
     return (
         <div className="w-full max-w-7xl mx-auto p-4 md:p-8 space-y-8">
@@ -419,7 +597,7 @@ export default function ResultsCalendar() {
             </div>
 
             {/* Detail Modal */}
-            {selectedDate && selectedDayData && (
+            {selectedDate && displayData && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
                     <div className="bg-card w-full max-w-2xl border border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-300">
 
@@ -430,8 +608,8 @@ export default function ResultsCalendar() {
                                     {new Date(selectedDate).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
                                 </h3>
                                 <div className="flex items-center gap-2 mt-1">
-                                    <span className={`text-sm font-bold px-2 py-0.5 rounded ${selectedDayData.day_profit >= 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
-                                        {selectedDayData.day_profit > 0 ? '+' : ''}{selectedDayData.day_profit.toFixed(2)} unidades
+                                    <span className={`text-sm font-bold px-2 py-0.5 rounded transition-all duration-300 ${displayData.day_profit >= 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
+                                        {displayData.day_profit > 0 ? '+' : ''}{displayData.day_profit.toFixed(2)} unidades
                                     </span>
                                 </div>
                             </div>
@@ -455,13 +633,14 @@ export default function ResultsCalendar() {
                                 </div>
                             )}
 
-                            {selectedDayData.bets.map((bet: any, idx: number) => (
+                            {(Array.isArray(displayData.bets) ? displayData.bets : Object.entries(displayData.bets || {}).map(([k, v]) => ({ ...(v as any), type: (v as any).type || k }))).map((bet: any, idx: number) => (
                                 <BetDetailCard
                                     key={idx}
                                     bet={bet}
                                     date={selectedDate}
                                     isAdmin={isAdmin}
                                     onUpdate={handleUpdate}
+                                    onLocalChange={handleLocalBetUpdate}
                                 />
                             ))}
                         </div>

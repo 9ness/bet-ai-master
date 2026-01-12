@@ -68,14 +68,13 @@ export default function AdminAnalytics() {
 
                 <div className="bg-card/40 border border-border/50 p-4 md:p-6 rounded-3xl flex items-center justify-between">
                     <div>
-                        <p className="text-muted-foreground text-[10px] md:text-xs uppercase font-bold tracking-widest">ROI Estimado</p>
-                        <h3 className="text-3xl md:text-4xl font-black mt-1 md:mt-2 text-violet-400">
-                            {/* Fake/Simple ROI calc: Profit / (Days * ~10u betted) ? Logic needed later. Placeholder. */}
-                            ~12.5%
+                        <p className="text-muted-foreground text-[10px] md:text-xs uppercase font-bold tracking-widest">WIN RATE</p>
+                        <h3 className={`text-3xl md:text-4xl font-black mt-1 md:mt-2 ${stats?.win_rate >= 50 ? 'text-emerald-400' : 'text-violet-400'}`}>
+                            {stats?.win_rate ?? 0}%
                         </h3>
                     </div>
-                    <div className="p-3 md:p-4 rounded-full bg-violet-500/10 text-violet-500">
-                        <DollarSign className="w-6 h-6 md:w-8 md:h-8" />
+                    <div className={`p-3 md:p-4 rounded-full ${stats?.win_rate >= 50 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-violet-500/10 text-violet-500'}`}>
+                        <TrendingUp className="w-6 h-6 md:w-8 md:h-8" />
                     </div>
                 </div>
 
