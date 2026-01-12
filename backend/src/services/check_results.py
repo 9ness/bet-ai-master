@@ -4,10 +4,9 @@ import sys
 import json
 import requests
 import re
-import argparse
-from datetime import datetime
+from datetime import datetime, timedelta # Corregido: añadido timedelta
 
-# Adjust path to allow imports from src if running from project root
+# Ajustar path para imports
 script_dir = os.path.dirname(__file__)
 backend_path = os.path.abspath(os.path.join(script_dir, '..', '..'))
 if backend_path not in sys.path:
@@ -17,14 +16,12 @@ from src.services.redis_service import RedisService
 
 class ResultChecker:
     def __init__(self):
-        # Inicialización limpia sin return
         self.redis = RedisService()
         self.api_key = os.getenv("API_KEY")
         self.base_url = "https://v3.football.api-sports.io"
         self.headers = {"x-apisports-key": self.api_key}
         
     def fetch_match_result(self, fixture_id):
-        """Consulta la API para obtener resultado."""
         if not fixture_id: return None
         url = f"{self.base_url}/fixtures?id={fixture_id}"
         try:
@@ -32,11 +29,9 @@ class ResultChecker:
             if resp.status_code == 200:
                 data = resp.json()
                 if not data["response"]: return None
-                
                 fixture = data["response"][0]
                 status = fixture["fixture"]["status"]["short"]
                 goals = fixture["goals"]
-                
                 return {
                     "status": status,
                     "home_goals": goals["home"] if goals["home"] is not None else 0,
@@ -46,210 +41,96 @@ class ResultChecker:
                 }
             return None
         except Exception as e:
-            print(f"[ERROR] API Request failed for {fixture_id}: {e}")
+            print(f"[ERROR] API failed: {e}")
             return None
 
-    # ... (imports stay same)
-    import argparse
-
-    # ... (init and fetch_match_result stay same)
-
     def evaluate_pick(self, pick, result):
-        """Evalúa un pick individual."""
-        if not result or not result["is_finished"]:
-            return "PENDING"
-            
+        if not result or not result["is_finished"]: return "PENDING"
         pick = pick.upper()
-        h = result["home_goals"]
-        a = result["away_goals"]
+        h, a = result["home_goals"], result["away_goals"]
         
-        # 1X2
-        if "(1)" in pick or "GANA LOCAL" in pick or "VICTORIA LOCAL" in pick:
-            return "WON" if h > a else "LOST"
-        if "(2)" in pick or "GANA VISITANTE" in pick or "VICTORIA VISITANTE" in pick:
-            return "WON" if a > h else "LOST"
-        if "(X)" in pick or "EMPATE" in pick:
-            return "WON" if h == a else "LOST"
-            
-        # Over/Under
-        ou_match = re.search(r'(OVER|MÁS|MENOS|UNDER)\s*(\d+\.?\d*)', pick)
+        if any(x in pick for x in ["(1)", "GANA LOCAL"]): return "WON" if h > a else "LOST"
+        if any(x in pick for x in ["(2)", "GANA VISITANTE"]): return "WON" if a > h else "LOST"
+        if any(x in pick for x in ["(X)", "EMPATE"]): return "WON" if h == a else "LOST"
+        
+        ou_match = re.search(r'(OVER|MÁS|UNDER|MENOS)\s*(\d+\.?\d*)', pick)
         if ou_match:
-            kind = ou_match.group(1)
-            line = float(ou_match.group(2))
+            kind, line = ou_match.group(1), float(ou_match.group(2))
             total = h + a
             if kind in ["OVER", "MÁS"]: return "WON" if total > line else "LOST"
-            if kind in ["UNDER", "MENOS", "MENOS DE"]: return "WON" if total < line else "LOST"
+            if kind in ["UNDER", "MENOS"]: return "WON" if total < line else "LOST"
             
-        # BTTS
-        if "AMBOS MARCAN" in pick or "BTTS" in pick:
-             return "WON" if h > 0 and a > 0 else "LOST"
-             
-        # Double Chance (1X, X2, 12)
+        if "AMBOS MARCAN" in pick or "BTTS" in pick: return "WON" if h > 0 and a > 0 else "LOST"
         if "1X" in pick: return "WON" if h >= a else "LOST"
         if "X2" in pick: return "WON" if a >= h else "LOST"
-        if "12" in pick: return "WON" if h != a else "LOST"
-
         return "PENDING"
 
     def run(self):
         parser = argparse.ArgumentParser()
-        parser.add_argument("--date", type=str, help="Fecha a comprobar (YYYY-MM-DD). Default: Ayer")
+        parser.add_argument("--date", type=str, help="YYYY-MM-DD")
         args = parser.parse_args()
 
-        target_date = args.date
-        if not target_date:
-            target_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-
-        print(f"--- INICIANDO VERIFICACIÓN DE RESULTADOS (UPSTASH) ---")
-        print(f"--- TARGET DATE: {target_date} ---")
+        target_date = args.date or (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        print(f"--- PROCESANDO FECHA: {target_date} ---")
         
-        # 1. Leer Daily Bets (o History si ya existe y queremos actualizar)
-        # Prioridad: Check 'daily_bets' si la fecha coincide, sino check 'bets:DATE'
+        # CLAVES CORRECTAS CON PREFIJO betai:
+        daily_key = f"betai:daily_bets:{target_date}"
+        history_key = f"betai:history:{target_date}"
         
-        # Estrategia robusta:
-        # A. Intentar leer `bets:{target_date}` (Key histórica guardada por Gemini)
-        # B. Si no existe, revisar si `daily_bets` tiene esa fecha.
-        
-        redis_key = f"bets:{target_date}"
-        raw_data = self.redis.get(f"bets:{target_date}")
-        
-        # Si no encontramos la key específica, miramos daily_bets por si acaso es "hoy/ayer" y está ahí
+        raw_data = self.redis.get(daily_key)
         if not raw_data:
-            print(f"[INFO] No encontrada key especifica 'bets:{target_date}'. Revisando 'daily_bets'...")
-            daily_raw = self.redis.get("daily_bets")
-            if daily_raw:
-                daily_json = json.loads(daily_raw)
-                if daily_json.get("date") == target_date:
-                    raw_data = daily_raw
-                    redis_key = "daily_bets" # Actualizaremos esta
-                else:
-                    print(f"[WARN] 'daily_bets' es de fecha {daily_json.get('date')}, no {target_date}.")
-        
-        if not raw_data:
-            print("[ERROR] No se encontraron datos para procesar.")
+            print(f"[ERROR] No hay datos en {daily_key}")
             return
 
         daily_data = json.loads(raw_data)
-        bets_map = daily_data.get("bets", {})
-        
-        all_bets_finished = True
-        updated_something = True # Forzamos update para guardar estados parciales
-        
-        # Mapeo de stakes por defecto
-        default_stakes = {"safe": 6, "value": 3, "funbet": 1}
+        bets = daily_data.get("bets", []) # Ahora manejamos el formato de Array que usa tu web
+        day_total_profit = 0
 
-        # 2. Iterar Categorías
-        for cat_name, bet_data in bets_map.items():
-            if not bet_data: continue
+        for bet in bets:
+            if bet.get("status") in ["WON", "LOST"]: continue
             
-            print(f"\n>>> Verificando {cat_name.upper()}...")
-            stake = bet_data.get("stake", default_stakes.get(cat_name, 1))
-            odd = bet_data.get("odd", 0)
-            
-            # --- SELECCIONES ---
-            selections = bet_data.get("selections", [])
-            if not selections and bet_data.get("components"):
-                selections = bet_data["components"]
-            if not selections:
-                # Caso Legacy: Crear selección única
-                selections = [{
-                    "fixture_id": bet_data.get("fixture_id"),
-                    "match": bet_data.get("match"),
-                    "pick": bet_data.get("pick"),
-                    "odd": odd,
-                    "status": "PENDING"
-                }]
-            
-            # --- GLOBAL STATUS CHECK ---
-            current_status = bet_data.get("status", "PENDING")
-            
-            # Logic Rule: Only process if Global Status is PENDING 
-            # OR if we want to allow updating PENDING selections within a PENDING bet.
-            # User said: "Si una apuesta ya está como 'WON' o 'LOST', el script NO debe tocarla"
-            
-            if current_status in ["WON", "LOST", "GANADA", "PERDIDA"]:
-                print(f"   [SKIP] Apuesta {cat_name} ya está finalizada ({current_status}).")
-                # Ensure selections are saved back if we modified them above (migration)
-                bet_data["selections"] = selections
-                continue
-                
-            # Evaluar cada selección
+            print(f"Verificando {bet['type']}...")
+            bet_selections = bet.get("selections", [])
             sel_results = []
-            
-            for sel in selections:
-                fid = sel.get("fixture_id")
-                pick = sel.get("pick")
-                sel_status = sel.get("status", "PENDING")
-                
-                # Logic Rule: Only process selection if output is currently PENDING
-                if sel_status not in ["PENDING", "PENDIENTE", "UNKNOWN"]:
-                     print(f"   [SKIP] Selección {fid} ya tiene estado {sel_status}.")
-                     sel_results.append(sel_status)
-                     continue
 
-                res = self.fetch_match_result(fid)
+            for sel in bet_selections:
+                if sel.get("status") in ["WON", "LOST"]:
+                    sel_results.append(sel["status"])
+                    continue
+                
+                res = self.fetch_match_result(sel.get("fixture_id"))
                 status = "PENDING"
-                result_txt = "?"
-                
                 if res and res["is_finished"]:
-                    status = self.evaluate_pick(pick, res)
-                    result_txt = f"{res['home_goals']}-{res['away_goals']}"
-                elif res:
-                    result_txt = f"{res['status']}"
-                
-                # Actualizar selección
-                sel["status"] = status
-                sel["result"] = result_txt
+                    status = self.evaluate_pick(sel.get("pick"), res)
+                    sel["status"] = status
                 sel_results.append(status)
-                
-                print(f"   - ID {fid} | {pick} -> {status} ({result_txt})")
 
-            # Guardar array actualizado
-            bet_data["selections"] = selections
-            
-            # Determinar Estado Global (Solo si estaba PENDING, que ya filtramos arriba)
-            final_status = "PENDING"
-            
-            # Logic: 
-            # If ANY selection is LOST -> Bet is LOST
-            # If ALL selections are WON -> Bet is WON
-            # Else -> PENDING
-            
-            if any(s in ["LOST", "PERDIDA"] for s in sel_results):
-                final_status = "LOST"
-            elif all(s in ["WON", "GANADA"] for s in sel_results) and len(sel_results) > 0:
-                 final_status = "WON"
+            # Lógica de Cascada
+            if any(s == "LOST" for s in sel_results):
+                bet["status"] = "LOST"
+            elif all(s == "WON" for s in sel_results) and len(sel_results) > 0:
+                bet["status"] = "WON"
             else:
-                 final_status = "PENDING"
+                bet["status"] = "PENDING"
 
-            # Calcular Profit
-            profit = 0.0
-            status_display = "PENDIENTE"
+            # Cálculo de Profit real
+            stake = float(bet.get("stake", 0))
+            odd = float(bet.get("total_odd", 0))
+            if bet["status"] == "WON":
+                bet["profit"] = round(stake * (odd - 1), 2)
+            elif bet["status"] == "LOST":
+                bet["profit"] = -stake
+            else:
+                bet["profit"] = 0
             
-            # Use bet_data["status"] update only if changed or re-calculated
-            if final_status == "LOST":
-                profit = -float(stake)
-                status_display = "PERDIDA"
-            elif final_status == "WON":
-                profit = (float(stake) * float(odd)) - float(stake)
-                status_display = "GANADA"
-            
-            bet_data["status"] = status_display
-            bet_data["profit"] = round(profit, 2)
-            
-            print(f"   => GLOBAL: {status_display} | {profit}u")
+            day_total_profit += bet["profit"]
 
-        # 3. Guardar en Redis
-        # Guardamos SIEMPRE en la key específica de fecha para historial persistente
-        history_key = f"history:{target_date}"
+        daily_data["day_profit"] = round(day_total_profit, 2)
+        
+        # GUARDADO EN CLAVES CORRECTAS
+        self.redis.set_data(daily_key, daily_data)
         self.redis.set_data(history_key, daily_data)
-        print(f"[SUCCESS] Datos actualizados en '{history_key}'")
-
-        # Si trabajábamos sobre 'daily_bets' y es la fecha correcta, actualizamos esa también
-        if redis_key == "daily_bets":
-            self.redis.set_data("daily_bets", daily_data)
-            print("[INFO] 'daily_bets' también actualizado.")
+        print(f"[SUCCESS] {daily_key} actualizado. Profit: {day_total_profit}")
 
 if __name__ == "__main__":
-    checker = ResultChecker()
-    checker.run()
+    ResultChecker().run()
