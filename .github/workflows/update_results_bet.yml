@@ -21,7 +21,7 @@ jobs:
         
     - name: Install dependencies
       run: |
-        pip install requests redis python-dotenv
+        pip install requests redis python-dotenv google-generativeai
         
     - name: Process Results and Update Redis
       env:
@@ -31,6 +31,6 @@ jobs:
         API_KEY: ${{ secrets.API_KEY }}
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       run: |
-        # Añadida la carpeta raíz al PYTHONPATH para que encuentre 'backend.src'
+        # PYTHONPATH para asegurar que encuentre el módulo 'src'
         export PYTHONPATH=$PYTHONPATH:$(pwd)
         python backend/src/services/check_results.py
