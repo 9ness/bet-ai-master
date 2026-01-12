@@ -68,23 +68,14 @@ def main():
             print(f"[DATOS] Contenido del JSON a guardar: {json.dumps(recommendations, indent=2, ensure_ascii=False)}")
             
             rs = RedisService()
-            # Saving to specific date key AND "daily_bets" (pointer to latest) to ensure backward compat or specific date access
-            # User specifically asked for unconditional overwrite.
-            success = rs.set_data(today_key, recommendations)
+            # Saving strictly to 'betai:daily_bets:YYYY-MM-DD' as List (via save_daily_bets)
             
-            # CRITICAL: Also save formatted data for the Calendar/History
+            # CRITICAL: Save formatted data for the Calendar/History
             date_str = datetime.now().strftime("%Y-%m-%d")
             rs.save_daily_bets(date_str, recommendations['bets'])
             
-            # Also update the 'latest' pointer if needed, or just relying on date.
-            # Assuming frontend reads from a specific endpoint or by date. 
-            # If frontend reads "daily_bets", we should update that too or user means the specific key IS the main one.
-            # User instruction: "Confirma que la clave usada sea exactamente 'daily_bets:YYYY-MM-DD'"
-            
-            if success:
-                print(f"[SUCCESS] Las apuestas se han guardado en Redis correctamente bajo la clave {today_key} y bets:{date_str}.")
-            else:
-                print("[WARNING] No se pudo guardar en Redis. Verifica logs.")
+            print(f"[SUCCESS] Las apuestas se han guardado en Redis correctamente bajo la clave betai:daily_bets:{date_str}.")
+
         else:
             print("[ERROR] No se obtuvieron recomendaciones de Gemini. Abortando guardado.")
             exit(1) # Fail the workflow if AI fails

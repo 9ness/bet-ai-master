@@ -148,8 +148,18 @@ class AIChecker:
         # Guardar resultados
         daily_data["day_profit"] = round(total_day_profit, 2)
         daily_data["bets"] = bets_list
-        self.redis.set_data(daily_key, daily_data)
-        self.redis.set_data(f"betai:history:{target_date}", daily_data)
+        
+        # Save to Daily Bets (Key: betai:daily_bets:YYYY-MM-DD)
+        self.redis.set_data(f"daily_bets:{target_date}", daily_data)
+        
+        # Save to History (Key: betai:history:YYYY-MM-DD)
+        self.redis.set_data(f"history:{target_date}", daily_data)
+        
+        # Sync Master Key if Today (Key: betai:daily_bets)
+        today_now = datetime.now().strftime("%Y-%m-%d")
+        if target_date == today_now:
+            self.redis.set_data("daily_bets", daily_data)
+            print(f"🔄 Master Key 'daily_bets' synced.")
         
         print(f"\n💰 BALANCE FINAL: {daily_data['day_profit']}u")
 

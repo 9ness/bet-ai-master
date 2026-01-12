@@ -64,46 +64,59 @@ class RedisService:
     def save_daily_bets(self, date_str, bets_data):
         if not self.is_active: return
         
+        # STRUCTURE: List of bets
         redis_obj = {
             "date": date_str,
-            "created_at": datetime.now().isoformat(),
+            # "created_at": datetime.now().isoformat(), # User didn't ask for this but good to have? "is_real" requested.
+            "is_real": True,
             "bets": []
         }
 
         stakes = { "safe": 6, "value": 3, "funbet": 1 }
 
-        for bet_type, data in bets_data.items():
+        # bets_data is likely { "safe": {...}, "value": {...} }
+        for bet_type_key, data in bets_data.items():
             if not data: continue
             
-            # Extract selections (Gemini uses 'selections', legacy 'components')
+            bet_type = bet_type_key.lower() # Enforce lowercase for comparison
+            
+            # Extract selections
             selections = data.get("selections", data.get("components", []))
             
-            fixture_ids = []
+            # Ensure selections have status PENDING
             if selections:
-                for comp in selections:
-                    if "fixture_id" in comp: fixture_ids.append(comp["fixture_id"])
-                    # Ensure each selection has a status for the frontend
-                    if "status" not in comp: comp["status"] = "PENDING"
-            elif "fixture_id" in data:
-                fixture_ids.append(data["fixture_id"])
+                for sel in selections:
+                    if "status" not in sel: sel["status"] = "PENDING"
             
+            # Build Bet Object
             bet_entry = {
-                "type": bet_type,
+                "betType": bet_type, # Mandatory field
+                "type": bet_type,    # Legacy support if needed
                 "stake": stakes.get(bet_type, 1),
                 "total_odd": data.get("odd", 0),
-                "fixture_ids": fixture_ids,
                 "pick": data.get("pick", ""),
                 "match": data.get("match", ""),
+                "reason": data.get("reason", data.get("analysis", "")), # Map reason
                 "status": "PENDING",
                 "profit": 0,
+                "is_real": True,
                 "selections": selections
             }
             redis_obj["bets"].append(bet_entry)
 
-        # Automatic prefixing via _get_key
-        key = self._get_key(f"bets:{date_str}")
-        self._send_command("SET", key, json.dumps(redis_obj))
-        print(f"[Redis] Guardado OK: {key}")
+        # Automatic prefixing via _get_key to 'betai:daily_bets:YYYY-MM-DD'
+        # User Rule: "Usa exclusivamente la llave betai:daily_bets:YYYY-MM-DD"
+        full_date_key = self._get_key(f"daily_bets:{date_str}")
+        json_data = json.dumps(redis_obj)
+        self._send_command("SET", full_date_key, json_data)
+        print(f"[Redis] Guardado OK (Standardized List): {full_date_key}")
+
+        # SINCRONIZACIÓN MAESTRA (Rule: Sync if today)
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        if date_str == today_str:
+            master_key = self._get_key("daily_bets")
+            self._send_command("SET", master_key, json_data)
+            print(f"[Redis] Sincronización Maestra OK: {master_key}")
 
     # Helper for Check Results
     def get(self, key):
