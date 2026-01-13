@@ -101,19 +101,30 @@ def analyze():
 
             IMPORTANTE: Tienes datos de Fútbol y de Baloncesto (NBA/Europa). Evalúa AMBOS deportes por igual. No ignores los partidos de madrugada si presentan mejores oportunidades que el fútbol.
 
-            INSTRUCCIONES DE ANÁLISIS:
-            1. FÚTBOL: Usa ID 45 (Corners) y ID 87 (ShotsOnGoal). Prioriza Over de Goles/Corners si los remates son altos.
-            2. BALONCESTO: Usa ID 15 (HT/FT) y ID 5 (Puntos 1ª Mitad). Verifica el Injury Report mediante búsqueda.
+            INSTRUCCIONES DE ANÁLISIS TÉCNICO (NIVEL PRO ANALYTICS):
+            1. SÍNTESIS DE FÚTBOL (CORRELACIÓN Y PRESIÓN): 
+               - Dinámica Ofensiva: Evalúa la correlación entre el volumen de remates (ID 87) y la generación de saques de esquina (ID 45). Determina si el estilo de juego es de transiciones rápidas o de posesión estática para predecir escenarios de goles vs. córners.
+               - Vulnerabilidad Estructural: Analiza el diferencial de goles histórico cruzado con la solidez defensiva reciente. No priorices resultados; pondera la probabilidad de que un equipo rompa o mantenga su tendencia actual basándote en la calidad del oponente.
+
+            2. DINÁMICA BASKETBALL/NBA (MÉTRICAS DE IMPACTO):
+               - Disponibilidad y Roster: Realiza un escaneo crítico del Injury Report. Evalúa el impacto sistémico de la ausencia de jugadores clave (estrellas o especialistas defensivos). Ajusta la proyección de puntos y hándicaps basándote en la pérdida de PER (Player Efficiency Rating) y volumen de uso (Usage Rate).
+               - Ritmo y Fatiga: Analiza el Pace (ritmo de posesiones) proyectado. Considera factores de fatiga como el Back-to-Back o giras prolongadas fuera de casa para detectar posibles bajones de rendimiento físico en el 4Q.
+               - Segmentación Temporal: Cruza datos de la 1ª Mitad (ID 5) con el resultado final (ID 15) para identificar ineficiencias en las líneas de salida de las casas de apuestas.
+
+            3. CRITERIO DE VALOR (PROBABILIDAD VS. CUOTA):
+                - Identificación de Edge: Tu misión es encontrar la discrepancia entre la probabilidad estadística calculada y la cuota ofrecida. Selecciona únicamente eventos donde el valor matemático sea evidente tras filtrar el ruido estadístico.
+                - Análisis Multivariante: Considera el factor campo, la relevancia del encuentro para ambos equipos y las tendencias históricas head-to-head como modificadores de la probabilidad base.
 
             REGLAS DE SELECCIÓN Y STAKE:
             1. SAFE (La Segura): Cuota total 1.50 - 2.00. Probabilidad > 75%. STAKE FIJO: 6.
             2. VALUE (De Valor): Cuota total 2.50 - 3.50. STAKE FIJO: 3.
             3. FUNBET (Arriesgada): Cuota total 10.00 - 20.00. STAKE FIJO: 1. 
             - REGLA FUNBET: Puedes combinar mercados. Para llegar a cuota 10+, usa selecciones con cuota individual entre 1.10 y 1.50.
+            - REGLA NO REPETIR: No repitas el mismo pronóstico en diferentes apuestas. Con esto nos aseguramos de no perder varias apuestas por un único pronóstico fallido.
 
             REGLAS DE FORMATO (STRICT JSON):
             - Devuelve UNICAMENTE un ARRAY JSON `[...]`.
-            - El campo "reason" debe ser técnico (NO incluyas ningún dato de ID en el "reason").
+            - El campo reason debe ser un informe de inteligencia técnica. Debe explicar el PORQUÉ técnico de la selección (ej: 'La baja del pívot titular reduce la protección de aro un 15%, aumentando la probabilidad de puntos en la pintura y rebotes ofensivos del rival'). (NO incluyas ningún dato de ID en el "reason").
             - MUY IMPORTANTE: Aunque tú propongas la "total_odd", el sistema la recalculará matemáticamente por código basándose en tus "selections".
 
             SCHEMA OBLIGATORIO:
@@ -122,12 +133,12 @@ def analyze():
                 "type": "safe",
                 "sport": "football", // o "basketball"
                 "startTime": "YYYY-MM-DD HH:mm",
-                "match": "Título Descriptivo",
+                "match": "Título Descriptivo de la apuesta (si es combinada, indica una informacion breve para saber en una linea de que trata la combinada)",
                 "pick": "Resumen del Pick",
                 "stake": 6, // 6 para safe, 3 para value, 1 para funbet
                 "total_odd": 0.0, // Deja en 0.0, el código lo calculará
                 "estimated_units": 0.0, // Deja en 0.0, el código lo calculará
-                "reason": "Análisis detallado incluyendo datos de remates o bajas NBA.",
+                "reason": "Análisis detallado. (no incluir datos de IDs)",
                 "selections": [
                     {{
                         "fixture_id": 123456,

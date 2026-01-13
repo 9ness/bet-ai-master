@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ShieldCheck, Target, PartyPopper, Clock, Check, X as XIcon, RefreshCw, Save } from 'lucide-react';
+import { ShieldCheck, Target, PartyPopper, Clock, Check, X as XIcon, RefreshCw, Save, ChevronDown, ChevronUp } from 'lucide-react';
 
 type Selection = {
     fixture_id?: number;
@@ -179,6 +179,7 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
     const isModeAdmin = isAdmin || pathname?.startsWith('/admin');
 
     const [isUpdating, setIsUpdating] = useState(false);
+    const [reasonOpen, setReasonOpen] = useState(false);
 
     if (!data) return null;
 
@@ -381,8 +382,8 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
                             {data.selections?.map((sel, idx) => (
                                 <div key={idx} className="flex flex-col border-b border-border/50 last:border-0 pb-2 last:pb-0">
                                     <div className="flex justify-between items-center mb-1">
-                                        <div className="flex items-center gap-1 overflow-hidden mr-2">
-                                            <span className="text-xs font-semibold text-foreground/80 truncate">{sel.match}</span>
+                                        <div className="flex items-center gap-1 mr-2 flex-1 flex-wrap">
+                                            <span className="text-xs font-semibold text-foreground/80 leading-tight">{sel.match}</span>
                                             {sel.league && <span className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">({sel.league})</span>}
                                         </div>
                                         {sel.odd && <span className="text-[10px] bg-secondary px-1 rounded text-muted-foreground whitespace-nowrap">{sel.odd}</span>}
@@ -477,7 +478,16 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
 
                 {/* Reason */}
                 <div className="pt-4 border-t border-border mt-4">
-                    <FormattedReason text={data.reason} />
+                    <button
+                        onClick={() => setReasonOpen(!reasonOpen)}
+                        className="md:hidden w-full flex items-center justify-between text-muted-foreground text-[10px] uppercase font-bold tracking-wider mb-2 hover:text-foreground transition-colors"
+                    >
+                        <span>Análisis</span>
+                        {reasonOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </button>
+                    <div className={`${reasonOpen ? 'block' : 'hidden'} md:block`}>
+                        <FormattedReason text={data.reason} />
+                    </div>
                 </div>
             </div>
         </div>

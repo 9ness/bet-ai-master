@@ -258,9 +258,9 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
 
                             return (
                                 <div key={idx} className="flex justify-between items-center text-xs p-1 border-b border-white/5 last:border-0 gap-2">
-                                    <div className="flex bg-black/20 rounded px-1.5 py-0.5 flex-1 min-w-0">
+                                    <div className="flex bg-black/20 rounded px-1.5 py-0.5 flex-1 min-w-0 flex-wrap">
                                         <span className="text-muted-foreground mr-1 shrink-0">{detail.match}:</span>
-                                        <span className="font-medium truncate text-foreground">{detail.pick}</span>
+                                        <span className="font-medium text-foreground">{detail.pick}</span>
                                     </div>
 
                                     <div className="flex items-center gap-2 shrink-0">
