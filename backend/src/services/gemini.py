@@ -1,9 +1,5 @@
-try:
-    from google import genai
-    GOOGLE_AVAILABLE = True
-except ImportError:
-    GOOGLE_AVAILABLE = False
-    print("Google GenAI SDK (v1) not found. Using Mock.")
+import google.generativeai as genai
+GOOGLE_AVAILABLE = True
 
 import os
 import json
@@ -29,13 +25,11 @@ class GeminiService:
         if not self.api_key:
             raise ValueError("FALTA CONFIGURAR API KEY EN GITHUB SECRETS")
         
-        # New SDK Initialization
+        # SDK Initialization
         if GOOGLE_AVAILABLE:
-            self.client = genai.Client(api_key=self.api_key)
-            self.model_name = 'gemini-2.0-flash-exp' # Updating to a known valid model in v1 or keeping preview
-            # User uses 'gemini-3-pro-preview' which likely requires v1 SDK.
-            self.model_name = 'gemini-2.0-flash-exp' # Defaulting to latest accessible
-            print(f"[INIT] Gemini Service initialized (v1 SDK). Model: {self.model_name}")
+            genai.configure(api_key=self.api_key)
+            self.model = genai.GenerativeModel('gemini-2.0-flash-exp')
+            print(f"[INIT] Gemini Service initialized. Model: gemini-2.0-flash-exp")
         else:
             print("[WARN] Google SDK not available.")
 
@@ -107,11 +101,8 @@ class GeminiService:
             if not GOOGLE_AVAILABLE:
                 return None
 
-            # 1. Generate Content (New SDK)
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=prompt
-            )
+            # 1. Generate Content (Standard SDK)
+            response = self.model.generate_content(prompt)
             
             # 2. Extract JSON
             # New SDK response structure: response.text should work
