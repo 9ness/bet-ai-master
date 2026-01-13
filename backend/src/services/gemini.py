@@ -28,8 +28,8 @@ class GeminiService:
         # SDK Initialization
         if GOOGLE_AVAILABLE:
             genai.configure(api_key=self.api_key)
-            self.model = genai.GenerativeModel('gemini-2.0-flash-exp')
-            print(f"[INIT] Gemini Service initialized. Model: gemini-2.0-flash-exp")
+            self.model = genai.GenerativeModel('gemini-3-pro-preview')
+            print(f"[INIT] Gemini Service initialized. Model: gemini-3-pro-preview")
         else:
             print("[WARN] Google SDK not available.")
 
@@ -41,61 +41,54 @@ class GeminiService:
         print(f"Generando recomendaciones para: {today_str}")
         
         prompt = f"""
-        Estás operando en modo Risk Manager & Pro Tipster Multi-Sport (Football & Basketball/NBA).
-        Tu objetivo es analizar los datos y generar las 3 mejores apuestas del día (SAFE, VALUE, FUNBET).
+            Estás operando en modo Risk Manager & Pro Tipster Multi-Sport (Football & Basketball/NBA).
+            Tu objetivo es analizar los datos proporcionados y generar las 3 mejores apuestas del día (SAFE, VALUE, FUNBET).
 
-        INSTRUCCIONES DE ANÁLISIS POR DEPORTE:
+            IMPORTANTE: Tienes datos de Fútbol y de Baloncesto (NBA/Europa). Evalúa AMBOS deportes por igual. No ignores los partidos de madrugada si presentan mejores oportunidades que el fútbol.
 
-        1. FÚTBOL (Lógica de Ataque):
-        - Usa el ID 45 (Corners) y el ID 87 (Total ShotOnGoal).
-        - REGLA: Si un equipo tiene promedios altos de remates (ID 87), prioriza picks de Goles o Corners.
-        - Usa el ID 7 (HT/FT) para buscar valor en favoritos que dominan desde el inicio.
+            INSTRUCCIONES DE ANÁLISIS:
+            1. FÚTBOL: Usa ID 45 (Corners) y ID 87 (ShotsOnGoal). Prioriza Over de Goles/Corners si los remates son altos.
+            2. BALONCESTO: Usa ID 15 (HT/FT) y ID 5 (Puntos 1ª Mitad). Verifica el Injury Report mediante búsqueda.
 
-        2. BALONCESTO/NBA (Lógica de Estrellas y Ritmo):
-        - Usa el ID 15 (HT/FT) y el ID 5 (O/U 1st Half).
-        - OBLIGATORIO: Antes de decidir, usa tu capacidad de búsqueda para verificar el "Injury Report" del día. 
-        - Si una estrella (ej: Curry, LeBron, Doncic) es baja, penaliza el Hándicap (ID 3) de ese equipo.
-        - Si el ID 5 (Puntos 1ª mitad) es alto, busca picks de "Over" total.
+            REGLAS DE SELECCIÓN Y STAKE:
+            1. SAFE (La Segura): Cuota total 1.50 - 2.00. Probabilidad > 75%. STAKE FIJO: 6.
+            2. VALUE (De Valor): Cuota total 2.50 - 3.50. STAKE FIJO: 3.
+            3. FUNBET (Arriesgada): Cuota total 10.00 - 20.00. STAKE FIJO: 1. 
+            - REGLA FUNBET: Puedes combinar mercados. Para llegar a cuota 10+, usa selecciones con cuota individual entre 1.10 y 1.50.
 
-        REGLAS DE SELECCIÓN:
-        1. SAFE: Cuota 1.50 - 2.00. Probabilidad > 75%. Stake 6-8.
-        2. VALUE: Cuota 2.5 - 3.50. Basada en anomalías estadísticas (ej: cuota alta de corners en partido de muchos remates). Si no ves ninguna cuota
-        alta clara, haz una combinada de diferentes mercados con alta probabilidad para llegar a la cuota indicada. Stake 3-5.
-        3. FUNBET: Cuota 10.00 - 15.00. Combinada de varios mercados (puedes repetir diferentes mercados del mismo evento). Ninguna cuota individual > 1.50. Stake 0.5-2.
+            REGLAS DE FORMATO (STRICT JSON):
+            - Devuelve UNICAMENTE un ARRAY JSON `[...]`.
+            - El campo "reason" debe ser técnico (ej: "Basado en ID 87...").
+            - MUY IMPORTANTE: Aunque tú propongas la "total_odd", el sistema la recalculará matemáticamente por código basándose en tus "selections".
 
-        REGLAS DE FORMATO (STRICT JSON):
-        - Devuelve ÚNICAMENTE un ARRAY JSON `[...]`.
-        - El campo "estimated_units" DEBE ser exacto: Stake * (total_odd - 1).
-        - El campo "reason" debe ser una explicación técnica que mencione los datos (ej: "Basado en los 12 remates a puerta promediados (ID 87)...").
+            SCHEMA OBLIGATORIO:
+            {{
+                "betType": "safe", // "safe", "value", "funbet"
+                "type": "safe",
+                "sport": "football", // o "basketball"
+                "startTime": "YYYY-MM-DD HH:mm",
+                "match": "Título Descriptivo",
+                "pick": "Resumen del Pick",
+                "stake": 6, // 6 para safe, 3 para value, 1 para funbet
+                "total_odd": 0.0, // Deja en 0.0, el código lo calculará
+                "estimated_units": 0.0, // Deja en 0.0, el código lo calculará
+                "reason": "Análisis detallado incluyendo datos de remates o bajas NBA.",
+                "selections": [
+                    {{
+                        "fixture_id": 123456,
+                        "sport": "football",
+                        "league": "Nombre Liga",
+                        "match": "Equipo A vs Equipo B",
+                        "time": "YYYY-MM-DD HH:mm",
+                        "pick": "Mercado específico",
+                        "odd": 1.55
+                    }}
+                ]
+            }}
 
-        SCHEMA OBLIGATORIO:
-        {{
-            "betType": "safe",
-            "type": "safe",
-            "sport": "football", // o "basketball"
-            "startTime": "YYYY-MM-DD HH:mm",
-            "match": "Título Descriptivo",
-            "pick": "Resumen del Pick",
-            "stake": 6,
-            "total_odd": 1.66,
-            "estimated_units": 3.96,
-            "reason": "Análisis detallado. Menciona bajas si las encuentras en internet.",
-            "selections": [
-                {{
-                    "fixture_id": 123456,
-                    "sport": "football",
-                    "league": "Nombre Liga",
-                    "match": "Equipo A vs Equipo B",
-                    "time": "YYYY-MM-DD HH:mm",
-                    "pick": "Mercado específico (ej: Over 9.5 Corners)",
-                    "odd": 1.45
-                }}
-            ]
-        }}
-
-        INPUT DATA (Incluye IDs de Corners, Tiros y HT/FT):
-        {json.dumps(analyzed_data, indent=2)}
-        """
+            INPUT DATA:
+            {json.dumps(analyzed_data, indent=2)}
+            """
 
         try:
             if not GOOGLE_AVAILABLE:
@@ -120,6 +113,35 @@ class GeminiService:
             
             # 3. Parse JSON -> This is the list of bets
             bets_list = json.loads(json_str) 
+            
+            # --- BACKEND RECALCULATION (Strict Enforcing) ---
+            for bet in bets_list:
+                # 1. Enforce Fixed Stake
+                b_type = bet.get("betType", "safe").lower()
+                if "safe" in b_type: fixed_stake = 6
+                elif "value" in b_type: fixed_stake = 3
+                elif "funbet" in b_type: fixed_stake = 1
+                else: fixed_stake = 6 # Default fallback
+                
+                bet["stake"] = fixed_stake
+                
+                # 2. Recalculate Total Odd (Mathematical Truth)
+                selections = bet.get("selections", [])
+                calc_odd = 1.0
+                for sel in selections:
+                    try:
+                        odd_val = float(sel.get("odd", 1.0))
+                        calc_odd *= odd_val
+                    except: pass
+                
+                calc_odd = round(calc_odd, 2)
+                bet["total_odd"] = calc_odd
+                
+                # 3. Calculate Units
+                # Formula: Stake * (Odd - 1)
+                est_units = fixed_stake * (calc_odd - 1)
+                bet["estimated_units"] = round(est_units, 2)
+            # ------------------------------------------------ 
             
             # Estructura Final Envolvente
             final_output = {

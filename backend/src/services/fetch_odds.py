@@ -60,10 +60,10 @@ class SportsDataService:
             print("[ERROR] No API Key found.")
             return []
 
-        # Time Window Calculation (Today 12:00 -> Tomorrow 05:00)
+        # Time Window Calculation (Next 24 Hours Real-Time)
         now = datetime.now()
-        start_dt = now.replace(hour=12, minute=0, second=0, microsecond=0)
-        end_dt = (now + timedelta(days=1)).replace(hour=5, minute=0, second=0, microsecond=0)
+        start_dt = now
+        end_dt = now + timedelta(hours=24)
         
         start_ts = start_dt.timestamp()
         end_ts = end_dt.timestamp()
