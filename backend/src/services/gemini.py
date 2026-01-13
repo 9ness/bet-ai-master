@@ -47,47 +47,59 @@ class GeminiService:
         print(f"Generando recomendaciones para: {today_str}")
         
         prompt = f"""
-        Estás operando en modo Risk Manager & Pro Tipster.
-        
-        OBJETIVO:
-        Analiza los datos de partidos proporcionados y genera las 3 mejores apuestas del día (SAFE, VALUE, FUNBET).
+        Estás operando en modo Risk Manager & Pro Tipster Multi-Sport (Football & Basketball/NBA).
+        Tu objetivo es analizar los datos y generar las 3 mejores apuestas del día (SAFE, VALUE, FUNBET).
+
+        INSTRUCCIONES DE ANÁLISIS POR DEPORTE:
+
+        1. FÚTBOL (Lógica de Ataque):
+        - Usa el ID 45 (Corners) y el ID 87 (Total ShotOnGoal).
+        - REGLA: Si un equipo tiene promedios altos de remates (ID 87), prioriza picks de Goles o Corners.
+        - Usa el ID 7 (HT/FT) para buscar valor en favoritos que dominan desde el inicio.
+
+        2. BALONCESTO/NBA (Lógica de Estrellas y Ritmo):
+        - Usa el ID 15 (HT/FT) y el ID 5 (O/U 1st Half).
+        - OBLIGATORIO: Antes de decidir, usa tu capacidad de búsqueda para verificar el "Injury Report" del día. 
+        - Si una estrella (ej: Curry, LeBron, Doncic) es baja, penaliza el Hándicap (ID 3) de ese equipo.
+        - Si el ID 5 (Puntos 1ª mitad) es alto, busca picks de "Over" total.
 
         REGLAS DE SELECCIÓN:
-        1. SAFE (La Segura): Cuota total 1.50 - 2.00. Alta probabilidad. Stake alto (6-8).
-        2. VALUE (De Valor): Cuota total 2.50 - 3.50. Rentabilidad alta. Stake medio (3-5).
-        3. FUNBET (Arriesgada): Cuota total 4.00 - 15.00. Buscar sorpresa o combinada loca. Stake bajo (0.5-2).
-           - REGLA FUNBET: NINGUNA selección individual dentro de la combinada puede superar cuota 2.00.
+        1. SAFE: Cuota 1.50 - 2.00. Probabilidad > 75%. Stake 6-8.
+        2. VALUE: Cuota 2.5 - 3.50. Basada en anomalías estadísticas (ej: cuota alta de corners en partido de muchos remates). Si no ves ninguna cuota
+        alta clara, haz una combinada de diferentes mercados con alta probabilidad para llegar a la cuota indicada. Stake 3-5.
+        3. FUNBET: Cuota 10.00 - 15.00. Combinada de varios mercados (puedes repetir diferentes mercados del mismo evento). Ninguna cuota individual > 1.50. Stake 0.5-2.
 
-        INSTRUCCIONES DE FORMATO (STRICT JSON):
-        Debes devolver UNICAMENTE un ARRAY JSON válido `[...]`. No devuelvas markdown.
-        El array debe contener exactamente 3 objetos (uno para cada tipo).
+        REGLAS DE FORMATO (STRICT JSON):
+        - Devuelve ÚNICAMENTE un ARRAY JSON `[...]`.
+        - El campo "estimated_units" DEBE ser exacto: Stake * (total_odd - 1).
+        - El campo "reason" debe ser una explicación técnica que mencione los datos (ej: "Basado en los 12 remates a puerta promediados (ID 87)...").
 
-        SCHEMA OBLIGATORIO POR APUESTA:
+        SCHEMA OBLIGATORIO:
         {{
-            "betType": "safe", // "safe", "value", "funbet"
-            "type": "safe", // DUPLICAR betType aquí para compatibilidad
-            "sport": "football",
-            "startTime": "YYYY-MM-DD HH:mm", // Fecha/Hora exacta del primer evento
-            "match": "Título Descriptivo (ej: Real Madrid vs Barça o Combinada Goles)",
-            "pick": "Resumen del Pick (ej: Gana Local o Over 2.5)",
-            "stake": 6, // Número entero 1-10
-            "total_odd": 1.66, // Cuota Decimal Total
-            "estimated_units": 3.96, // CÁLCULO ESTRICTO: Stake * (total_odd - 1). Redondear a 2 decimales.
-            "reason": "Análisis profesional. IMPORTANTE PARA UI: Separa cada punto clave con punto y espacio (. ). Ejemplo: El equipo local es fuerte en casa. El visitante tiene bajas clave.",
-            "selections": [ // ARRAY de selecciones individuales (mínimo 1)
+            "betType": "safe",
+            "type": "safe",
+            "sport": "football", // o "basketball"
+            "startTime": "YYYY-MM-DD HH:mm",
+            "match": "Título Descriptivo",
+            "pick": "Resumen del Pick",
+            "stake": 6,
+            "total_odd": 1.66,
+            "estimated_units": 3.96,
+            "reason": "Análisis detallado. Menciona bajas si las encuentras en internet.",
+            "selections": [
                 {{
-                    "fixture_id": 123456, // ID del partido original
+                    "fixture_id": 123456,
                     "sport": "football",
-                    "league": "Premier League", // Nombre de la liga (muy importante)
-                    "match": "Man City vs Arsenal",
-                    "time": "YYYY-MM-DD HH:mm", // Fecha completa
-                    "pick": "Gana City",
+                    "league": "Nombre Liga",
+                    "match": "Equipo A vs Equipo B",
+                    "time": "YYYY-MM-DD HH:mm",
+                    "pick": "Mercado específico (ej: Over 9.5 Corners)",
                     "odd": 1.45
                 }}
             ]
         }}
 
-        INPUT DATA:
+        INPUT DATA (Incluye IDs de Corners, Tiros y HT/FT):
         {json.dumps(analyzed_data, indent=2)}
         """
 

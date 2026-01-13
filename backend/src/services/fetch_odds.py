@@ -2,7 +2,7 @@ import requests
 import json
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -19,21 +19,37 @@ for p in potential_paths:
         print(f"[OK] Variables de entorno cargadas desde: {os.path.abspath(p)}")
         break
 
-class FootballDataService:
+class SportsDataService:
     def __init__(self):
-        self.base_url = "https://v3.football.api-sports.io"
         self.api_key = os.getenv("API_KEY")
         self.headers = {"x-apisports-key": self.api_key}
         self.base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
         self.output_file = os.path.join(self.base_dir, 'data', 'matches_today.json')
         os.makedirs(os.path.dirname(self.output_file), exist_ok=True)
-        self.priority_leagues = [39, 140, 135, 78, 61, 2, 3] # Top 5 + UEFA
+        
+        # Configuration
+        self.configs = {
+            "football": {
+                "url": "https://v3.football.api-sports.io",
+                "leagues": [39, 140, 135, 78, 61, 2, 3], # Top 5 + UEFA
+                "markets": [1, 4, 5, 7, 8, 12, 45, 87], # Final Whitelist
+                "bookmaker": 8 # Bet365 for Football
+            },
+            "basketball": {
+                "url": "https://v1.basketball.api-sports.io",
+                "leagues": [12], # NBA
+                "markets": [2, 3, 4, 5, 15, 100, 101], # Final Whitelist
+                "bookmaker": 4 # Bet365 for Basketball
+            }
+        }
+
+
 
     def get_today_date(self):
         return datetime.now().strftime("%Y-%m-%d")
 
     def _normalize_key(self, text):
-        text = text.lower()
+        text = str(text).lower()
         if "home/draw" in text: return "1X"
         if "home/away" in text: return "12"
         if "draw/away" in text: return "X2"
@@ -43,136 +59,174 @@ class FootballDataService:
 
     def fetch_matches(self):
         if not self.api_key:
+            print("[ERROR] No API Key found.")
             return []
 
-        date_str = self.get_today_date()
-        print(f"[*] Buscando partidos prioritarios para HOY: {date_str}")
+        # Time Window Calculation (Today 12:00 -> Tomorrow 05:00)
+        now = datetime.now()
+        start_dt = now.replace(hour=12, minute=0, second=0, microsecond=0)
+        end_dt = (now + timedelta(days=1)).replace(hour=5, minute=0, second=0, microsecond=0)
         
-        # 1. Obtener Partidos
-        url_fixtures = f"{self.base_url}/fixtures"
-        params_fix = {"date": date_str, "status": "NS", "timezone": "Europe/Madrid"}
+        start_ts = start_dt.timestamp()
+        end_ts = end_dt.timestamp()
         
-        try:
-            resp = requests.get(url_fixtures, headers=self.headers, params=params_fix)
-            all_fixtures = resp.json().get("response", [])
-            top_matches = [f for f in all_fixtures if f["league"]["id"] in self.priority_leagues]
-            if len(top_matches) < 5:
-                top_matches.extend([f for f in all_fixtures if f["league"]["id"] not in self.priority_leagues][:10])
-            targets = top_matches[:10]
-            print(f"[*] Seleccionados {len(targets)} partidos.")
-
-            # 2. Obtener FORMA (Standings)
-            unique_leagues = list(set([m["league"]["id"] for m in targets]))
-            team_forms = {} 
+        # Double Fetch Dates
+        dates_to_fetch = [now.strftime("%Y-%m-%d"), (now + timedelta(days=1)).strftime("%Y-%m-%d")]
+        
+        print(f"\n[*] INICIANDO RECOLECCIÓN (Ventana: {start_dt} -> {end_dt})")
+        
+        all_matches = []
+        
+        for date_str in dates_to_fetch:
+            print(f"  > Consultando fecha: {date_str}")
             
-            print(f"[*] Obteniendo estado de forma de {len(unique_leagues)} ligas...")
-            for lid in unique_leagues:
-                try:
-                    season = next((x["league"]["season"] for x in targets if x["league"]["id"] == lid), 2025)
-                    url_stand = f"{self.base_url}/standings"
-                    r_st = requests.get(url_stand, headers=self.headers, params={"league": lid, "season": season})
-                    if r_st.status_code == 200:
-                        standings = r_st.json().get("response", [])
-                        if standings:
-                            for group in standings[0]["league"]["standings"]:
-                                for team_entry in group:
-                                    tid = team_entry["team"]["id"]
-                                    form = team_entry.get("form", "?????")[-5:] 
-                                    team_forms[tid] = form
-                    time.sleep(0.2)
-                except Exception as e:
-                    print(f"    [!] Error fetching standings logic: {e}")
-
-            detailed_matches = []
+            # 1. Fetch Football
+            all_matches.extend(self._fetch_sport("football", date_str, start_ts, end_ts))
             
-            # 3. Bucle Principal (Odds + H2H)
-            for match in targets:
-                fix_id = match["fixture"]["id"]
-                home = match["teams"]["home"]
-                away = match["teams"]["away"]
+            # 2. Fetch Basketball
+            all_matches.extend(self._fetch_sport("basketball", date_str, start_ts, end_ts))
+        
+        # Save to Disk
+        with open(self.output_file, 'w', encoding='utf-8') as f:
+            json.dump(all_matches, f, indent=4, ensure_ascii=False)
+            
+        print(f"\n[SUCCESS] Total partidos guardados: {len(all_matches)}")
+        print(f"Archivo: {self.output_file}")
+        
+        return all_matches
+
+    def _fetch_sport(self, sport, date_str, min_ts, max_ts):
+        config = self.configs[sport]
+        base_url = config["url"]
+        target_leagues = config["leagues"]
+        whitelist_markets = config["markets"]
+        bookmaker_id = config["bookmaker"]
+        
+        matches_found = []
+        endpoint = "fixtures" if sport == "football" else "games"
+        
+        for league_id in target_leagues:
+            try:
+                params = {"date": date_str, "league": league_id, "timezone": "Europe/Madrid"}
+                if sport == "football": params["status"] = "NS" 
                 
-                print(f"    -> Procesando {home['name']} vs {away['name']}...")
+                url_list = f"{base_url}/{endpoint}"
+                resp = requests.get(url_list, headers=self.headers, params=params)
                 
-                match_data = {
-                    "id": fix_id,
-                    "date": date_str,
-                    "home": home["name"],
-                    "away": away["name"],
-                    "league": match["league"]["name"],
-                    "context": {
-                        "home_form": team_forms.get(home["id"], "N/A"),
-                        "away_form": team_forms.get(away["id"], "N/A"),
-                        "h2h": []
-                    },
-                    "odds": {
-                        "1x2": {}, "goals": {}, "btts": {}, "double_chance": {}, 
-                        "ht_ft": {}, "corners": {}, "correct_score": {} # ID 10
+                items = resp.json().get("response", [])
+                
+                if not items: continue
+                
+                # print(f"    -> Liga {league_id} ({date_str}): {len(items)} eventos brutos.")
+                
+                for item in items:
+                    # Extract timestamp & ID
+                    if sport == "football":
+                        match_ts = item["fixture"]["timestamp"]
+                        fix_id = item["fixture"]["id"]
+                        home = item["teams"]["home"]["name"]
+                        away = item["teams"]["away"]["name"]
+                        league_name = item["league"]["name"]
+                    else: 
+                        match_ts = item["timestamp"]
+                        fix_id = item["id"]
+                        home = item["teams"]["home"]["name"]
+                        away = item["teams"]["away"]["name"]
+                        league_name = item["league"]["name"] if "league" in item else "NBA"
+
+                    # TIME FILTER
+                    if not (min_ts <= match_ts <= max_ts):
+                        continue
+
+                    print(f"       [+] Procesando: {home} vs {away} ({datetime.fromtimestamp(match_ts).strftime('%H:%M')})")
+
+                    # Fetch Odds (Filtered)
+                    odds = self._get_odds(sport, base_url, fix_id, whitelist_markets, bookmaker_id)
+                    
+                    if not odds: continue
+                         
+                    match_entry = {
+                        "sport": sport, # TAGGING
+                        "id": fix_id,
+                        "date": date_str, # Keep original query date or accurate match date? 
+                        "timestamp": match_ts, # Useful for sorting
+                        "startTime": datetime.fromtimestamp(match_ts).strftime('%Y-%m-%d %H:%M'), # Human readable
+                        "home": home,
+                        "away": away,
+                        "league": league_name,
+                        "odds": odds
                     }
-                }
+                    matches_found.append(match_entry)
+                    time.sleep(0.1) 
+                    
+            except Exception as e:
+                print(f"    [!] Error fetching league {league_id} for {sport}: {e}")
 
-                # 3.1 Fetch H2H
-                try:
-                    url_h2h = f"{self.base_url}/fixtures/headtohead"
-                    p_h2h = {"h2h": f"{home['id']}-{away['id']}", "last": 5}
-                    r_h2h = requests.get(url_h2h, headers=self.headers, params=p_h2h)
-                    if r_h2h.status_code == 200:
-                        hist = r_h2h.json().get("response", [])
-                        scores = []
-                        for h in hist:
-                            s = h["goals"]
-                            scores.append(f"{h['teams']['home']['name']} {s['home']}-{s['away']} {h['teams']['away']['name']}")
-                        match_data["context"]["h2h"] = scores
-                    time.sleep(0.1)
-                except:
-                    pass
+        return matches_found
 
-                # 3.2 Fetch Odds
-                try:
-                    url_odds = f"{self.base_url}/odds"
-                    r_odds = requests.get(url_odds, headers=self.headers, params={"fixture": fix_id, "bookmaker": "1"})
-                    if r_odds.status_code == 200 and r_odds.json().get("response"):
-                        bets = r_odds.json()["response"][0]["bookmakers"][0]["bets"]
-                        for bet in bets:
-                            mid = bet["id"]
-                            vals = bet["values"]
-                            
-                            if mid == 1: # 1x2
-                                for v in vals:
-                                    if "Home" in str(v["value"]): match_data["odds"]["1x2"]["home"] = v["odd"]
-                                    elif "Draw" in str(v["value"]): match_data["odds"]["1x2"]["draw"] = v["odd"]
-                                    elif "Away" in str(v["value"]): match_data["odds"]["1x2"]["away"] = v["odd"]
-                            elif mid == 5: # Goals
-                                for v in vals: match_data["odds"]["goals"][self._normalize_key(str(v["value"]))] = v["odd"]
-                            elif mid == 8: # BTTS
-                                for v in vals: match_data["odds"]["btts"][self._normalize_key(str(v["value"]))] = v["odd"]
-                            elif mid == 12: # DC
-                                for v in vals: match_data["odds"]["double_chance"][self._normalize_key(str(v["value"]))] = v["odd"]
-                            elif mid == 13: # HT/FT
-                                map_hf = {"Home/Home":"1/1","Home/Draw":"1/X","Home/Away":"1/2","Draw/Home":"X/1","Draw/Draw":"X/X","Draw/Away":"X/2","Away/Home":"2/1","Away/Draw":"2/X","Away/Away":"2/2"}
-                                for v in vals: match_data["odds"]["ht_ft"][map_hf.get(str(v["value"]), str(v["value"]))] = v["odd"]
-                            elif mid == 45: # Corners
-                                for v in vals: match_data["odds"]["corners"][self._normalize_key(str(v["value"]))] = v["odd"]
-                            elif mid == 10: # Correct Score
-                                for v in vals:
-                                    score_key = str(v["value"]).replace(":", "-") 
-                                    match_data["odds"]["correct_score"][score_key] = v["odd"]
-                                    
-                    time.sleep(0.1)
-                except Exception as e:
-                    print(f"Error odds: {e}")
-
-                detailed_matches.append(match_data)
-
-            with open(self.output_file, 'w', encoding='utf-8') as f:
-                json.dump(detailed_matches, f, indent=4, ensure_ascii=False)
+    def _get_odds(self, sport, base_url, fixture_id, whitelist, bookmaker_id):
+        try:
+            url_odds = f"{base_url}/odds"
+            param_key = "fixture" if sport == "football" else "game"
             
-            print(f"[OK] {len(detailed_matches)} partidos con CONTEXTO+ODDS guardados.")
-            return detailed_matches
+            # Dynamic Bookmaker ID
+            resp = requests.get(url_odds, headers=self.headers, params={param_key: fixture_id, "bookmaker": bookmaker_id})
+            data = resp.json()
+            
+            if not data.get("response"): return {}
+            
+            bookmakers = data["response"][0]["bookmakers"]
+            if not bookmakers: return {}
+            
+            target_bookmaker = bookmakers[0]
+            
+            cleaned_odds = {}
+            
+            for bet in target_bookmaker["bets"]:
+                mid = bet["id"]
+                name = bet["name"]
+                
+                # WHITELIST CHECK
+                if mid not in whitelist:
+                    continue
+                
+                market_values = {}
+                for v in bet["values"]:
+                    raw_label = str(v["value"])
+                    key = self._normalize_key(raw_label)
+                    market_values[key] = float(v["odd"])
+                
+                slug = self._get_market_slug(mid, name, sport)
+                cleaned_odds[slug] = market_values
+                
+            return cleaned_odds
 
         except Exception as e:
-            print(f"[X] Error General: {e}")
-            return []
+            return {}
+
+    def _get_market_slug(self, mid, default_name, sport):
+        # FOOTBALL IDs
+        if sport == 'football':
+            if mid == 1: return "1x2"
+            if mid == 4: return "asian_handicap" # User Updated: Was odd_even, now Asian Handicap
+            if mid == 5: return "goals_over_under"
+            if mid == 7: return "ht_ft" 
+            if mid == 8: return "btts"
+            if mid == 12: return "double_chance"
+            if mid == 45: return "corners"
+            if mid == 87: return "total_shots_on_goal" # User Updated: Was Combo, now Shots on Goal
+            
+        # BASKETBALL IDs
+        if sport == 'basketball':
+            if mid == 2: return "asian_handicap" 
+            if mid == 3: return "total_points" 
+            if mid == 4: return "asian_corners" 
+            if mid == 5: return "over_under_1st_half" # User Added: Over/Under 1st Half
+            if mid == 15: return "ht_ft" 
+            # 100/101 are likely Props or Quarters.
+            
+        return default_name.lower().replace(" ", "_").replace("/", "_")
 
 if __name__ == "__main__":
-    service = FootballDataService()
+    service = SportsDataService()
     service.fetch_matches()

@@ -1,4 +1,4 @@
-from src.services.fetch_odds import FootballDataService
+from src.services.fetch_odds import SportsDataService
 from src.services.analyzer import Analyzer
 from src.services.gemini import GeminiService
 from src.services.redis_service import RedisService
@@ -7,7 +7,6 @@ import os
 
 import json
 import argparse
-from src.services.fetch_odds import FootballDataService
 
 def main():
     parser = argparse.ArgumentParser(description='Bet AI Master Logic')
@@ -21,7 +20,7 @@ def main():
     
     # 1. FETCH ODDS (API SPORTS)
     if args.mode in ['all', 'fetch']:
-        service = FootballDataService()
+        service = SportsDataService()
         today_str = service.get_today_date()
         raw_matches_key = f"raw_matches:{today_str}"
         
