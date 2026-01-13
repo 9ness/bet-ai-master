@@ -24,6 +24,7 @@ PICK_TRANSLATIONS = {
     "Goals": "Goles",
     "Points": "Puntos",
     "Handicap": "Hándicap",
+    "Shots on Goal": "Tiros a Puerta",
     "Corners": "Córners"
 }
 
@@ -58,7 +59,7 @@ def validate_bets_pre(candidates):
     if not candidates: return False, "Empty list"
     return True, "OK"
 
-def reanalyze():
+def analyze():
     print("--- REANALYSIS SCRIPT STARTED (Lookup V3) ---")
     
     # 1. Services
@@ -112,7 +113,7 @@ def reanalyze():
 
             REGLAS DE FORMATO (STRICT JSON):
             - Devuelve UNICAMENTE un ARRAY JSON `[...]`.
-            - El campo "reason" debe ser técnico (ej: "Basado en ID 87...").
+            - El campo "reason" debe ser técnico (NO incluyas ningún dato de ID en el "reason").
             - MUY IMPORTANTE: Aunque tú propongas la "total_odd", el sistema la recalculará matemáticamente por código basándose en tus "selections".
 
             SCHEMA OBLIGATORIO:
@@ -264,4 +265,4 @@ def reanalyze():
     print(f"[SUCCESS] Saved {len(final_output)} bets.")
 
 if __name__ == "__main__":
-    reanalyze()
+    analyze()

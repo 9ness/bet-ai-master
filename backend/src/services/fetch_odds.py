@@ -38,7 +38,7 @@ class SportsDataService:
             "basketball": {
                 "url": "https://v1.basketball.api-sports.io",
                 "leagues": [12, 116, 120, 117, 63, 45, 39, 112, 18, 194, 202], # Updated Whitelist
-                "markets": [2, 3, 4, 5, 15, 100, 101], 
+                "markets": [1, 2, 3, 4, 5, 15, 100, 101], 
                 "bookmaker": 4
             }
         }
@@ -60,10 +60,10 @@ class SportsDataService:
             print("[ERROR] No API Key found.")
             return []
 
-        # Time Window Calculation (Next 24 Hours Real-Time)
+        # Time Window Calculation (Today 12:00 -> Tomorrow 05:00)
         now = datetime.now()
-        start_dt = now
-        end_dt = now + timedelta(hours=24)
+        start_dt = now.replace(hour=12, minute=0, second=0, microsecond=0)
+        end_dt = (now + timedelta(days=1)).replace(hour=5, minute=0, second=0, microsecond=0)
         
         start_ts = start_dt.timestamp()
         end_ts = end_dt.timestamp()
@@ -170,7 +170,7 @@ class SportsDataService:
                 if sport == "football": self.calls_football += 1
                 else: self.calls_basketball += 1
                 
-                if not odds: continue 
+                if not odds or not any(odds.values()): continue 
                         
                 match_entry = {
                     "sport": sport, 
