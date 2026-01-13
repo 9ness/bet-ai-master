@@ -76,10 +76,14 @@ class RedisService:
         stakes = { "safe": 6, "value": 3, "funbet": 1 }
 
         # Transform bets
-        for bet_type_key, data in bets_data.items():
+        # Transform bets
+        for data in bets_data:
             if not data: continue
             
-            bet_type = bet_type_key.lower()
+            # Identify Type from the data itself (List item)
+            bet_type = data.get("betType", "unknown").lower()
+            
+            # Compatibility: Logic for both direct 'selections' or older 'components'
             original_selections = data.get("selections", data.get("components", []))
             
             # Normalize Selections
@@ -107,15 +111,15 @@ class RedisService:
             bet_entry = {
                 "betType": bet_type,
                 "sport": data.get("sport", "Football"),
-                "startTime": data.get("startTime", "00:00"), # Needs to be populated if possible
-                "match": data.get("match", "Multi-Bet"), # Combine matches if multi?
+                "startTime": data.get("startTime", "00:00"), 
+                "match": data.get("match", "Multi-Bet"),
                 "pick": data.get("pick", "Combination"),
                 "stake": stake,
                 "total_odd": odd,
-                "estimated_units": round(stake * odd, 2), # Estimated return? Or Profit? Usually est return.
+                "estimated_units": round(stake * (odd - 1), 2) if odd > 1 else 0, # Corrected calc: stake * (odd-1)
                 "reason": data.get("reason", data.get("analysis", "")),
                 "status": "PENDING",
-                "profit": 0, # Initial profit 0 or None? User said null/empty for mirror. For initial it's 0 or null? Usually 0 until won.
+                "profit": 0, 
                 "selections": normalized_selections
             }
             full_day_data["bets"].append(bet_entry)

@@ -172,7 +172,12 @@ const FormattedReason = ({ text }: { text?: string }) => {
     );
 };
 
+import { usePathname } from 'next/navigation';
+
 export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
+    const pathname = usePathname();
+    const isModeAdmin = isAdmin || pathname?.startsWith('/admin');
+
     const [isUpdating, setIsUpdating] = useState(false);
 
     if (!data) return null;
@@ -184,7 +189,7 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
     if (currentStatus === 'PENDIENTE') currentStatus = 'PENDING';
 
     const handleStatusChange = async (newStatus: string) => {
-        if (!isAdmin) return;
+        if (!isModeAdmin) return;
         setIsUpdating(true);
         console.log(`[BetCard] Enviando a API: Type=${type}, NewStatus=${newStatus}`);
 
@@ -292,7 +297,7 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
             <div className={`absolute inset-x-0 top-0 h-1 ${config.headerBg} rounded-t-3xl`} />
 
             {/* Status Badge (if available) */}
-            {isAdmin ? (
+            {isModeAdmin ? (
                 // ADMIN INTERACTIVE STATUS
                 <div className="absolute top-4 right-6 z-20">
                     <select
@@ -325,8 +330,8 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
             )}
 
             {/* Start Time Badge */}
-            {startTime && (!data.status || isAdmin) && (
-                <div className={`absolute top-4 ${isAdmin ? 'right-28' : 'right-6'} flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground bg-secondary px-2 py-1 rounded-full border border-border/50  transition-all`}>
+            {startTime && (!data.status || isModeAdmin) && (
+                <div className={`absolute top-4 ${isModeAdmin ? 'right-32' : 'right-6'} flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground bg-secondary px-2 py-1 rounded-full border border-border/50  transition-all`}>
                     <Clock size={12} className="text-primary/70" />
                     <span>{extractTime(startTime)}</span>
                 </div>

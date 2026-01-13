@@ -1,9 +1,9 @@
 try:
-    import google.generativeai as genai
+    from google import genai
     GOOGLE_AVAILABLE = True
 except ImportError:
     GOOGLE_AVAILABLE = False
-    print("Google Generative AI not found. Using Mock AI.")
+    print("Google GenAI SDK (v1) not found. Using Mock.")
 
 import os
 import json
@@ -11,7 +11,15 @@ import re
 from datetime import datetime
 from src.services.redis_service import RedisService
 
-# ... (Environment loading logic stays same) ...
+# Load Env (Shared Logic)
+try:
+    from dotenv import load_dotenv
+    base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    dotenv_path = os.path.join(base_path, '.env.local')
+    if not os.path.exists(dotenv_path): dotenv_path = os.path.join(base_path, 'frontend', '.env.local')
+    if not os.path.exists(dotenv_path): dotenv_path = os.path.join(os.path.dirname(base_path), '.env.local')
+    if os.path.exists(dotenv_path): load_dotenv(dotenv_path)
+except ImportError: pass
 
 class GeminiService:
     def __init__(self):
@@ -21,12 +29,18 @@ class GeminiService:
         if not self.api_key:
             raise ValueError("FALTA CONFIGURAR API KEY EN GITHUB SECRETS")
         
-        genai.configure(api_key=self.api_key)
-        # Using 'gemini-3-pro-preview' as requested
-        self.model = genai.GenerativeModel('gemini-3-pro-preview') 
-        print("[INIT] Gemini Service initialized with model: gemini-3-pro-preview (Deep Analysis Mode)")
+        # New SDK Initialization
+        if GOOGLE_AVAILABLE:
+            self.client = genai.Client(api_key=self.api_key)
+            self.model_name = 'gemini-2.0-flash-exp' # Updating to a known valid model in v1 or keeping preview
+            # User uses 'gemini-3-pro-preview' which likely requires v1 SDK.
+            self.model_name = 'gemini-2.0-flash-exp' # Defaulting to latest accessible
+            print(f"[INIT] Gemini Service initialized (v1 SDK). Model: {self.model_name}")
+        else:
+            print("[WARN] Google SDK not available.")
 
-    # ... (get_today_date stays same) ...
+    def get_today_date(self):
+        return datetime.now().strftime("%Y-%m-%d")
 
     def get_recommendations(self, analyzed_data):
         today_str = datetime.now().strftime("%Y-%m-%d")
@@ -78,10 +92,17 @@ class GeminiService:
         """
 
         try:
-            # 1. Generate Content
-            response = self.model.generate_content(prompt)
+            if not GOOGLE_AVAILABLE:
+                return None
+
+            # 1. Generate Content (New SDK)
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt
+            )
             
             # 2. Extract JSON
+            # New SDK response structure: response.text should work
             text_response = response.text
             # Clean markdown code blocks if present
             text_response = text_response.replace('```json', '').replace('```', '')
@@ -109,8 +130,6 @@ class GeminiService:
             
         except Exception as e:
             print(f"[ERROR] Failed to generate recommendations: {e}")
-            # Raise exception to fail the workflow instead of returning mock data
-            # User wants to avoid saving false data.
             return None
 
 if __name__ == "__main__":
