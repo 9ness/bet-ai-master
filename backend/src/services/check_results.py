@@ -30,33 +30,38 @@ class AIChecker:
         Pide a Gemini 3 Pro una auditoría con razonamiento lógico.
         """
         prompt = f"""
-        Actúa como un Auditor Senior de Apuestas Deportivas con acceso a datos en tiempo real.
-        Fecha de los eventos: {date}.
-        Fecha actual: {datetime.now().strftime('%Y-%m-%d')}.
+        ⚠️ INSTRUCCIONES CRÍTICAS DE AUDITORÍA:
+        TIENES PROHIBIDO ESTIMAR O SUPONER RESULTADOS. DATOS REALES O NADA.
+        
+        CONTEXTO:
+        Hoy es {datetime.now().strftime('%Y-%m-%d')}.
+        Debes buscar y verificar los resultados finales de los partidos del {date}.
 
-        TAREA:
-        Verifica los resultados finales de los siguientes eventos y decide si el 'pick' es WON o LOST.
+        PASOS OBLIGATORIOS:
+        1. Para cada evento, realiza una búsqueda (simulada) precisa: "resultado final [Equipos] {date}".
+        2. Si el marcador no se encuentra o el partido no terminó, devuelve "status": "PENDING". NO INVENTES MARCADORES.
+        3. VERIFICACIÓN CRUZADA: El resultado de un partido es único/inmutable.
 
-        LISTA DE EVENTOS:
+        LISTA DE EVENTOS A VERIFICAR:
         {json.dumps(matches_to_check, indent=2)}
 
-        PROTOCOLO DE RAZONAMIENTO PARA CADA PARTIDO:
-        1. Identifica el marcador final oficial (incluyendo prórroga si aplica).
-        2. Verifica el pick:
-           - "X2": Gana visitante o Empate.
-           - "1X": Gana local o Empate.
-           - "Ambos Marcan/BTTS": ¿Ambos equipos hicieron al menos 1 gol?
-           - "Over/Under": ¿La suma de goles supera o es inferior a la línea?
-        3. Presta especial atención a goles de último minuto (90'+).
-
-        RESPONDE ÚNICAMENTE CON UN JSON PURO:
+        CRITERIOS DE EVALUACIÓN (PICK vs RESULTADO):
+        - "1X": Local gana o Empata -> WON. Visitante gana -> LOST.
+        - "X2": Visitante gana o Empata -> WON. Local gana -> LOST.
+        - "Over X.5": Goles totales > X.5 -> WON.
+        - "Under X.5": Goles totales < X.5 -> WON.
+        - "BTTS / Ambos Marcan": Ambos equipos > 0 goles -> WON.
+        
+        TU SALIDA DEBE SER UN JSON PURO CON ESTE FORMATO EXACTO:
         {{
-          "fixture_id": {{
-            "status": "WON" | "LOST",
-            "score": "Resultado exacto (ej: 1-1)",
-            "analysis": "Breve razonamiento del porqué del resultado"
+          "fixture_id_string": {{
+            "status": "WON" | "LOST" | "PENDING",
+            "score": "Ej: 2-1",
+            "analysis": "Dato real encontrado. Ej: 'Finalizó 2-1 con gol al min 88'."
           }}
         }}
+
+        IMPORTANTE: SI MIENTES EN UN MARCADOR, FALLARÁ EL SISTEMA FINANCIERO.
         """
         
         try:
@@ -104,11 +109,11 @@ class AIChecker:
                     })
 
         if not to_verify:
-            print("✅ Nada pendiente de verificar.")
-            return
-
-        print(f"🔍 Gemini 3 Pro analizando {len(to_verify)} selecciones...")
-        results_map = self.get_results_via_ai(to_verify, target_date)
+            print("✅ Nada pendiente de verificar (AI skipped).")
+            results_map = {}
+        else:
+            print(f"🔍 Gemini 3 Pro analizando {len(to_verify)} selecciones...")
+            results_map = self.get_results_via_ai(to_verify, target_date)
 
         total_day_profit = 0
         for bet in bets_list:
@@ -133,16 +138,47 @@ class AIChecker:
             else:
                 bet["status"] = "PENDING"
 
-            # Profit
+            # --- CÁLCULO DE GANANCIAS/PÉRDIDAS ---
+            # Reglas estrictas:
+            # 1. WON: profit = stake * (total_odd - 1)
+            # 2. LOST: profit = -stake (Restamos lo apostado)
+            
+            # --- CÁLCULO DE GANANCIAS/PÉRDIDAS ---
+            # Reglas estrictas:
+            # 1. WON: profit = stake * (total_odd - 1)
+            # 2. LOST: profit = -stake (Restamos lo apostado)
+            
             stake = float(bet.get("stake", 0))
-            odd = float(bet.get("total_odd", 0))
+            b_type = bet.get("betType", bet.get("type", "unknown"))
+            b_type_lower = b_type.lower()
+            
+            # CORRECCIÓN DE STAKE:
+            # Si el stake es 0 o 1 (default de funbet), verificamos si debería ser mayor por el tipo.
+            if stake == 0 or stake == 1.0:
+                if "safe" in b_type_lower:
+                    stake = 6.0
+                elif "value" in b_type_lower or "dobles" in b_type_lower:
+                    stake = 3.0
+                elif stake == 0:
+                    # Solo si era 0 lo forzamos a 1
+                    stake = 1.0
+                
+                bet["stake"] = stake
+            
+            total_odd = float(bet.get("total_odd", 0))
+            
             if bet["status"] == "WON":
-                bet["profit"] = round(stake * (odd - 1), 2)
+                # Ganancia neta
+                bet["profit"] = round(stake * (total_odd - 1), 2)
             elif bet["status"] == "LOST":
-                bet["profit"] = -stake
+                # Pérdida total de la apuesta
+                # PROHIBIDO 0.00. Se resta el dinero arriesgado.
+                bet["profit"] = -abs(stake)
             else:
+                # PENDING, VOID, etc.
                 bet["profit"] = 0
             
+            # Total del día (Suma algebraica)
             total_day_profit += bet["profit"]
 
         # Guardar resultados
@@ -152,8 +188,7 @@ class AIChecker:
         # Save to Daily Bets (Key: betai:daily_bets:YYYY-MM-DD)
         self.redis.set_data(f"daily_bets:{target_date}", daily_data)
         
-        # Save to History (Key: betai:history:YYYY-MM-DD)
-        self.redis.set_data(f"history:{target_date}", daily_data)
+        # NOTE: Deprecated 'history:' key. Single Source of Truth is 'daily_bets:'
         
         # Sync Master Key if Today (Key: betai:daily_bets)
         today_now = datetime.now().strftime("%Y-%m-%d")

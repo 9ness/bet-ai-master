@@ -64,59 +64,89 @@ class RedisService:
     def save_daily_bets(self, date_str, bets_data):
         if not self.is_active: return
         
-        # STRUCTURE: List of bets
-        redis_obj = {
+        # --- 1. ESTRUCTURA ÚNICA (Full Data) ---
+        full_day_data = {
             "date": date_str,
-            # "created_at": datetime.now().isoformat(), # User didn't ask for this but good to have? "is_real" requested.
             "is_real": True,
+            "day_profit": 0, # Should be calculated or 0 initially
+            "status": "PENDING",
             "bets": []
         }
 
         stakes = { "safe": 6, "value": 3, "funbet": 1 }
 
-        # bets_data is likely { "safe": {...}, "value": {...} }
+        # Transform bets
         for bet_type_key, data in bets_data.items():
             if not data: continue
             
-            bet_type = bet_type_key.lower() # Enforce lowercase for comparison
+            bet_type = bet_type_key.lower()
+            original_selections = data.get("selections", data.get("components", []))
             
-            # Extract selections
-            selections = data.get("selections", data.get("components", []))
-            
-            # Ensure selections have status PENDING
-            if selections:
-                for sel in selections:
-                    if "status" not in sel: sel["status"] = "PENDING"
-            
-            # Build Bet Object
+            # Normalize Selections
+            normalized_selections = []
+            if original_selections:
+                for sel in original_selections:
+                    norm_sel = {
+                        "fixture_id": sel.get("fixture_id"),
+                        "sport": sel.get("sport", "Football"), # Default
+                        "league": sel.get("league", "Unknown"),
+                        "match": sel.get("match", "Unknown vs Unknown"),
+                        "time": sel.get("time", "00:00"),
+                        "pick": sel.get("pick", ""),
+                        "odd": float(sel.get("odd", 0)),
+                        "status": "PENDING",
+                        "result": None # Null explicitly
+                    }
+                    normalized_selections.append(norm_sel)
+
+            # Determine Stake
+            stake = float(data.get("stake", stakes.get(bet_type, 1)))
+            odd = float(data.get("odd", 0))
+
+            # Build Strict Bet Object
             bet_entry = {
-                "betType": bet_type, # Mandatory field
-                "type": bet_type,    # Legacy support if needed
-                "stake": stakes.get(bet_type, 1),
-                "total_odd": data.get("odd", 0),
-                "pick": data.get("pick", ""),
-                "match": data.get("match", ""),
-                "reason": data.get("reason", data.get("analysis", "")), # Map reason
+                "betType": bet_type,
+                "sport": data.get("sport", "Football"),
+                "startTime": data.get("startTime", "00:00"), # Needs to be populated if possible
+                "match": data.get("match", "Multi-Bet"), # Combine matches if multi?
+                "pick": data.get("pick", "Combination"),
+                "stake": stake,
+                "total_odd": odd,
+                "estimated_units": round(stake * odd, 2), # Estimated return? Or Profit? Usually est return.
+                "reason": data.get("reason", data.get("analysis", "")),
                 "status": "PENDING",
-                "profit": 0,
-                "is_real": True,
-                "selections": selections
+                "profit": 0, # Initial profit 0 or None? User said null/empty for mirror. For initial it's 0 or null? Usually 0 until won.
+                "selections": normalized_selections
             }
-            redis_obj["bets"].append(bet_entry)
+            full_day_data["bets"].append(bet_entry)
 
-        # Automatic prefixing via _get_key to 'betai:daily_bets:YYYY-MM-DD'
-        # User Rule: "Usa exclusivamente la llave betai:daily_bets:YYYY-MM-DD"
+        # --- 2. SAVE FULL DATA (Dated Key) ---
+        # "Guarda el JSON completo en daily_bets:YYYY-MM-DD"
         full_date_key = self._get_key(f"daily_bets:{date_str}")
-        json_data = json.dumps(redis_obj)
-        self._send_command("SET", full_date_key, json_data)
-        print(f"[Redis] Guardado OK (Standardized List): {full_date_key}")
+        self._send_command("SET", full_date_key, json.dumps(full_day_data))
+        print(f"[Redis] Guardado FULL OK: {full_date_key}")
 
-        # SINCRONIZACIÓN MAESTRA (Rule: Sync if today)
-        today_str = datetime.now().strftime("%Y-%m-%d")
-        if date_str == today_str:
-            master_key = self._get_key("daily_bets")
-            self._send_command("SET", master_key, json_data)
-            print(f"[Redis] Sincronización Maestra OK: {master_key}")
+        # --- 3. SMART MIRROR LOGIC (Master Key) ---
+        # "Crea una copia en daily_bets pero establece como null o vacío los campos: day_profit, status, profit y result."
+        
+        import copy
+        mirror_data = copy.deepcopy(full_day_data)
+        
+        # Nullify fields for Mirror
+        mirror_data["day_profit"] = None
+        mirror_data["status"] = None
+        
+        for bet in mirror_data["bets"]:
+            bet["profit"] = None
+            bet["status"] = None 
+            for sel in bet["selections"]:
+                sel["result"] = None
+                sel["status"] = None
+
+        # Save Mirror to Master Key
+        master_key = self._get_key("daily_bets")
+        self._send_command("SET", master_key, json.dumps(mirror_data))
+        print(f"[Redis] Espejo Inteligente (Nullified) Guardado OK: {master_key}")
 
     # Helper for Check Results
     def get(self, key):

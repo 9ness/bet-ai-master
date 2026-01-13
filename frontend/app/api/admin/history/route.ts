@@ -48,92 +48,106 @@ export async function GET(req: NextRequest) {
             const historyData = results[idx * 2];
             const dailyDataRaw = results[idx * 2 + 1];
 
-            if (historyData) {
-                // Confirmed History
-                const dayObj = historyData as any;
-                daysMap[date] = dayObj;
+            // PRIORIDAD CRÍTICA: DAILY BETS
+            // El usuario edita 'daily_bets' directamente. Esa es la fuente de verdad.
+            // 'history' es secundario/backup.
+            const sourceRaw = dailyDataRaw || historyData;
 
-                // Accumulate stats
-                if (dayObj.day_profit !== undefined) {
-                    totalMonthlyProfit += Number(dayObj.day_profit);
-
-                    // Iterate bets to sum stake
-                    if (dayObj.bets && Array.isArray(dayObj.bets)) {
-                        const DEFAULT_STAKES: Record<string, number> = { safe: 6, value: 3, funbet: 1 };
-                        dayObj.bets.forEach((b: any) => {
-                            let s = (b.status || 'PENDING').toUpperCase();
-                            if (s === 'GANADA') s = 'WON';
-                            if (s === 'PERDIDA') s = 'LOST';
-
-                            if (s === 'WON' || s === 'LOST') {
-                                const betType = (b.type || '').toLowerCase();
-                                const stake = Number(b.stake) || DEFAULT_STAKES[betType] || 0;
-                                totalMonthlyStake += stake;
-                            }
-                        });
-                    }
-
-                    totalSettledDays++;
-                    if (Number(dayObj.day_profit) > 0) wonDays++;
+            if (sourceRaw) {
+                let dailyCtx: any;
+                try {
+                    dailyCtx = typeof sourceRaw === 'string' ? JSON.parse(sourceRaw) : sourceRaw;
+                } catch (e) {
+                    console.error(`Error parsing JSON for ${date}`, e);
+                    return;
                 }
-            } else if (dailyDataRaw) {
-                // Primary Source (Previously Fallback)
-                const dailyCtx = typeof dailyDataRaw === 'string' ? JSON.parse(dailyDataRaw) : dailyDataRaw;
-                // Support both list (new standard) and dict (legacy)
+
+                // Normalización de Apuestas (Array vs Dict)
                 let transformedBets: any[] = [];
+                const DEFAULT_STAKES: Record<string, number> = { safe: 6, value: 3, funbet: 1 };
 
                 if (Array.isArray(dailyCtx.bets)) {
-                    // NEW STANDARD: List
+                    // ESTÁNDAR NUEVO: Lista
                     transformedBets = dailyCtx.bets.map((b: any) => ({
                         ...b,
                         status: b.status || 'PENDING',
-                        profit: b.profit || 0
+                        profit: Number(b.profit) || 0,
+                        // Asegurar tipos numéricos para cálculos
+                        stake: Number(b.stake) || DEFAULT_STAKES[(b.betType || b.type || '').toLowerCase()] || 0,
+                        total_odd: Number(b.total_odd) || 0
                     }));
-                    // Accumulate stakes if any are settled (rare for raw daily but possible)
-                    const DEFAULT_STAKES: Record<string, number> = { safe: 6, value: 3, funbet: 1 };
-                    transformedBets.forEach(b => {
-                        let s = (b.status || 'PENDING').toUpperCase();
-                        if (['WON', 'LOST'].includes(s)) {
-                            const betType = (b.betType || b.type || '').toLowerCase();
-                            totalMonthlyStake += (Number(b.stake) || DEFAULT_STAKES[betType] || 0);
-                        }
-                    });
-
-                } else {
-                    // LEGACY: Dict (fallback logic)
-                    const betsMap = dailyCtx.bets || {};
-                    const stakes: Record<string, number> = { "safe": 6, "value": 3, "funbet": 1 };
-
+                } else if (dailyCtx.bets) {
+                    // LEGACY: Diccionario
                     ['safe', 'value', 'funbet'].forEach(type => {
-                        if (betsMap[type]) {
-                            const b = betsMap[type];
+                        if (dailyCtx.bets[type]) {
+                            const b = dailyCtx.bets[type];
                             let s = (b.status || 'PENDING').toUpperCase();
                             if (s === 'GANADA') s = 'WON';
                             if (s === 'PERDIDA') s = 'LOST';
 
-                            if (s === 'WON' || s === 'LOST') {
-                                totalMonthlyStake += Number(stakes[type] || 0);
-                            }
+                            const stakeValue = Number(DEFAULT_STAKES[type] || 0);
+
+                            // Profit estimation logic for legacy lookup if missing
+                            let profit = 0;
+                            if (s === 'WON') profit = stakeValue * (Number(b.odd) - 1);
+                            if (s === 'LOST') profit = -stakeValue;
 
                             transformedBets.push({
                                 type: type,
-                                stake: stakes[type] || 0,
-                                total_odd: b.odd,
+                                betType: type,
+                                stake: stakeValue,
+                                total_odd: Number(b.odd) || 0,
                                 match: b.match,
                                 pick: b.pick,
-                                status: s === 'WON' || s === 'LOST' ? s : 'PENDING',
-                                profit: 0,
+                                status: s,
+                                profit: profit, // Estimado para legacy
                                 selections: b.selections || []
                             });
                         }
                     });
                 }
 
+                // Extraer Profit del Día (Si ya fue calculado por Python)
+                // Si no existe, lo calculamos "on the fly" sumando profits de las bets
+                let dayProfit = 0;
+                if (dailyCtx.day_profit !== undefined) {
+                    dayProfit = Number(dailyCtx.day_profit);
+                } else {
+                    // Fallback calc
+                    dayProfit = transformedBets.reduce((sum, b) => sum + (Number(b.profit) || 0), 0);
+                }
+
+                // ACUMULAR TOTALES MENSUALES
+                totalMonthlyProfit += dayProfit;
+
+                // Acumular Stakes (Solo de apuestas resueltas o activas? 
+                // Normalmente Yield se calcula sobre apuestas resultas (Settled).
+                // Pero para "Total Stake" se suele mostrar todo lo apostado.
+                // Ajustaremos a "Settled" para consistencia con Yield, o Todo?
+                // El usuario quiere ver reflejado cambios manuales.
+
+                let dayHasSettled = false;
+                let dayIsWon = dayProfit > 0;
+
+                transformedBets.forEach(b => {
+                    const s = (b.status || '').toUpperCase();
+                    if (s === 'WON' || s === 'LOST') {
+                        totalMonthlyStake += Number(b.stake);
+                        dayHasSettled = true;
+                    }
+                });
+
+                if (dayHasSettled) {
+                    totalSettledDays++;
+                    if (dayIsWon) wonDays++;
+                }
+
+                // Guardar en Mapa
                 if (transformedBets.length > 0) {
                     daysMap[date] = {
                         date: date,
-                        day_profit: 0,
-                        status: 'PENDING',
+                        day_profit: Number(dayProfit.toFixed(2)), // Forzar número
+                        status: dailyCtx.status || (dayHasSettled ? 'FINISHED' : 'PENDING'),
                         bets: transformedBets
                     };
                 }

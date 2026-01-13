@@ -195,15 +195,13 @@ export async function POST(request: Request) {
 
         try {
             const pKey = `betai:daily_bets:${date}`;
-            const hKey = `betai:history:${date}`;
 
-            // Parallel save for speed + consistency
-            await Promise.all([
-                redis.set(pKey, historyData),
-                redis.set(hKey, historyData)
-            ]);
+            // Single save to source of truth
+            await redis.set(pKey, historyData);
 
-            console.log(`[UPDATE-BET] Saved to ${pKey} and ${hKey}`);
+            console.log(`[UPDATE-BET] Saved to ${pKey}`);
+
+
 
             // 6. MONTHLY STATS
             await updateMonthStats(date);
