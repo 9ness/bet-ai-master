@@ -98,69 +98,81 @@ class SportsDataService:
     def _fetch_sport(self, sport, date_str, min_ts, max_ts):
         config = self.configs[sport]
         base_url = config["url"]
-        target_leagues = config["leagues"]
         whitelist_markets = config["markets"]
         bookmaker_id = config["bookmaker"]
         
         matches_found = []
         endpoint = "fixtures" if sport == "football" else "games"
         
-        for league_id in target_leagues:
-            try:
-                params = {"date": date_str, "league": league_id, "timezone": "Europe/Madrid"}
-                if sport == "football": params["status"] = "NS" 
+        print(f"  [>] Consultando API ({sport}) para: {date_str}")
+        
+        try:
+            # OPTIMIZATION: Call by Date only (1 Call instead of N Leagues)
+            params = {"date": date_str, "timezone": "Europe/Madrid"}
+            
+            url_list = f"{base_url}/{endpoint}"
+            resp = requests.get(url_list, headers=self.headers, params=params)
+            
+            items = resp.json().get("response", [])
+            total_on_date = len(items)
+            
+            passed_filter_count = 0
+            
+            for item in items:
+                # 1. League Filter REMOVED (User requested Global Scan)
                 
-                url_list = f"{base_url}/{endpoint}"
-                resp = requests.get(url_list, headers=self.headers, params=params)
-                
-                items = resp.json().get("response", [])
-                
-                if not items: continue
-                
-                # print(f"    -> Liga {league_id} ({date_str}): {len(items)} eventos brutos.")
-                
-                for item in items:
-                    # Extract timestamp & ID
-                    if sport == "football":
-                        match_ts = item["fixture"]["timestamp"]
-                        fix_id = item["fixture"]["id"]
-                        home = item["teams"]["home"]["name"]
-                        away = item["teams"]["away"]["name"]
-                        league_name = item["league"]["name"]
-                    else: 
-                        match_ts = item["timestamp"]
-                        fix_id = item["id"]
-                        home = item["teams"]["home"]["name"]
-                        away = item["teams"]["away"]["name"]
-                        league_name = item["league"]["name"] if "league" in item else "NBA"
+                # Extract Metadata
+                if sport == "football":
+                    lid = item["league"]["id"]
+                    match_ts = item["fixture"]["timestamp"]
+                    fix_id = item["fixture"]["id"]
+                    home = item["teams"]["home"]["name"]
+                    away = item["teams"]["away"]["name"]
+                    league_name = item["league"]["name"]
+                else: 
+                    # Basketball structure
+                    lid = item["league"]["id"] if "league" in item else 12 
+                    if "league" in item and "id" in item["league"]:
+                        lid = item["league"]["id"]
+                    else:
+                        lid = -1
+                        
+                    match_ts = item["timestamp"]
+                    fix_id = item["id"]
+                    home = item["teams"]["home"]["name"]
+                    away = item["teams"]["away"]["name"]
+                    league_name = item["league"]["name"] if "league" in item else "NBA"
 
-                    # TIME FILTER
-                    if not (min_ts <= match_ts <= max_ts):
-                        continue
+                # 2. Timestamp Filter (The "Jornada Deportiva")
+                if not (min_ts <= match_ts <= max_ts):
+                    continue
 
-                    print(f"       [+] Procesando: {home} vs {away} ({datetime.fromtimestamp(match_ts).strftime('%H:%M')})")
+                passed_filter_count += 1
+                print(f"       [+] Candidato: {home} vs {away} ({datetime.fromtimestamp(match_ts).strftime('%H:%M')})")
 
-                    # Fetch Odds (Filtered)
-                    odds = self._get_odds(sport, base_url, fix_id, whitelist_markets, bookmaker_id)
-                    
-                    if not odds: continue
-                         
-                    match_entry = {
-                        "sport": sport, # TAGGING
-                        "id": fix_id,
-                        "date": date_str, # Keep original query date or accurate match date? 
-                        "timestamp": match_ts, # Useful for sorting
-                        "startTime": datetime.fromtimestamp(match_ts).strftime('%Y-%m-%d %H:%M'), # Human readable
-                        "home": home,
-                        "away": away,
-                        "league": league_name,
-                        "odds": odds
-                    }
-                    matches_found.append(match_entry)
-                    time.sleep(0.1) 
-                    
-            except Exception as e:
-                print(f"    [!] Error fetching league {league_id} for {sport}: {e}")
+                # Fetch Odds (Filtered)
+                odds = self._get_odds(sport, base_url, fix_id, whitelist_markets, bookmaker_id)
+                
+                if not odds: continue
+                        
+                match_entry = {
+                    "sport": sport, 
+                    "id": fix_id,
+                    "date": date_str, 
+                    "timestamp": match_ts, 
+                    "startTime": datetime.fromtimestamp(match_ts).strftime('%Y-%m-%d %H:%M'),
+                    "home": home,
+                    "away": away,
+                    "league": league_name,
+                    "odds": odds
+                }
+                matches_found.append(match_entry)
+                time.sleep(0.1) 
+            
+            print(f"      -> Encontrados {total_on_date} partidos totales en API. {passed_filter_count} entran en Jornada Deportiva.")
+
+        except Exception as e:
+            print(f"    [!] Error fetching {sport} for {date_str}: {e}")
 
         return matches_found
 
