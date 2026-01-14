@@ -271,7 +271,7 @@ export default function AdminGuard({
                     </h1>
 
                     <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-6 leading-relaxed capitalize">
-                        Visualizando predicciones para el día: <br className="md:hidden" />
+                        Predicciones para el día: <br className="md:hidden" />
                         <span className="font-bold text-foreground">{formattedDate}</span>
                     </p>
                 </div>

@@ -2,13 +2,13 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import html2canvas from 'html2canvas';
-import { Download, Loader2, Settings2, Image as ImageIcon, ChevronDown, ChevronRight, RefreshCw, Save, ScanEye, CheckCircle2, Link as LinkIcon, ShieldCheck, Target, PartyPopper, X } from 'lucide-react';
+import { Download, Loader2, Settings2, Image as ImageIcon, ChevronDown, ChevronRight, ChevronLeft, RefreshCw, Save, ScanEye, Link as LinkIcon, X } from 'lucide-react';
 
 /* 
- * TIKTOK FACTORY v4.0 - STABLE RESTORED
- * - Font: System Sans (font-black)
- * - Design: Flat, Bold, No Shadows
- * - Features: Web-Like Grouping, Graph Icon Restored
+ * TIKTOK FACTORY v6.0 - SMART BACKGROUND ENGINE
+ * - Backgrounds fetched from API
+ * - Smart selection based on Team/Sport/Slide Type
+ * - Intro: "Portada" | Outro: "Futbol" + "Comodin"
  */
 
 type TikTokFactoryProps = {
@@ -19,94 +19,304 @@ type TikTokFactoryProps = {
 export default function TikTokFactory({ predictions, formattedDate }: TikTokFactoryProps) {
     const [generating, setGenerating] = useState(false);
     const [images, setImages] = useState<string[]>([]);
-    const [yesterdayProfit, setYesterdayProfit] = useState<number | null>(null);
     const [previewImg, setPreviewImg] = useState<string | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
-    // Config State - defaults with emojis adaptable by user
+    // Dynamic date for default title
+    const getDayName = () => {
+        const days = ['DOMINGO', 'LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'];
+        return days[new Date().getDay()];
+    };
+
+    // Helper: Calculate Total Odds for Initial State
+    const calculateInitialOdds = () => {
+        let total = 1;
+        const rawBets = predictions?.bets || (Array.isArray(predictions) ? predictions : []);
+        let found = false;
+
+        if (rawBets.length > 0) {
+            rawBets.forEach((b: any) => {
+                const odd = parseFloat(b.total_odd || b.odd);
+                if (!isNaN(odd) && odd > 0) {
+                    total *= odd;
+                    found = true;
+                }
+            });
+        } else {
+            const o1 = parseFloat(predictions?.safe?.total_odd || predictions?.safe?.odd);
+            const o2 = parseFloat(predictions?.value?.total_odd || predictions?.value?.odd);
+            const o3 = parseFloat(predictions?.funbet?.total_odd || predictions?.funbet?.odd);
+
+            if (!isNaN(o1)) { total *= o1; found = true; }
+            if (!isNaN(o2)) { total *= o2; found = true; }
+            if (!isNaN(o3)) { total *= o3; found = true; }
+        }
+
+        if (!found || total <= 1.01) return "+??? 📈";
+        return `+${Math.floor(total)} 📈`;
+    };
+
+    // Config State
     const [config, setConfig] = useState({
-        // Slide 1: Cover
-        coverTitle: "EL MOVIMIENTO\nPREMIUM DE HOY 🚀",
-        coverSubtitle: "Análisis con IA (Gemini Pro)",
-        coverEmoji: "",
-        showProfitBadge: true,
+        // Slide 1: Intro
+        introTitle: `JUBILADORA HOY\n(${getDayName()})`,
+        introSubtitle: calculateInitialOdds(),
+        introEmoji1: '🤫',
+        introEmoji2: '✅',
 
-        // Slides 2-4: Bets
-        safeTitle: "NIVEL 1: LA BASE SEGURA 🔒",
-        valueTitle: "NIVEL 2: EL MULTIPLICADOR 💎",
-        funbetTitle: "NIVEL 3: EL BOMBAZO FINAL 💣",
+        // Slide Last: Outro
+        outroTitle: "LA MEJOR DE TODAS\nLA DEJAMOS EN\nNUESTRO CANAL",
+        outroSub: "ACCEDE DESDE EL PERFIL 🔗",
 
-        // Slide 5: Outro
-        outroTitle: "ÚNETE AL\nEQUIPO 🔗",
-        outroSub: "Análisis diarios gratuitos en el link del perfil",
-
-        // Backgrounds (Indices 0-4 maps to bg-1.jpg ... bg-5.jpg)
-        bgSelection: [1, 2, 3, 4, 5]
+        // Backgrounds (using strings now)
+        bgSelection: ['1', '2', '3', '4', '5', '6', '7', '8'] as string[]
     });
 
     const [collapsed, setCollapsed] = useState({
-        cover: false,
-        bets: true,
-        outro: true,
+        intro: false,
+        outro: false,
         bg: true
     });
+    const [currentPreviewIdx, setCurrentPreviewIdx] = useState(0);
 
-    // Helper: Anti-Ban Text Sanitizer
-    const sanitizeText = (text: string) => {
-        if (!text) return "";
-        let clean = text
-            .replace(/Apuesta/gi, "Selección")
-            .replace(/Cuota/gi, "X")
-            .replace(/Win/gi, "Vence")
-            .replace(/Gana/gi, "Vence");
-        return clean;
-    };
-
-    // Helper: Calculate Total Probability (Odds)
-    const calculateTotalOdds = () => {
-        const o1 = parseFloat(predictions?.safe?.odd || "1");
-        const o2 = parseFloat(predictions?.value?.odd || "1");
-        const o3 = parseFloat(predictions?.funbet?.odd || "1");
-        return (o1 * o2 * o3).toFixed(2);
-    };
-
-    // Fetch Yesterday's Profit
+    // Auto-collapse on mobile
     useEffect(() => {
-        const fetchYesterday = async () => {
-            const now = new Date();
-            now.setDate(now.getDate() - 1);
-            const yStr = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}`;
-            const monthStr = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
-            try {
-                const res = await fetch(`/api/admin/history?month=${monthStr}`);
-                const data = await res.json();
-                if (data.days && data.days[yStr]) {
-                    setYesterdayProfit(data.days[yStr].day_profit);
-                }
-            } catch (e) {
-                console.error("Failed to fetch profit", e);
-            }
-        };
-        fetchYesterday();
-        randomizeBackgrounds();
+        if (window.innerWidth < 768) {
+            setCollapsed({ intro: true, outro: true, bg: true });
+        }
     }, []);
+
+    // Helper: Parse Match and Pick
+    const parseBetDisplay = (match: string, pick: string) => {
+        if (!match) return { match: "Evento Desconocido", pick: pick || "" };
+
+        // Clean Match Name
+        const cleanMatch = match.replace(/\s*vs\s*/i, " vs ").trim();
+        const teams = cleanMatch.split(" vs ");
+        const home = teams[0] ? teams[0].trim() : "Local";
+        const away = teams[1] ? teams[1].trim() : "Visitante";
+
+        const displayMatch = cleanMatch.split("(")[0].trim();
+
+        // Process Pick
+        let displayPick = pick;
+        const p = pick ? pick.toLowerCase().trim() : "";
+
+        if (p.startsWith("1 ") || p === "1" || p.includes("(local gana)")) {
+            displayPick = home;
+        } else if (p.startsWith("2 ") || p === "2" || p.includes("(visitante gana)")) {
+            displayPick = away;
+        } else if (p.startsWith("x ") || p === "x" || p.includes("empate")) {
+            displayPick = `Empate`;
+        } else {
+            // General cleanup
+            displayPick = pick
+                .replace(/Apuesta/gi, "")
+                .replace(/Gana/gi, "")
+                .replace(/\(.*\)/g, "")
+                .replace(/AH/g, "Hándicap")
+                .trim();
+
+            // Replace generic 'Local'/'Visitante' with Team Names
+            const homeRegex = new RegExp(/\blocal\b/, 'gi');
+            const awayRegex = new RegExp(/\bvisitante\b/, 'gi');
+            displayPick = displayPick.replace(homeRegex, home).replace(awayRegex, away);
+
+            if (displayPick === "1") displayPick = home;
+            if (displayPick === "2") displayPick = away;
+        }
+
+        return {
+            match: displayMatch,
+            pick: displayPick
+        };
+    };
+
+    // Prepare All Bets (Flatten Logic)
+    const getAllSelections = () => {
+        const all: any[] = [];
+        const rawBets = predictions?.bets || (Array.isArray(predictions) ? predictions : []);
+
+        if (rawBets.length === 0) {
+            if (predictions?.safe) rawBets.push(predictions.safe);
+            if (predictions?.value) rawBets.push(predictions.value);
+            if (predictions?.funbet) rawBets.push(predictions.funbet);
+        }
+
+        rawBets.forEach((bet: any) => {
+            if (!bet) return;
+            const parentSport = bet.sport;
+
+            if (bet.selections && Array.isArray(bet.selections) && bet.selections.length > 0) {
+                bet.selections.forEach((sel: any) => {
+                    all.push({
+                        ...sel,
+                        sport: (sel.sport || parentSport || 'football').toLowerCase()
+                    });
+                });
+            }
+            else if (bet.components && Array.isArray(bet.components) && bet.components.length > 0) {
+                bet.components.forEach((comp: any) => {
+                    all.push({
+                        ...comp,
+                        sport: (comp.sport || parentSport || 'football').toLowerCase()
+                    });
+                });
+            }
+            else if (bet.match && bet.pick) {
+                all.push({
+                    ...bet,
+                    sport: (bet.sport || parentSport || 'football').toLowerCase()
+                });
+            }
+        });
+
+        // Sort: Football first, then others (Basketball)
+        return all.sort((a, b) => {
+            const sportA = (a.sport || 'football').toLowerCase();
+            const sportB = (b.sport || 'football').toLowerCase();
+
+            if (sportA === 'football' && sportB !== 'football') return -1;
+            if (sportA !== 'football' && sportB === 'football') return 1;
+            return 0;
+        });
+    };
+
+    const allSelections = getAllSelections();
+
+    // Chunk Logic: 3 per slide
+    const slidesData: any[][] = [];
+    for (let i = 0; i < allSelections.length; i += 3) {
+        slidesData.push(allSelections.slice(i, i + 3));
+    }
+
+    // Balance Logic: Avoid 3-1 split, prefer 2-2
+    if (slidesData.length > 1) {
+        const lastIdx = slidesData.length - 1;
+        // If last slide has 1 item and prev has 3, move one over
+        if (slidesData[lastIdx].length === 1 && slidesData[lastIdx - 1].length === 3) {
+            const itemToMove = slidesData[lastIdx - 1].pop();
+            if (itemToMove) {
+                slidesData[lastIdx].unshift(itemToMove);
+            }
+        }
+    }
 
     const toggleSection = (section: keyof typeof collapsed) => {
         setCollapsed(prev => ({ ...prev, [section]: !prev[section] }));
     };
 
-    const handleBgChange = (index: number, bgId: number) => {
+    const [availableFiles, setAvailableFiles] = useState<string[]>([]);
+
+    useEffect(() => {
+        // Fetch available backgrounds
+        fetch('/api/backgrounds')
+            .then(res => res.json())
+            .then(data => {
+                if (data.files && Array.isArray(data.files)) {
+                    setAvailableFiles(data.files);
+                }
+            })
+            .catch(err => console.error("Error fetching backgrounds:", err));
+    }, []);
+
+    useEffect(() => {
+        if (availableFiles.length > 0 && slidesData.length > 0) {
+            smartSelectBackgrounds();
+        } else if (availableFiles.length === 0) {
+            // Fallback legacy if no API data yet
+            randomizeBackgroundsLegacy();
+        }
+    }, [availableFiles, slidesData.length]);
+
+    const handleBgChange = (index: number, bgId: string) => {
         const newBgs = [...config.bgSelection];
         newBgs[index] = bgId;
-        setConfig({ ...config, bgSelection: newBgs });
+        setConfig(prev => ({ ...prev, bgSelection: newBgs }));
     };
 
-    const randomizeBackgrounds = () => {
-        const shuffled = [1, 2, 3, 4, 5]
+    // Legacy randomizer (numeric 1-8)
+    const randomizeBackgroundsLegacy = () => {
+        const count = slidesData.length + 2;
+        const shuffled = Array.from({ length: Math.max(count, 15) }, (_, i) => (i % 8) + 1)
             .map(value => ({ value, sort: Math.random() }))
             .sort((a, b) => a.sort - b.sort)
-            .map(({ value }) => value);
+            .map(({ value }) => String(value));
         setConfig(prev => ({ ...prev, bgSelection: shuffled }));
+    };
+
+    const smartSelectBackgrounds = () => {
+        const newSelection: any[] = [];
+
+        // Helper: Get random item from array
+        const pickRandom = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
+
+        // Helper: clean string for comparison (remove accents, spaces, lowercase)
+        const cleanStr = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+
+        // 1. COVER (Intro) - Must contain "portada"
+        const portadas = availableFiles.filter(f => f.toLowerCase().includes('portada'));
+        newSelection.push(portadas.length > 0 ? pickRandom(portadas) : '1'); // Index 0
+
+        // 2. BET SLIDES
+        slidesData.forEach((chunk) => {
+            let selectedBg = null;
+            const mainSport = (chunk[0]?.sport || 'football').toLowerCase();
+
+            // Try to find Team Match (ONLY for bets matching the main sport)
+            for (const bet of chunk) {
+                const currentSport = (bet.sport || 'football').toLowerCase();
+                if (currentSport !== mainSport) continue;
+
+                const { match } = parseBetDisplay(bet.match, bet.pick);
+                // "Home vs Away" -> ["Home", "Away"]
+                // Use robust regex split for VS, vs, or hyphen
+                const teams = match.split(/\s*vs\s*|\s*-\s*/i).map(t => t.trim()).filter(Boolean);
+
+                for (const team of teams) {
+                    const cleanTeam = cleanStr(team);
+                    if (cleanTeam.length < 3) continue; // Skip short names
+
+                    // Find files containing this team name
+                    const matches = availableFiles.filter(f => cleanStr(f).includes(cleanTeam));
+
+                    if (matches.length > 0) {
+                        selectedBg = pickRandom(matches);
+                        break; // Found high priority
+                    }
+                }
+                if (selectedBg) break; // Found match for this slide
+            }
+
+            // Fallback: Sport + Comodin
+            if (!selectedBg) {
+                // Priority: Sport of the FIRST bet in the slide
+                const keyword = mainSport === 'basketball' ? 'basket' : 'futbol';
+
+                const comodines = availableFiles.filter(f =>
+                    f.toLowerCase().includes(keyword) &&
+                    f.toLowerCase().includes('comodin')
+                );
+
+                if (comodines.length > 0) {
+                    selectedBg = pickRandom(comodines);
+                }
+            }
+
+            newSelection.push(selectedBg || '2');
+        });
+
+        // 3. OUTRO (Last) - Must contain "futbol" AND "comodin"
+        const outroFiles = availableFiles.filter(f =>
+            f.toLowerCase().includes('futbol') &&
+            f.toLowerCase().includes('comodin')
+        );
+
+        // Try to pick one different from the last used slide if possible, otherwise random
+        let outroBg = outroFiles.length > 0 ? pickRandom(outroFiles) : '3';
+        newSelection.push(outroBg);
+
+        setConfig(prev => ({ ...prev, bgSelection: newSelection }));
     };
 
     const generateImages = async () => {
@@ -126,7 +336,7 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
                     useCORS: true,
                     width: 1080,
                     height: 1920,
-                    backgroundColor: '#000',
+                    backgroundColor: null,
                     logging: false,
                 });
                 generated.push(canvas.toDataURL('image/png'));
@@ -155,82 +365,86 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
 
             {/* LEFT: SETTINGS PANEL */}
             <div className="w-full md:w-1/3 border-r border-white/10 bg-black/40 flex flex-col h-auto md:h-full shrink-0">
-                <div className="p-6 border-b border-white/10 flex justify-between items-center bg-gradient-to-r from-emerald-900/20 to-teal-900/20">
-                    <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                        <Settings2 className="text-emerald-500" />
-                        Editor Editorial V4
+                <div className="p-4 border-b border-white/10 flex justify-between items-center bg-gradient-to-r from-emerald-900/20 to-teal-900/20">
+                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                        <Settings2 className="text-emerald-500" size={20} />
+                        Editor Jubiladora
                     </h3>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                    {/* SECTION 1: COVER */}
+                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                    {/* SECTION 1: INTRO */}
                     <div className="border border-white/10 rounded-xl overflow-hidden bg-white/5">
-                        <button onClick={() => toggleSection('cover')} className="w-full flex justify-between items-center p-4 hover:bg-white/5">
-                            <span className="font-bold text-sm uppercase text-muted-foreground flex items-center gap-2">🖼️ Portada & Gancho</span>
-                            {collapsed.cover ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                        <button onClick={() => toggleSection('intro')} className="w-full flex justify-between items-center p-2 hover:bg-white/5">
+                            <span className="font-bold text-sm uppercase text-muted-foreground flex items-center gap-2">👋 Portada</span>
+                            {collapsed.intro ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
                         </button>
-                        {!collapsed.cover && (
+                        {!collapsed.intro && (
                             <div className="p-4 space-y-3 border-t border-white/10">
                                 <div>
                                     <label className="text-xs text-white/50 block mb-1">Título Principal</label>
-                                    <textarea value={config.coverTitle} onChange={e => setConfig({ ...config, coverTitle: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded p-2 text-white text-sm h-16" />
+                                    <textarea value={config.introTitle} onChange={e => setConfig({ ...config, introTitle: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded p-2 text-white text-sm h-16" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label className="text-xs text-white/50 block mb-1">Emoji 1</label>
+                                        <input value={config.introEmoji1} onChange={e => setConfig({ ...config, introEmoji1: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded p-2 text-white text-sm text-center" />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs text-white/50 block mb-1">Emoji 2</label>
+                                        <input value={config.introEmoji2} onChange={e => setConfig({ ...config, introEmoji2: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded p-2 text-white text-sm text-center" />
+                                    </div>
                                 </div>
                                 <div>
-                                    <label className="text-xs text-white/50 block mb-1">Subtítulo</label>
-                                    <input value={config.coverSubtitle} onChange={e => setConfig({ ...config, coverSubtitle: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded p-2 text-white text-sm" />
-                                </div>
-                                <div className="flex items-center gap-2 pt-2">
-                                    <input type="checkbox" checked={config.showProfitBadge} onChange={e => setConfig({ ...config, showProfitBadge: e.target.checked })} className="rounded bg-black/50 border-white/20" />
-                                    <span className="text-xs text-white font-bold">Badge 'Ayer Cumplimos'</span>
+                                    <label className="text-xs text-white/50 block mb-1">Cuota (Texto Editable)</label>
+                                    <input value={config.introSubtitle} onChange={e => setConfig({ ...config, introSubtitle: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded p-2 text-white text-sm" />
                                 </div>
                             </div>
                         )}
                     </div>
 
-                    {/* SECTION 2: BETS */}
+                    {/* SECTION 2: OUTRO */}
                     <div className="border border-white/10 rounded-xl overflow-hidden bg-white/5">
-                        <button onClick={() => toggleSection('bets')} className="w-full flex justify-between items-center p-4 hover:bg-white/5">
-                            <span className="font-bold text-sm uppercase text-muted-foreground flex items-center gap-2">📝 Títulos Niveles</span>
-                            {collapsed.bets ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                        <button onClick={() => toggleSection('outro')} className="w-full flex justify-between items-center p-2 hover:bg-white/5">
+                            <span className="font-bold text-sm uppercase text-muted-foreground flex items-center gap-2">🔚 Cierre</span>
+                            {collapsed.outro ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
                         </button>
-                        {!collapsed.bets && (
+                        {!collapsed.outro && (
                             <div className="p-4 space-y-3 border-t border-white/10">
                                 <div>
-                                    <label className="text-xs text-emerald-400 block mb-1 font-bold">Nivel 1 (Safe)</label>
-                                    <input value={config.safeTitle} onChange={e => setConfig({ ...config, safeTitle: e.target.value })} className="w-full bg-black/50 border border-emerald-500/30 rounded p-2 text-white text-sm" />
+                                    <label className="text-xs text-white/50 block mb-1">Mensaje Final</label>
+                                    <textarea value={config.outroTitle} onChange={e => setConfig({ ...config, outroTitle: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded p-2 text-white text-sm h-16" />
                                 </div>
                                 <div>
-                                    <label className="text-xs text-violet-400 block mb-1 font-bold">Nivel 2 (Value)</label>
-                                    <input value={config.valueTitle} onChange={e => setConfig({ ...config, valueTitle: e.target.value })} className="w-full bg-black/50 border border-violet-500/30 rounded p-2 text-white text-sm" />
-                                </div>
-                                <div>
-                                    <label className="text-xs text-amber-400 block mb-1 font-bold">Nivel 3 (Bomba)</label>
-                                    <input value={config.funbetTitle} onChange={e => setConfig({ ...config, funbetTitle: e.target.value })} className="w-full bg-black/50 border border-amber-500/30 rounded p-2 text-white text-sm" />
+                                    <label className="text-xs text-white/50 block mb-1">Call to Action</label>
+                                    <input value={config.outroSub} onChange={e => setConfig({ ...config, outroSub: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded p-2 text-white text-sm" />
                                 </div>
                             </div>
                         )}
                     </div>
 
                     {/* SECTION 3: BACKGROUNDS */}
-                    <div className="border border-white/10 rounded-xl overflow-hidden bg-white/5">
+                    <div className="hidden border border-white/10 rounded-xl overflow-hidden bg-white/5">
                         <button onClick={() => toggleSection('bg')} className="w-full flex justify-between items-center p-4 hover:bg-white/5">
                             <span className="font-bold text-sm uppercase text-muted-foreground flex items-center gap-2">🎨 Fondos</span>
                             {collapsed.bg ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
                         </button>
                         {!collapsed.bg && (
                             <div className="p-4 space-y-4 border-t border-white/10">
-                                <button onClick={randomizeBackgrounds} className="w-full py-2 bg-white/10 hover:bg-white/20 rounded text-xs font-bold mb-2 flex items-center justify-center gap-2">
-                                    <RefreshCw size={14} /> Re-Mezclar Fondos
-                                </button>
-                                {config.bgSelection.map((bgId, idx) => (
+
+                                {Array.from({ length: slidesData.length + 2 }).map((_, idx) => (
                                     <div key={idx} className="flex items-center justify-between">
                                         <span className="text-xs text-white/50">Slide {idx + 1}</span>
                                         <select
-                                            value={bgId}
-                                            onChange={(e) => handleBgChange(idx, Number(e.target.value))}
-                                            className="bg-black/50 border border-white/10 rounded text-xs p-1 text-white w-24"
+                                            value={config.bgSelection[idx] || '1'}
+                                            onChange={(e) => handleBgChange(idx, e.target.value)}
+                                            className="bg-black/50 border border-white/10 rounded text-xs p-1 text-white w-32 truncate"
                                         >
-                                            {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>Fondo {n}</option>)}
+                                            {availableFiles.length > 0 ? (
+                                                availableFiles.map(f => <option key={f} value={f}>{f}</option>)
+                                            ) : (
+                                                [1, 2, 3, 4, 5, 6, 7, 8].map(n => <option key={n} value={String(n)}>Fondo {n}</option>)
+                                            )}
                                         </select>
                                     </div>
                                 ))}
@@ -239,60 +453,87 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
                     </div>
                 </div>
 
-                <div className="p-6 border-t border-white/10 bg-black/20">
-                    <button
-                        onClick={generateImages}
-                        disabled={generating}
-                        className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-emerald-500/20 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                        {generating ? <Loader2 className="animate-spin" /> : <ImageIcon />}
-                        {generating ? 'Renderizando...' : 'GENERAR V4 PREMIUM 🚀'}
-                    </button>
+                <div className="p-4 border-t border-white/10 bg-black/20">
+                    <div className="flex gap-2">
+                        {/* GENERATE BUTTON */}
+                        <button
+                            onClick={generateImages}
+                            disabled={generating}
+                            className="flex-1 bg-white hover:bg-gray-200 text-black font-bold py-3 text-xs rounded-xl shadow-lg transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                            {generating ? <Loader2 className="animate-spin" size={16} /> : <ImageIcon size={16} />}
+                            {generating ? 'RENDERING...' : 'GENERAR'}
+                        </button>
+
+                        {/* DOWNLOAD ALL BUTTON */}
+                        <button
+                            onClick={downloadAll}
+                            disabled={images.length === 0}
+                            className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 text-xs rounded-xl shadow-lg transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                            <Save size={16} /> BAJAR TODO
+                        </button>
+                    </div>
+                    {allSelections.length === 0 && (
+                        <p className="text-center text-red-400 text-[10px] mt-1">⚠️ No se encontraron apuestas</p>
+                    )}
+                    <p className="text-center text-white/30 text-[10px] mt-1">{slidesData.length} diapositivas de apuestas (+2 portada/final)</p>
                 </div>
             </div>
 
             {/* RIGHT: PREVIEW PANEL */}
-            <div className="flex-1 bg-black/80 flex flex-col min-h-[600px] md:h-full overflow-hidden relative">
+            <div className="flex-1 bg-black/80 flex flex-col min-h-[300px] md:h-full overflow-hidden relative">
                 {images.length > 0 ? (
-                    <div className="flex-1 overflow-y-auto p-8">
-                        <h3 className="block md:hidden text-xl font-bold text-white mb-4">Resultados Generados:</h3>
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 content-start">
-                            {images.map((img, idx) => (
-                                <div key={idx} className="group relative aspect-[9/16] bg-zinc-900 rounded-lg overflow-hidden border border-white/10 shadow-2xl cursor-pointer" onClick={() => setPreviewImg(img)}>
-                                    <img src={img} alt={`Slide ${idx}`} className="w-full h-full object-contain" />
-                                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
-                                        <div className="flex flex-col items-center gap-2">
-                                            <ScanEye className="text-white" size={32} />
-                                            <span className="text-[10px] uppercase font-bold text-white tracking-widest">Ver</span>
-                                        </div>
-                                        <button
-                                            onClick={(e) => downloadImage(img, idx, e)}
-                                            className="p-3 bg-white hover:bg-emerald-500 text-black hover:text-white rounded-full transition-colors shadow-xl transform hover:scale-110 z-10"
-                                            title="Descargar esta imagen"
-                                        >
-                                            <Download size={20} />
-                                        </button>
+                    <div className="flex-1 overflow-y-auto p-2 md:p-8 flex flex-col items-center justify-center">
+                        <div className="flex items-center gap-4 w-full justify-center">
+                            <button
+                                onClick={() => setCurrentPreviewIdx(prev => Math.max(0, prev - 1))}
+                                disabled={currentPreviewIdx === 0}
+                                className="p-2 bg-white/10 hover:bg-white/20 rounded-full disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                            >
+                                <ChevronLeft size={32} className="text-white" />
+                            </button>
+
+                            <div className="relative aspect-[9/16] h-auto max-h-[55vh] bg-transparent rounded-lg overflow-hidden border border-white/10 shadow-2xl group">
+                                <img src={images[currentPreviewIdx]} alt={`Slide ${currentPreviewIdx}`} className="w-full h-full object-contain" />
+
+                                {/* Overlay Controls - Bottom Aligned */}
+                                <div className="absolute inset-x-0 bottom-0 top-1/2 bg-gradient-to-t from-black/90 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center gap-12 pb-8">
+                                    <div className="flex flex-col items-center gap-2 transform hover:scale-110 transition-transform cursor-pointer" onClick={() => setPreviewImg(images[currentPreviewIdx])}>
+                                        <ScanEye className="text-white" size={28} />
+                                        <span className="text-white text-[10px] font-bold uppercase tracking-wider">Ver</span>
                                     </div>
-                                    <span className="absolute bottom-2 left-2 text-[10px] font-bold text-white/50 bg-black/50 px-2 py-0.5 rounded">
-                                        #{idx + 1}
-                                    </span>
+                                    <button
+                                        onClick={(e) => downloadImage(images[currentPreviewIdx], currentPreviewIdx, e)}
+                                        className="flex flex-col items-center gap-2 transform hover:scale-110 transition-transform"
+                                    >
+                                        <Download className="text-white" size={28} />
+                                        <span className="text-white text-[10px] font-bold uppercase tracking-wider">Bajar</span>
+                                    </button>
                                 </div>
-                            ))}
+
+                                <span className="absolute top-4 left-4 text-[10px] font-bold text-white/50 bg-black/50 px-2 py-0.5 rounded border border-white/10">
+                                    {currentPreviewIdx + 1} / {images.length}
+                                </span>
+                            </div>
+
+                            <button
+                                onClick={() => setCurrentPreviewIdx(prev => Math.min(images.length - 1, prev + 1))}
+                                disabled={currentPreviewIdx === images.length - 1}
+                                className="p-2 bg-white/10 hover:bg-white/20 rounded-full disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                            >
+                                <ChevronRight size={32} className="text-white" />
+                            </button>
                         </div>
                     </div>
                 ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-white/30 gap-4">
                         <ImageIcon size={64} className="opacity-20" />
-                        <p className="text-sm">Configura y pulsa "Generar"</p>
+                        <p className="text-sm">Listo para generar</p>
+                        <p className="text-xs text-white/20">Se encontraron {allSelections.length} selecciones</p>
                     </div>
                 )}
-                {images.length > 0 && (
-                    <div className="p-6 border-t border-white/10 bg-black/40 flex justify-end">
-                        <button onClick={downloadAll} className="px-6 py-3 bg-white text-black font-bold rounded-xl hover:bg-gray-200 transition-colors flex items-center gap-2">
-                            <Save size={18} /> Descargar Todo
-                        </button>
-                    </div>
-                )}
+
             </div>
 
             {/* FULL SCREEN PREVIEW MODAL */}
@@ -302,16 +543,6 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
                     <button className="absolute top-8 right-8 text-white/50 hover:text-white p-2">
                         <X size={40} />
                     </button>
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            const idx = images.indexOf(previewImg);
-                            downloadImage(previewImg, idx);
-                        }}
-                        className="absolute bottom-12 right-12 px-6 py-3 bg-white text-black font-bold rounded-full hover:scale-105 transition-transform flex items-center gap-2 shadow-2xl z-50"
-                    >
-                        <Download size={20} /> Descargar
-                    </button>
                 </div>
             )}
 
@@ -319,180 +550,100 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
             <div className="fixed left-[-9999px] top-0 pointer-events-none">
                 <div ref={containerRef}>
 
-                    {/* SLIDE 1: COVER - SYSTEM FONT FLAT STYLE */}
-                    <div className="w-[1080px] h-[1920px] relative flex flex-col items-center justify-center bg-black font-sans overflow-hidden">
-                        <img src={`/backgrounds/bg-${config.bgSelection[0]}.jpg`} onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1518091043644-c1d4457512c6?q=80&w=1920&fit=crop"} crossOrigin="anonymous" className="absolute inset-0 w-full h-full object-cover object-center z-0" alt="bg" />
-                        <div className="absolute inset-0 bg-black/30 z-0" />
+                    {/* SLIDE 1: COVER */}
+                    <div className="w-[1080px] h-[1920px] relative flex flex-col items-center justify-start pt-[100px] font-sans overflow-hidden">
+                        <img src={config.bgSelection[0]?.includes('.') ? `/backgrounds/${config.bgSelection[0]}` : `/backgrounds/bg-${config.bgSelection[0] || '1'}.jpg`} onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1518091043644-c1d4457512c6?q=80&w=1920&fit=crop"} crossOrigin="anonymous" className="absolute inset-0 w-full h-full object-cover object-center z-0 opacity-100" alt="bg" />
 
-                        <div className="relative z-10 w-full h-full flex flex-col items-center justify-center gap-14 p-8 pb-[500px]">
+                        <div className="relative z-10 w-full flex flex-col items-center gap-14 p-8">
+                            {/* TITLE SPLIT: 2 blocks, 2nd block has icons */}
+                            {(() => {
+                                const parts = config.introTitle.split('\n');
+                                const line1 = parts[0] || "";
+                                const line2 = parts[1] || "";
 
-                            {/* TITLE: YELLOW PILL */}
-                            <div className="bg-yellow-400 px-16 py-12 rounded-full w-fit max-w-[95%] flex items-center justify-center text-center">
-                                <h1 className="text-7xl font-black text-black uppercase tracking-tighter leading-none">
-                                    {config.coverTitle}
-                                </h1>
-                            </div>
+                                return (
+                                    <div className="flex flex-col items-center gap-4 transform -rotate-2 w-full">
+                                        {/* Line 1 */}
+                                        <div className="bg-white px-12 py-6 rounded-2xl shadow-lg w-fit max-w-[90%]">
+                                            <h1 className="text-7xl font-black text-black uppercase tracking-tighter leading-tight whitespace-nowrap text-center">
+                                                {line1}
+                                            </h1>
+                                        </div>
+                                        {/* Line 2 with Icons */}
+                                        <div className="bg-white px-12 py-4 rounded-2xl shadow-lg flex items-center gap-6 w-fit max-w-[95%]">
+                                            <h1 className="text-6xl font-black text-black uppercase tracking-tighter leading-tight whitespace-nowrap">
+                                                {line2}
+                                            </h1>
+                                            <div className="flex items-center gap-4">
+                                                {config.introEmoji1 && (
+                                                    <span className="text-6xl filter drop-shadow hover:brightness-110">{config.introEmoji1}</span>
+                                                )}
+                                                {config.introEmoji2 && (
+                                                    <span className="text-6xl filter drop-shadow hover:brightness-110">{config.introEmoji2}</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
 
-                            {/* SUBTITLE: GREEN PILL */}
-                            <div className="bg-green-500 px-20 py-12 rounded-full border-[8px] border-white flex items-center justify-center">
-                                <span className="text-8xl font-black text-white uppercase tracking-tighter leading-none">
-                                    Cuota {calculateTotalOdds()} 📈
+                            {/* ODDS PILL: STICKER STYLE (Editable) */}
+                            <div className="bg-white px-14 py-8 rounded-2xl shadow-2xl transform rotate-2 mt-8">
+                                <span className="text-7xl font-black text-black uppercase tracking-tighter leading-none">
+                                    {config.introSubtitle}
                                 </span>
                             </div>
-
-                            {/* EXTRA: "AYER CUMPLIMOS" */}
-                            {yesterdayProfit && yesterdayProfit > 0 && config.showProfitBadge && (
-                                <div className="mt-10 bg-white px-16 py-10 rounded-full flex items-center justify-center gap-6">
-                                    <CheckCircle2 size={55} className="text-green-600" strokeWidth={5} />
-                                    <span className="text-6xl font-black text-black uppercase tracking-tighter leading-none">AYER CUMPLIMOS ✅</span>
-                                </div>
-                            )}
                         </div>
                     </div>
 
-                    {/* SLIDES 2-4: BETS - FLAT GROUPED SYSTEM FONT */}
-                    {[
-                        { conf: 'safe', title: config.safeTitle, data: predictions?.safe },
-                        { conf: 'value', title: config.valueTitle, data: predictions?.value },
-                        { conf: 'funbet', title: config.funbetTitle, data: predictions?.funbet }
-                    ].map((bet, i) => {
-                        const hasData = !!bet.data;
-                        const oddText = hasData ? bet.data.odd : "1.00";
+                    {/* SLIDES 2-N: BETS (3 per slide) */}
+                    {slidesData.map((chunk, slideIdx) => (
+                        <div key={slideIdx} className="w-[1080px] h-[1920px] relative flex flex-col items-center justify-center font-sans overflow-hidden">
+                            <img src={config.bgSelection[slideIdx + 1]?.includes('.') ? `/backgrounds/${config.bgSelection[slideIdx + 1]}` : `/backgrounds/bg-${config.bgSelection[slideIdx + 1] || '2'}.jpg`} onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?q=80&w=1920&fit=crop"} crossOrigin="anonymous" className="absolute inset-0 w-full h-full object-cover object-center z-0 opacity-100" alt="bg" />
 
-                        // --- SMART GROUPING LOGIC (Web Mirror) ---
-                        let matchGroups: { [key: string]: string[] } = {};
-                        let matchOrder: string[] = [];
+                            <div className="relative z-10 w-full h-full flex flex-col items-center justify-center p-8 gap-16 pb-[150px]">
+                                {chunk.map((bet: any, bIdx: number) => {
+                                    const { match, pick } = parseBetDisplay(bet.match, bet.pick);
+                                    const sportIcon = bet.sport === 'basketball' ? '🏀' : '⚽';
 
-                        if (hasData) {
-                            if (bet.data.components && bet.data.components.length > 0) {
-                                // CASE A: Structured Components
-                                bet.data.components.forEach((comp: any) => {
-                                    const mName = comp.match ? comp.match.trim().toUpperCase() : "GENERAL";
-                                    const pText = sanitizeText(comp.pick).trim();
-                                    if (!matchGroups[mName]) {
-                                        matchGroups[mName] = [];
-                                        matchOrder.push(mName);
-                                    }
-                                    matchGroups[mName].push(pText);
-                                });
-                            } else {
-                                // CASE B: Plain Text Fallback
-                                const mainMatch = sanitizeText(bet.data.match).trim().toUpperCase();
-                                const rawPick = sanitizeText(bet.data.pick);
-                                // Heuristic: Split by newlines or +
-                                const lines = rawPick.split(/[\n\+]/).map(s => s.trim()).filter(s => s.length > 0);
-
-                                const isGeneric = /acumulada|combinada|funbet|bombazo/i.test(mainMatch);
-
-                                if (!isGeneric && mainMatch.length > 2) {
-                                    // Single Match
-                                    matchGroups[mainMatch] = lines;
-                                    matchOrder.push(mainMatch);
-                                } else {
-                                    // Generic - try parsing "Match: Pick"
-                                    lines.forEach((line, idx) => {
-                                        const colon = line.indexOf(':');
-                                        if (colon > 3) {
-                                            const m = line.substring(0, colon).trim().toUpperCase();
-                                            const p = line.substring(colon + 1).trim();
-                                            if (!matchGroups[m]) {
-                                                matchGroups[m] = [];
-                                                matchOrder.push(m);
-                                            }
-                                            matchGroups[m].push(p);
-                                        } else {
-                                            const k = `PICK-${idx}`;
-                                            matchGroups[k] = [line];
-                                            matchOrder.push(k);
-                                        }
-                                    });
-                                }
-                            }
-                        }
-
-                        return (
-                            <div key={i} className="w-[1080px] h-[1920px] relative flex flex-col items-center bg-black font-sans overflow-hidden">
-                                <img src={`/backgrounds/bg-${config.bgSelection[i + 1]}.jpg`} onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?q=80&w=1920&fit=crop"} crossOrigin="anonymous" className="absolute inset-0 w-full h-full object-cover object-center z-0" alt="bg" />
-                                <div className="absolute inset-0 bg-black/20 z-0" />
-
-                                <div className="relative z-10 w-full h-full flex flex-col items-center justify-center p-8 gap-14 pb-[450px]">
-
-                                    {/* 1. LEVEL TITLE (Yellow Pill) */}
-                                    <div className="bg-yellow-400 px-16 py-8 rounded-full flex items-center justify-center shadow-none mb-4 max-w-[95%] text-center">
-                                        <h2 className="text-6xl font-black text-black uppercase tracking-tighter leading-none">
-                                            {bet.title}
-                                        </h2>
-                                    </div>
-
-                                    {/* 2. GROUPED PICKS (White Pills) */}
-                                    <div className="flex flex-col items-center w-full px-4 gap-6 space-y-4">
-                                        {matchOrder.length > 0 ? (
-                                            matchOrder.map((matchName, idx) => {
-                                                const picks = matchGroups[matchName];
-                                                const joinedPicks = picks.join(" + ");
-
-                                                // Clean Display Logic
-                                                const isRealMatch = matchName.length > 3 && !matchName.startsWith("PICK-") && matchName !== "GENERAL";
-                                                const displayText = isRealMatch
-                                                    ? `${matchName}: ${joinedPicks}`
-                                                    : joinedPicks;
-
-                                                // Dynamic Sizing for System Font
-                                                const len = displayText.length;
-                                                const sizeClass = len > 50 ? 'text-4xl' : len > 30 ? 'text-5xl' : 'text-6xl';
-
-                                                return (
-                                                    <div key={idx} className="bg-white px-12 py-8 rounded-full w-fit max-w-[95%] text-center flex items-center justify-center gap-5 min-h-[120px]">
-                                                        <span className={`${sizeClass} font-black text-black uppercase tracking-tighter leading-none`}>
-                                                            {displayText}
-                                                        </span>
-                                                        <div className="bg-green-500 rounded-full p-2 shrink-0 flex items-center justify-center border-none">
-                                                            <CheckCircle2 size={40} className="text-white" strokeWidth={5} />
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })
-                                        ) : (
-                                            <div className="bg-white px-14 py-10 rounded-full flex items-center justify-center text-center">
-                                                <span className="text-6xl font-black text-black uppercase tracking-tighter leading-none">SIN SELECCIÓN</span>
+                                    return (
+                                        <div key={bIdx} className="w-full flex flex-col items-center gap-4">
+                                            {/* MATCH TITLE: Native Insta Style */}
+                                            <div className="inline-block bg-white px-8 py-4 rounded-xl max-w-[95%] text-center shadow-lg transform -rotate-1">
+                                                <h3 className="text-5xl font-black text-black uppercase tracking-tight leading-tight whitespace-pre-wrap break-words">
+                                                    {match} {sportIcon}
+                                                </h3>
                                             </div>
-                                        )}
-                                    </div>
 
-                                    {/* 3. ODDS BADGE (Green Pill) */}
-                                    <div className="mt-10 bg-green-500 px-20 py-10 rounded-full border-[8px] border-white flex items-center justify-center">
-                                        <span className="text-8xl font-black text-white uppercase tracking-tighter leading-none">
-                                            Cuota {oddText} 📈
-                                        </span>
-                                    </div>
-
-                                </div>
+                                            {/* PICK + CHECK: Native Insta Style */}
+                                            <div className="inline-block bg-white px-8 py-4 rounded-xl max-w-[95%] text-center shadow-lg transform rotate-1 mt-[-10px]">
+                                                <span className="text-5xl font-black text-black uppercase tracking-tight leading-tight whitespace-pre-wrap break-words">
+                                                    {pick} ✅
+                                                </span>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
-                        );
-                    })}
+                        </div>
+                    ))}
 
-                    {/* SLIDE 5: OUTRO - FLAT SYSTEM FONT */}
-                    <div className="w-[1080px] h-[1920px] relative flex flex-col items-center justify-center bg-black font-sans overflow-hidden">
-                        <img src={`/backgrounds/bg-${config.bgSelection[4]}.jpg`} onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1550989460-0adf9ea622e2?q=80&w=1920&fit=crop"} crossOrigin="anonymous" className="absolute inset-0 w-full h-full object-cover object-center z-0" alt="bg" />
-                        <div className="absolute inset-0 bg-black/40 z-0" />
+                    {/* LAST SLIDE: OUTRO */}
+                    <div className="w-[1080px] h-[1920px] relative flex flex-col items-center justify-start pt-[900px] font-sans overflow-hidden">
+                        <img src={config.bgSelection[slidesData.length + 1]?.includes('.') ? `/backgrounds/${config.bgSelection[slidesData.length + 1]}` : `/backgrounds/bg-${config.bgSelection[slidesData.length + 1] || '3'}.jpg`} onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1550989460-0adf9ea622e2?q=80&w=1920&fit=crop"} crossOrigin="anonymous" className="absolute inset-0 w-full h-full object-cover object-center z-0 opacity-90" alt="bg" />
 
-                        <div className="relative z-10 w-full h-full flex flex-col items-center justify-center p-12 gap-16 pb-[400px]">
+                        <div className="relative z-10 w-full flex flex-col items-center gap-16 p-12">
 
-                            {/* ICON */}
-                            <div className="bg-white/10 p-12 rounded-full backdrop-blur-md border border-white/20">
-                                <LinkIcon size={120} className="text-white" />
-                            </div>
-
-                            {/* TITLE */}
-                            <div className="bg-yellow-400 px-24 py-16 rounded-full text-center">
-                                <h2 className="text-8xl font-black text-black uppercase tracking-tighter leading-none whitespace-pre-line">
+                            {/* MAIN TEXT - REMOVED SHADOW-2XL replaced with shadow-lg for flat look */}
+                            <div className="bg-white px-10 py-10 rounded-2xl max-w-[95%] text-center transform rotate-1">
+                                <h2 className="text-7xl font-black text-black uppercase tracking-tighter leading-tight whitespace-pre-line">
                                     {config.outroTitle}
                                 </h2>
                             </div>
 
-                            {/* SUBTITLE */}
-                            <div className="bg-black/60 px-16 py-8 rounded-full border border-white/20 backdrop-blur-sm">
-                                <p className="text-4xl text-white font-bold uppercase tracking-tight text-center">
+                            {/* SUBTEXT (White w/ shadow-lg) */}
+                            <div className="bg-white px-12 py-6 rounded-2xl transform -rotate-1">
+                                <p className="text-4xl font-black text-black uppercase tracking-tight">
                                     {config.outroSub}
                                 </p>
                             </div>

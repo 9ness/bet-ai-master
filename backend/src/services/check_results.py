@@ -4,6 +4,7 @@ import sys
 import json
 import re
 import google.generativeai as genai
+from google.generativeai import protos # IMPORTACIÓN CRÍTICA
 from datetime import datetime, timedelta
 
 # Configuración de rutas
@@ -14,32 +15,45 @@ if backend_root not in sys.path:
 
 from src.services.redis_service import RedisService
 
-# Modelo verificado y disponible en tu entorno
+# Modelo 2.5 Pro (Confirmado en tu lista de modelos)
 GEMINI_MODEL = "models/gemini-2.5-pro"
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 class AIChecker:
     def __init__(self):
         self.redis = RedisService()
-        # Configuración de la herramienta google_search como objeto
-        # Se elimina 'google_search_retrieval' por obsolescencia
+        
+        # DEFINICIÓN CORRECTA DE LA HERRAMIENTA PARA LA LIBRERÍA LEGACY
+        # Usamos MODE_DYNAMIC para que la IA decida cuándo necesita buscar en Google
+        tool_search = protos.Tool(
+            google_search_retrieval=protos.GoogleSearchRetrieval(
+                dynamic_retrieval_config=protos.DynamicRetrievalConfig(
+                    mode=protos.DynamicRetrievalConfig.Mode.MODE_DYNAMIC,
+                    dynamic_threshold=0.1 # Umbral bajo para forzar la búsqueda
+                )
+            )
+        )
+
         self.model = genai.GenerativeModel(
             model_name=GEMINI_MODEL,
-            tools=[{"google_search": {}}]
+            tools=[tool_search]
         )
 
     def get_results_via_ai(self, matches_to_check, date):
+        """
+        Consulta fáctica usando búsqueda web real mediante Protos.
+        """
         prompt = f"""
         TAREA: Auditoría fáctica de resultados deportivos.
-        FECHA EVENTOS: {date}
+        FECHA DE LOS EVENTOS: {date}
         FECHA ACTUAL: {datetime.now().strftime('%Y-%m-%d')}
 
         INSTRUCCIONES:
-        1. USA GOOGLE SEARCH para localizar marcadores y métricas reales.
-        2. Prohibido inventar. Si el dato no existe o el partido sigue pendiente: status "PENDING".
+        1. USA TU HERRAMIENTA DE BÚSQUEDA para encontrar marcadores y estadísticas.
+        2. Prohibido inventar. Si el dato no existe: status "PENDING".
         3. Extrae: marcador final, total de corners y total de tiros a puerta (si aplica al pick).
 
-        EVENTOS A VERIFICAR:
+        LISTA DE EVENTOS:
         {json.dumps(matches_to_check, indent=2)}
 
         RESPUESTA JSON ESTRICTA:
@@ -54,6 +68,7 @@ class AIChecker:
         """
         
         try:
+            # Temperatura 0 para máxima precisión fáctica
             response = self.model.generate_content(
                 prompt,
                 generation_config=genai.types.GenerationConfig(temperature=0)
@@ -72,7 +87,7 @@ class AIChecker:
         args = parser.parse_args()
 
         target_date = args.date or (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-        print(f"🧠 AUDITORÍA PRO ACTIVA - FECHA: {target_date}")
+        print(f"🧠 AUDITORÍA PRO ACTIVA (Google Search Mode) - FECHA: {target_date}")
         
         daily_key = f"betai:daily_bets:{target_date}"
         raw_data = self.redis.get(daily_key)
@@ -109,17 +124,17 @@ class AIChecker:
                 if res:
                     sel["status"] = res["status"]
                     pick_text = sel["pick"].lower()
-                    score = res.get("score_final", "")
                     
                     if "corners" in pick_text and res.get("corners_total"):
                         sel["result"] = f"Corners: {res['corners_total']}"
                     elif ("tiros" in pick_text or "shots" in pick_text) and res.get("shots_total"):
                         sel["result"] = f"Tiros a puerta: {res['shots_total']}"
                     else:
-                        sel["result"] = score if score else "N/A"
+                        sel["result"] = res.get("score_final", "N/A")
                 
                 sel_stats.append(sel.get("status", "PENDING"))
 
+            # Lógica de resolución
             if "LOST" in sel_stats:
                 bet["status"] = "LOST"
             elif all(s == "WON" for s in sel_stats):
@@ -139,15 +154,15 @@ class AIChecker:
             
             total_day_profit += bet.get("profit", 0)
 
+        # Persistir en Redis
         daily_data["day_profit"] = round(total_day_profit, 2)
         daily_data["bets"] = bets_list
         self.redis.set_data(f"daily_bets:{target_date}", daily_data)
         
-        # Sincronización Master Key
         if target_date == datetime.now().strftime("%Y-%m-%d"):
             self.redis.set_data("daily_bets", daily_data)
         
-        print(f"💰 BALANCE FINAL: {daily_data['day_profit']}u")
+        print(f"💰 BALANCE FINAL ACTUALIZADO: {daily_data['day_profit']}u")
 
 if __name__ == "__main__":
     AIChecker().run()
