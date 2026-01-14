@@ -14,36 +14,37 @@ if backend_root not in sys.path:
 
 from src.services.redis_service import RedisService
 
-# Configuración del Modelo (1.5 Pro es el más estable para búsqueda web)
+# Configuración del Modelo 2.5 Pro (Soporta 'google_search')
 GEMINI_MODEL = "models/gemini-2.5-pro"
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 class AIChecker:
     def __init__(self):
         self.redis = RedisService()
-        # Herramienta de búsqueda activada obligatoriamente
+        # Herramienta de búsqueda corregida según especificación del modelo
         self.model = genai.GenerativeModel(
             model_name=GEMINI_MODEL,
-            tools=[{"google_search_retrieval": {}}]
+            tools=['google_search']
         )
 
     def get_results_via_ai(self, matches_to_check, date):
         """
-        Consulta a Gemini usando Google Search para auditar resultados.
+        Consulta fáctica usando Google Search real.
         """
         prompt = f"""
         TAREA: Auditoría fáctica de resultados deportivos.
-        FECHA: {date}
-        
+        FECHA DE LOS EVENTOS: {date}
+        FECHA ACTUAL: {datetime.now().strftime('%Y-%m-%d')}
+
         INSTRUCCIONES:
-        1. USA GOOGLE SEARCH para encontrar los resultados reales.
+        1. USA GOOGLE SEARCH para encontrar los marcadores y estadísticas reales.
         2. PROHIBIDO INVENTAR. Si no hay datos, status es "PENDING".
         3. Para cada partido, identifica:
            - El marcador final (ej: 2-1).
-           - Si el 'pick' menciona "Corners", busca el número total.
-           - Si el 'pick' menciona "Tiros a puerta", busca el número total.
+           - Si el 'pick' menciona "Corners", busca el número total de saques de esquina.
+           - Si el 'pick' menciona "Tiros a puerta", busca el número total de remates a portería.
 
-        LISTA DE EVENTOS:
+        LISTA DE EVENTOS A VERIFICAR:
         {json.dumps(matches_to_check, indent=2)}
 
         RESPUESTA JSON ESTRICTA:
@@ -58,13 +59,17 @@ class AIChecker:
         """
         
         try:
-            response = self.model.generate_content(prompt)
+            # Temperatura 0 para evitar alucinaciones
+            response = self.model.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(temperature=0)
+            )
             txt = response.text
             if "```json" in txt:
                 txt = txt.split("```json")[1].split("```")[0]
             return json.loads(txt.strip())
         except Exception as e:
-            print(f"❌ Error en Auditoría IA: {e}")
+            print(f"❌ Error en Auditoría IA ({GEMINI_MODEL}): {e}")
             return {}
 
     def run(self):
@@ -73,13 +78,13 @@ class AIChecker:
         args = parser.parse_args()
 
         target_date = args.date or (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-        print(f"🧠 AUDITORÍA PRO ACTIVA - FECHA: {target_date}")
+        print(f"🧠 AUDITORÍA PRO ACTIVA - MODELO: {GEMINI_MODEL} - FECHA: {target_date}")
         
         daily_key = f"betai:daily_bets:{target_date}"
         raw_data = self.redis.get(daily_key)
         
         if not raw_data:
-            print(f"⚠️ No hay datos para {target_date}")
+            print(f"⚠️ Sin datos para {target_date}")
             return
 
         daily_data = json.loads(raw_data)
@@ -97,7 +102,7 @@ class AIChecker:
                     })
 
         if not to_verify:
-            print("✅ Todo auditado.")
+            print("✅ Nada pendiente de verificar.")
             return
 
         results_map = self.get_results_via_ai(to_verify, target_date)
@@ -111,7 +116,7 @@ class AIChecker:
                 if res:
                     sel["status"] = res["status"]
                     
-                    # Lógica de asignación al campo 'result'
+                    # Lógica de asignación al campo 'result' sin alterar esquema
                     pick_text = sel["pick"].lower()
                     score = res.get("score_final", "")
                     
@@ -149,6 +154,10 @@ class AIChecker:
         daily_data["day_profit"] = round(total_day_profit, 2)
         daily_data["bets"] = bets_list
         self.redis.set_data(f"daily_bets:{target_date}", daily_data)
+        
+        # Sincronización de Master Key
+        if target_date == datetime.now().strftime("%Y-%m-%d"):
+            self.redis.set_data("daily_bets", daily_data)
         
         print(f"💰 BALANCE FINAL: {daily_data['day_profit']}u")
 
