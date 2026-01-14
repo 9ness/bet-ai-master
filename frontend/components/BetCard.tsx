@@ -13,6 +13,73 @@ type Selection = {
     result?: string;
     time?: string;
     league?: string;
+    league_id?: number;
+    country?: string;
+};
+
+// --- FLAG MAPPINGS (ISO Codes for FlagCDN) ---
+// Using 2-letter ISO codes or specific sub-codes (e.g. gb-eng)
+const LEAGUE_FLAGS: Record<number, string> = {
+    // Football
+    39: "gb-eng", // Premier League (England)
+    40: "gb-eng", 41: "gb-eng", 42: "gb-eng",
+    140: "es", 141: "es", // La Liga
+    135: "it", // Serie A
+    78: "de", // Bundesliga
+    61: "fr", 62: "fr", // Ligue 1
+    88: "nl", // Eredivisie
+    94: "pt", // Primeira Liga
+    144: "be", // Jupiler Pro
+    71: "br", // Brasileirao
+    128: "ar", // Argentina
+    179: "gb-sct", // Scotland
+    2: "eu", 3: "eu", 848: "eu", // UEFA
+    // Basketball
+    12: "us", // NBA
+    120: "es", // ACB
+    117: "gr", 194: "eu"
+};
+
+const COUNTRY_FLAGS: Record<string, string> = {
+    "England": "gb-eng", "Germany": "de", "France": "fr",
+    "Spain": "es", "Italy": "it", "Netherlands": "nl",
+    "Portugal": "pt", "Belgium": "be", "Brazil": "br",
+    "Argentina": "ar", "USA": "us", "Greece": "gr",
+    "Turkey": "tr", "Europe": "eu", "World": "un"
+};
+
+const LEAGUE_NAME_FLAGS: Record<string, string> = {
+    "Premier League": "gb-eng",
+    "Bundesliga": "de",
+    "Ligue 1": "fr",
+    "La Liga": "es",
+    "Serie A": "it",
+    "Eredivisie": "nl",
+    "Primeira Liga": "pt",
+    "NBA": "us",
+    "Liga Profesional": "ar",
+    "UEFA Champions League": "eu",
+    "UEFA Europa League": "eu",
+    "UEFA Conference League": "eu",
+    "Eurocup": "eu",
+    "NCAA": "us",
+    "Indonesia Liga 1": "id",
+    "Camp. Primavera 1": "it",
+    "Myanmar National League": "mm"
+};
+
+const getLeagueFlagCode = (leagueName?: string, leagueId?: number, country?: string) => {
+    if (leagueId && LEAGUE_FLAGS[leagueId]) return LEAGUE_FLAGS[leagueId];
+    if (country && COUNTRY_FLAGS[country]) return COUNTRY_FLAGS[country];
+    if (leagueName && LEAGUE_NAME_FLAGS[leagueName]) return LEAGUE_NAME_FLAGS[leagueName];
+    // Fallback for known substrings
+    if (leagueName?.includes("Bundesliga")) return "de";
+    if (leagueName?.includes("Eurocup")) return "eu";
+    if (leagueName?.includes("NCAA")) return "us";
+    if (leagueName?.includes("Primavera")) return "it";
+    if (leagueName?.includes("Myanmar")) return "mm";
+    if (leagueName?.includes("Indonesia")) return "id";
+    return null;
 };
 
 type BetComponent = {
@@ -384,7 +451,22 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
                                     <div className="flex justify-between items-center mb-1">
                                         <div className="flex items-center gap-1 mr-2 flex-1 flex-wrap">
                                             <span className="text-xs font-semibold text-foreground/80 leading-tight">{sel.match}</span>
-                                            {sel.league && <span className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">({sel.league})</span>}
+                                            {sel.league && (() => {
+                                                const flagCode = getLeagueFlagCode(sel.league, sel.league_id, sel.country);
+                                                return (
+                                                    <span className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0 flex items-center">
+                                                        ({sel.league}
+                                                        {flagCode && (
+                                                            <img
+                                                                src={`https://flagcdn.com/20x15/${flagCode}.png`}
+                                                                alt={flagCode}
+                                                                className="w-3 h-2.5 object-cover inline-block rounded-[1px] opacity-80 ml-1"
+                                                            />
+                                                        )}
+                                                        )
+                                                    </span>
+                                                );
+                                            })()}
                                         </div>
                                         {sel.odd && <span className="text-[10px] bg-secondary px-1 rounded text-muted-foreground whitespace-nowrap">{sel.odd}</span>}
                                     </div>

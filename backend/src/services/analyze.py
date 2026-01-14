@@ -24,9 +24,13 @@ PICK_TRANSLATIONS = {
     "Goals": "Goles",
     "Points": "Puntos",
     "Handicap": "Hándicap",
-    "Shots on Goal": "Tiros a Puerta",
+    "Shots on Goal": "Tiros a Puerta:",
+    "Gananer": "Ganador",
+    "Asian Hándicap": "Hándicap Asiático",
     "Corners": "Córners"
 }
+
+# --- FLAG MAPPINGS REMOVED (Moved to Frontend) ---
 
 def clean_team_name(name):
     """
@@ -194,7 +198,15 @@ def analyze():
                         
                     # INJECT REAL DATA
                     sel["match"] = f"{clean_team_name(source['home'])} vs {clean_team_name(source['away'])}"
+                    
+                    # INJECT REAL DATA
+                    sel["match"] = f"{clean_team_name(source['home'])} vs {clean_team_name(source['away'])}"
+                    
+                    # Pass League Metadata for Frontend
                     sel["league"] = source.get("league", "Unknown")
+                    sel["league_id"] = source.get("league_id")
+                    sel["country"] = source.get("country")
+                    
                     sel["sport"] = source.get("sport", "football")
                     sel["time"] = source.get("startTime") or datetime.fromtimestamp(source.get("timestamp", 0)).strftime("%Y-%m-%d %H:%M")
                     

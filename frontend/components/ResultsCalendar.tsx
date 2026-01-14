@@ -3,6 +3,48 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, RefreshCw, Check, X, CircleCheck, CircleX, Clock, ChevronDown, Save, Loader2, TrendingUp, MonitorPlay } from 'lucide-react';
 
+// --- FLAG MAPPINGS (Mirrored from BetCard.tsx) ---
+const LEAGUE_FLAGS: Record<number, string> = {
+    39: "gb-eng", 40: "gb-eng", 41: "gb-eng", 42: "gb-eng",
+    140: "es", 141: "es", 135: "it", 78: "de",
+    61: "fr", 62: "fr", 88: "nl", 94: "pt",
+    144: "be", 71: "br", 128: "ar", 179: "gb-sct",
+    2: "eu", 3: "eu", 848: "eu",
+    12: "us", 120: "es", 117: "gr", 194: "eu"
+};
+
+const COUNTRY_FLAGS: Record<string, string> = {
+    "England": "gb-eng", "Germany": "de", "France": "fr",
+    "Spain": "es", "Italy": "it", "Netherlands": "nl",
+    "Portugal": "pt", "Belgium": "be", "Brazil": "br",
+    "Argentina": "ar", "USA": "us", "Greece": "gr",
+    "Turkey": "tr", "Europe": "eu", "World": "un"
+};
+
+const LEAGUE_NAME_FLAGS: Record<string, string> = {
+    "Premier League": "gb-eng", "Bundesliga": "de", "Ligue 1": "fr",
+    "La Liga": "es", "Serie A": "it", "Eredivisie": "nl",
+    "Primeira Liga": "pt", "NBA": "us", "Liga Profesional": "ar",
+    "UEFA Champions League": "eu", "UEFA Europa League": "eu",
+    "UEFA Conference League": "eu", "Eurocup": "eu", "NCAA": "us",
+    "Indonesia Liga 1": "id",
+    "Camp. Primavera 1": "it",
+    "Myanmar National League": "mm"
+};
+
+const getLeagueFlagCode = (leagueName?: string, leagueId?: number, country?: string) => {
+    if (leagueId && LEAGUE_FLAGS[leagueId]) return LEAGUE_FLAGS[leagueId];
+    if (country && COUNTRY_FLAGS[country]) return COUNTRY_FLAGS[country];
+    if (leagueName && LEAGUE_NAME_FLAGS[leagueName]) return LEAGUE_NAME_FLAGS[leagueName];
+    if (leagueName?.includes("Bundesliga")) return "de";
+    if (leagueName?.includes("Eurocup")) return "eu";
+    if (leagueName?.includes("NCAA")) return "us";
+    if (leagueName?.includes("Primavera")) return "it";
+    if (leagueName?.includes("Myanmar")) return "mm";
+    if (leagueName?.includes("Indonesia")) return "id";
+    return null;
+};
+
 // Type definitions
 type PickDetail = {
     match: string;
@@ -194,23 +236,66 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
         }
     };
 
+    // Normalize Type (support 'type' or 'betType')
+    const finalType = bet.type || (bet as any).betType || 'safe';
+
     return (
         <div className={`bg-secondary/30 rounded-xl p-4 border transition-all hover:bg-secondary/40 relative
             ${status === 'WON' ? 'border-emerald-500/30 bg-emerald-500/5' : status === 'LOST' ? 'border-rose-500/30 bg-rose-500/5' : 'border-border/50'}`}>
 
             <div className="flex justify-between items-start mb-2">
                 <span className={`text-xs font-bold uppercase px-2 py-1 rounded-full 
-                    ${bet.type === 'safe' ? 'bg-emerald-500/10 text-emerald-500' :
-                        bet.type === 'value' ? 'bg-violet-500/10 text-violet-500' :
+                    ${finalType === 'safe' ? 'bg-emerald-500/10 text-emerald-500' :
+                        finalType === 'value' ? 'bg-violet-500/10 text-violet-500' :
                             'bg-amber-500/10 text-amber-500'}`}>
-                    {bet.type === 'safe' ? 'SEGURA' : bet.type === 'value' ? 'DE VALOR' : bet.type}
+                    {finalType === 'safe' ? 'SEGURA' : finalType === 'value' ? 'DE VALOR' : finalType}
                 </span>
                 <span className={`font-mono font-bold ${bet.profit > 0 ? 'text-emerald-500' : bet.profit < 0 ? 'text-rose-500' : 'text-muted-foreground'}`}>
                     {(bet.profit || 0) > 0 ? '+' : ''}{(bet.profit || 0).toFixed(2)}u
                 </span>
             </div>
 
-            <p className="font-semibold text-sm mb-1">{bet.match}</p>
+            {/* Simple Bet League/Flag Display - MOBILE (Above Title) */}
+            {(!hasDetails || details.length <= 1) && (() => {
+                const fallback = (bet as any).selections?.[0] || {};
+                const league = (bet as any).league || fallback.league;
+                const leagueId = (bet as any).league_id || fallback.league_id;
+                const country = (bet as any).country || fallback.country;
+
+                if (!league) return null;
+
+                const flag = getLeagueFlagCode(league, leagueId, country);
+                return (
+                    <div className="block md:hidden text-[10px] text-muted-foreground mb-1 font-normal">
+                        <span className="inline-flex items-center">
+                            ({league}
+                            {flag && <img src={`https://flagcdn.com/20x15/${flag}.png`} alt={flag} className="w-3 h-2.5 rounded-[1px] ml-1 opacity-80" />}
+                            )
+                        </span>
+                    </div>
+                );
+            })()}
+
+            {bet.match}
+
+            {/* Simple Bet League/Flag Display - DESKTOP (Inline) */}
+            {(!hasDetails || details.length <= 1) && (() => {
+                const fallback = (bet as any).selections?.[0] || {};
+                const league = (bet as any).league || fallback.league;
+                const leagueId = (bet as any).league_id || fallback.league_id;
+                const country = (bet as any).country || fallback.country;
+
+                if (!league) return null;
+
+                const flag = getLeagueFlagCode(league, leagueId, country);
+                return (
+                    <span className="hidden md:inline-flex text-[10px] text-muted-foreground ml-2 font-normal items-center">
+                        ({league}
+                        {flag && <img src={`https://flagcdn.com/20x15/${flag}.png`} alt={flag} className="w-3 h-2.5 rounded-[1px] ml-1 opacity-80" />}
+                        )
+                    </span>
+                );
+            })()}
             <p className="text-xs text-muted-foreground mb-3 italic">{bet.pick}</p>
 
             {/* Expansion Toggle & Save Bar - Only show if > 1 selection (Combinada) */}
@@ -258,9 +343,22 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
 
                             return (
                                 <div key={idx} className="flex justify-between items-center text-xs p-1 border-b border-white/5 last:border-0 gap-2">
-                                    <div className="flex bg-black/20 rounded px-1.5 py-0.5 flex-1 min-w-0 flex-wrap">
-                                        <span className="text-muted-foreground mr-1 shrink-0">{detail.match}:</span>
-                                        <span className="font-medium text-foreground">{detail.pick}</span>
+                                    <div className="flex flex-col bg-black/20 rounded px-1.5 py-1 flex-1 min-w-0">
+                                        {/* Line 1: League + Flag (Optional) */}
+                                        {detail.league && (
+                                            <div className="text-[10px] text-muted-foreground mb-0.5 flex items-center">
+                                                {detail.league}
+                                                {(() => {
+                                                    const flag = getLeagueFlagCode(detail.league, detail.league_id, detail.country);
+                                                    return flag ? <img src={`https://flagcdn.com/20x15/${flag}.png`} alt={flag} className="w-3 h-2.5 rounded-[1px] ml-1 opacity-80" /> : null;
+                                                })()}
+                                            </div>
+                                        )}
+                                        {/* Line 2: Match: Pick */}
+                                        <div className="flex flex-wrap items-center leading-tight">
+                                            <span className="text-muted-foreground mr-1 shrink-0 text-xs">{detail.match}:</span>
+                                            <span className="font-medium text-foreground text-xs">{detail.pick}</span>
+                                        </div>
                                     </div>
 
                                     <div className="flex items-center gap-2 shrink-0">

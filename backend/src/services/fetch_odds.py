@@ -181,6 +181,8 @@ class SportsDataService:
                     "home": home,
                     "away": away,
                     "league": league_name,
+                    "league_id": lid, 
+                    "country": item["league"]["country"] if sport == "football" else item.get("country", {}).get("name"),
                     "odds": odds
                 }
                 matches_found.append(match_entry)
