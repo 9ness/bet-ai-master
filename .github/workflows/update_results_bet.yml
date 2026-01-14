@@ -2,7 +2,6 @@ name: 1º - Actualiza resultados día anterior
 
 on:
   schedule:
-    # 08:00 AM España (07:00 UTC)
     - cron: '0 7 * * *'
   workflow_dispatch:
 
@@ -21,16 +20,15 @@ jobs:
         
     - name: Install dependencies
       run: |
-        pip install requests redis python-dotenv google-generativeai
+        pip install -U google-generativeai python-dotenv redis requests
         
     - name: Process Results and Update Redis
       env:
-        # Credenciales mapeadas desde Secrets
         REDIS_URL: ${{ secrets.REDIS_URL }}
         REDIS_TOKEN: ${{ secrets.REDIS_TOKEN }}
-        API_KEY: ${{ secrets.API_KEY }}
+        # Mapeo de ambas variables para asegurar detección en el script
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        GOOGLE_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       run: |
-        # Añadimos específicamente la carpeta backend al buscador de Python
         export PYTHONPATH=$PYTHONPATH:$(pwd)/backend
         python backend/src/services/check_results.py

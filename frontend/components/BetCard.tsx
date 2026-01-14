@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Target, PartyPopper, Clock, Check, X as XIcon, RefreshCw, Save, ChevronDown, ChevronUp } from 'lucide-react';
 
 type Selection = {
@@ -245,6 +245,79 @@ const FormattedReason = ({ text }: { text?: string }) => {
     );
 };
 
+// Countdown Timer Component
+const CountdownTimer = ({ targetTime, targetDate }: { targetTime: string, targetDate?: string }) => {
+    const calculateTimeLeft = () => {
+        try {
+            const now = new Date();
+            // Parse target time
+            // Formats: "19:30" or "2024-05-12T19:30:00"
+            let target = new Date();
+
+            if (targetTime.includes('T') || targetTime.includes('-')) {
+                target = new Date(targetTime);
+            } else {
+                // Assume HH:mm
+                const [hours, minutes] = targetTime.split(':').map(Number);
+                if (targetDate && targetDate.includes('-')) {
+                    // Handle DD-MM-YYYY
+                    if (targetDate.includes('-') && targetDate.split('-')[0].length === 2) {
+                        const [d, m, y] = targetDate.split('-').map(Number);
+                        target = new Date(y, m - 1, d);
+                    } else {
+                        target = new Date(targetDate);
+                    }
+                }
+                target.setHours(hours, minutes, 0, 0);
+            }
+
+            const difference = target.getTime() - now.getTime();
+
+            if (difference > 0) {
+                return {
+                    hours: Math.floor((difference / (1000 * 60 * 60))),
+                    minutes: Math.floor((difference / 1000 / 60) % 60),
+                    seconds: Math.floor((difference / 1000) % 60),
+                    total: difference
+                };
+            }
+        } catch (e) {
+            return null;
+        }
+        return null;
+    };
+
+    const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
+
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setTimeLeft(calculateTimeLeft());
+        }, 1000);
+        return () => clearInterval(timer);
+    }, [targetTime, targetDate]);
+
+    if (!timeLeft) return null;
+
+    // Color Logic
+    // > 2 hours: Green
+    // < 2 hours & > 30 mins: Orange
+    // < 30 mins: Red
+    let colorClass = "text-emerald-500";
+    if (timeLeft.total < 2 * 60 * 60 * 1000) colorClass = "text-amber-500";
+    if (timeLeft.total < 30 * 60 * 1000) colorClass = "text-rose-500";
+
+    return (
+        <div className={`text-[10px] font-mono font-bold ${colorClass} animate-pulse flex items-center gap-1`}>
+            <Clock size={10} />
+            <span>
+                {String(timeLeft.hours).padStart(2, '0')}:
+                {String(timeLeft.minutes).padStart(2, '0')}:
+                {String(timeLeft.seconds).padStart(2, '0')}
+            </span>
+        </div>
+    );
+};
+
 import { usePathname } from 'next/navigation';
 
 export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
@@ -370,46 +443,35 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
             {/* Header Line */}
             <div className={`absolute inset-x-0 top-0 h-1 ${config.headerBg} rounded-t-3xl`} />
 
-            {/* Status Badge (if available) */}
-            {isModeAdmin ? (
-                // ADMIN INTERACTIVE STATUS
-                <div className="absolute top-4 right-6 z-20">
-                    <select
-                        value={currentStatus}
-                        onChange={(e) => handleStatusChange(e.target.value)}
-                        disabled={isUpdating}
-                        className={`text-[10px] font-bold px-2 py-1 rounded-full border cursor-pointer outline-none appearance-none pr-6 text-center shadow-lg transition-colors
-                            ${currentStatus === 'WON' ? 'bg-emerald-500 text-white border-emerald-600' :
-                                currentStatus === 'LOST' ? 'bg-rose-500 text-white border-rose-600' :
-                                    'bg-secondary text-foreground border-border'}`}
-                    >
-                        <option value="PENDING">PENDING</option>
-                        <option value="WON">WON</option>
-                        <option value="LOST">LOST</option>
-                    </select>
-                    {isUpdating && <RefreshCw size={10} className="absolute right-1 top-1.5 animate-spin text-white/50" />}
-                </div>
-            ) : (
-                // NORMAL READ-ONLY STATUS
-                data.status && (
-                    <div className={`absolute top-4 right-6 flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-full border 
-                        ${currentStatus === 'WON' ? 'bg-emerald-500/20 text-emerald-500 border-emerald-500/20' :
-                            currentStatus === 'LOST' ? 'bg-rose-500/20 text-rose-500 border-rose-500/20' :
-                                'bg-secondary text-muted-foreground border-border/50'}`}>
-                        {currentStatus === 'WON' ? <Check size={12} /> : currentStatus === 'LOST' ? <XIcon size={12} /> : <Clock size={12} />}
-                        <span>{data.status === 'WON' || data.status === 'GANADA' ? 'GANADA' :
-                            data.status === 'LOST' || data.status === 'PERDIDA' ? 'PERDIDA' : 'PENDIENTE'}</span>
+            {/* Status & Countdown (Unified for Admin/User) */}
+            <div className="absolute top-4 right-6 flex flex-col items-end gap-1 z-20">
+                {/* 1. Status Badge (Only if WON/LOST) */}
+                {(data.status === 'WON' || data.status === 'GANADA' || data.status === 'LOST' || data.status === 'PERDIDA') && (
+                    <div className={`flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-full border 
+                        ${(data.status === 'WON' || data.status === 'GANADA') ? 'bg-emerald-500/20 text-emerald-500 border-emerald-500/20' :
+                            'bg-rose-500/20 text-rose-500 border-rose-500/20'}`}>
+                        {(data.status === 'WON' || data.status === 'GANADA') ? <Check size={12} /> : <XIcon size={12} />}
+                        <span>{(data.status === 'WON' || data.status === 'GANADA') ? 'GANADA' : 'PERDIDA'}</span>
                     </div>
-                )
-            )}
+                )}
 
-            {/* Start Time Badge */}
-            {startTime && (!data.status || isModeAdmin) && (
-                <div className={`absolute top-4 ${isModeAdmin ? 'right-32' : 'right-6'} flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground bg-secondary px-2 py-1 rounded-full border border-border/50  transition-all`}>
-                    <Clock size={12} className="text-primary/70" />
-                    <span>{extractTime(startTime)}</span>
-                </div>
-            )}
+                {/* 2. Start Time Badge (Always show if available) */}
+                {startTime && (
+                    <div className="flex items-center gap-2">
+                        <div className={`flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground bg-secondary px-2 py-1 rounded-full border border-border/50`}>
+                            <Clock size={12} className="text-primary/70" />
+                            <span>{extractTime(startTime)}</span>
+                        </div>
+
+                        {/* 3. Countdown (Only if PENDING/undefined) */}
+                        {(!data.status || data.status === 'PENDING' || data.status === 'PENDIENTE') && (
+                            <CountdownTimer targetTime={startTime} targetDate={date || data.date} />
+                        )}
+                    </div>
+                )}
+            </div>
+
+
 
             {/* Value Badge */}
             {type === 'value' && (
