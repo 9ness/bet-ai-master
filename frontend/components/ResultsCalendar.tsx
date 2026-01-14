@@ -29,7 +29,10 @@ const LEAGUE_NAME_FLAGS: Record<string, string> = {
     "UEFA Conference League": "eu", "Eurocup": "eu", "NCAA": "us",
     "Indonesia Liga 1": "id",
     "Camp. Primavera 1": "it",
-    "Myanmar National League": "mm"
+    "Myanmar National League": "mm",
+    "Champions League": "eu",
+    "Premiership": "gb-sct",
+    "Euroleague": "eu"
 };
 
 const getLeagueFlagCode = (leagueName?: string, leagueId?: number, country?: string) => {
@@ -42,6 +45,9 @@ const getLeagueFlagCode = (leagueName?: string, leagueId?: number, country?: str
     if (leagueName?.includes("Primavera")) return "it";
     if (leagueName?.includes("Myanmar")) return "mm";
     if (leagueName?.includes("Indonesia")) return "id";
+    if (leagueName?.includes("Premiership")) return "gb-sct";
+    if (leagueName?.includes("Euroleague")) return "eu";
+    if (leagueName?.includes("Champions League")) return "eu";
     return null;
 };
 

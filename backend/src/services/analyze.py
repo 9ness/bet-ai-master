@@ -27,6 +27,9 @@ PICK_TRANSLATIONS = {
     "Shots on Goal": "Tiros a Puerta:",
     "Gananer": "Ganador",
     "Asian Hándicap": "Hándicap Asiático",
+    "AH": "Hándicap Asiático",
+    "Double Chance": "Doble Oportunidad",
+
     "Corners": "Córners"
 }
 
