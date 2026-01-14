@@ -28,39 +28,11 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
         return days[new Date().getDay()];
     };
 
-    // Helper: Calculate Total Odds for Initial State
-    const calculateInitialOdds = () => {
-        let total = 1;
-        const rawBets = predictions?.bets || (Array.isArray(predictions) ? predictions : []);
-        let found = false;
-
-        if (rawBets.length > 0) {
-            rawBets.forEach((b: any) => {
-                const odd = parseFloat(b.total_odd || b.odd);
-                if (!isNaN(odd) && odd > 0) {
-                    total *= odd;
-                    found = true;
-                }
-            });
-        } else {
-            const o1 = parseFloat(predictions?.safe?.total_odd || predictions?.safe?.odd);
-            const o2 = parseFloat(predictions?.value?.total_odd || predictions?.value?.odd);
-            const o3 = parseFloat(predictions?.funbet?.total_odd || predictions?.funbet?.odd);
-
-            if (!isNaN(o1)) { total *= o1; found = true; }
-            if (!isNaN(o2)) { total *= o2; found = true; }
-            if (!isNaN(o3)) { total *= o3; found = true; }
-        }
-
-        if (!found || total <= 1.01) return "+??? 📈";
-        return `+${Math.floor(total)} 📈`;
-    };
-
     // Config State
     const [config, setConfig] = useState({
         // Slide 1: Intro
         introTitle: `JUBILADORA HOY\n(${getDayName()})`,
-        introSubtitle: calculateInitialOdds(),
+        introSubtitle: "", // Will be set by useEffect after initial config is ready
         introEmoji1: '🤫',
         introEmoji2: '✅',
 
@@ -69,8 +41,64 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
         outroSub: "ACCEDE DESDE EL PERFIL 🔗",
 
         // Backgrounds (using strings now)
-        bgSelection: ['1', '2', '3', '4', '5', '6', '7', '8'] as string[]
+        // Backgrounds
+        // Backgrounds
+        bgSelection: [] as string[],
+
+        // Options
+        addHundred: true
     });
+
+    // Helper: Calculate Total Odds for Initial State
+    const calculateInitialOdds = (addHundred: boolean) => {
+        let totalOdd = 1;
+        const rawBets = predictions?.bets || (Array.isArray(predictions) ? predictions : []);
+        let found = false;
+
+        if (rawBets.length > 0) {
+            rawBets.forEach((b: any) => {
+                const odd = parseFloat(b.total_odd || b.odd);
+                if (!isNaN(odd) && odd > 0) {
+                    totalOdd *= odd;
+                    found = true;
+                }
+            });
+        } else {
+            const o1 = parseFloat(predictions?.safe?.total_odd || predictions?.safe?.odd);
+            const o2 = parseFloat(predictions?.value?.total_odd || predictions?.value?.odd);
+            const o3 = parseFloat(predictions?.funbet?.total_odd || predictions?.funbet?.odd);
+
+            if (!isNaN(o1)) { totalOdd *= o1; found = true; }
+            if (!isNaN(o2)) { totalOdd *= o2; found = true; }
+            if (!isNaN(o3)) { totalOdd *= o3; found = true; }
+        }
+
+        if (!found || totalOdd <= 1.01) return "+??? 📈";
+
+        // Logic: 
+        // If odds are small (e.g. 5.3), we show 53 (x10)
+        // If odds are large (e.g. 53.9), we show 53 (x1) - User request to truncate decimals for large odds
+        let oddValue = 0;
+        if (totalOdd < 10) {
+            oddValue = Math.round(totalOdd * 10);
+        } else {
+            oddValue = Math.round(totalOdd);
+        }
+
+        if (addHundred) {
+            oddValue *= 10; // 53 -> 530
+        }
+
+        return `+${oddValue} 📈`;
+    };
+
+    // Set initial introSubtitle after config is defined
+    useEffect(() => {
+        setConfig(prev => ({
+            ...prev,
+            introSubtitle: calculateInitialOdds(prev.addHundred)
+        }));
+    }, [predictions]); // Recalculate if predictions change
 
     const [collapsed, setCollapsed] = useState({
         intro: false,
@@ -78,6 +106,7 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
         bg: true
     });
     const [currentPreviewIdx, setCurrentPreviewIdx] = useState(0);
+    const [availableFiles, setAvailableFiles] = useState<string[]>([]);
 
     // Auto-collapse on mobile
     useEffect(() => {
@@ -171,15 +200,86 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
             }
         });
 
-        // Sort: Football first, then others (Basketball)
-        return all.sort((a, b) => {
-            const sportA = (a.sport || 'football').toLowerCase();
-            const sportB = (b.sport || 'football').toLowerCase();
+        // Identify teams that have specific backgrounds
+        const teamsWithBg = new Set<string>();
+        availableFiles.forEach(file => {
+            const lower = file.toLowerCase();
+            if (lower.includes('bg-')) {
+                // Extract team name roughly: bg-futbol-INTER-1.png
+                const parts = lower.split('-');
+                if (parts.length >= 3) {
+                    teamsWithBg.add(parts[2]); // e.g. "inter", "napoli", "chelsea"
+                }
+            }
+        });
 
-            if (sportA === 'football' && sportB !== 'football') return -1;
-            if (sportA !== 'football' && sportB === 'football') return 1;
+        const hasTeamBg = (bet: any) => {
+            const matchText = (bet.match || "").toLowerCase();
+            const pickText = (bet.pick || "").toLowerCase();
+
+            // Check if any team in our set is present in match or pick
+            for (const team of Array.from(teamsWithBg)) {
+                if (team !== 'comodin' && (matchText.includes(team) || pickText.includes(team))) {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        // Split into Categories
+        const footballFeatured: any[] = [];
+        const footballRegular: any[] = [];
+        const others: any[] = [];
+
+        all.forEach(bet => {
+            const sport = (bet.sport || 'football').toLowerCase();
+            if (sport === 'football') {
+                if (hasTeamBg(bet)) {
+                    footballFeatured.push(bet);
+                } else {
+                    footballRegular.push(bet);
+                }
+            } else {
+                others.push(bet);
+            }
+        });
+
+        // Interleave Football: [Feat, Reg, Reg, Feat, Reg, Reg...]
+        // Prioritize placing Featured items at indices 0, 3, 6... (Start of slides)
+        const sortedFootball: any[] = [];
+        while (footballFeatured.length > 0 || footballRegular.length > 0) {
+            // Position 1 (Slide Header): Prefer Featured
+            if (footballFeatured.length > 0) {
+                sortedFootball.push(footballFeatured.shift());
+            } else if (footballRegular.length > 0) {
+                sortedFootball.push(footballRegular.shift());
+            }
+
+            // Position 2: Prefer Regular
+            if (footballRegular.length > 0) {
+                sortedFootball.push(footballRegular.shift());
+            } else if (footballFeatured.length > 0) {
+                sortedFootball.push(footballFeatured.shift());
+            }
+
+            // Position 3: Prefer Regular
+            if (footballRegular.length > 0) {
+                sortedFootball.push(footballRegular.shift());
+            } else if (footballFeatured.length > 0) {
+                sortedFootball.push(footballFeatured.shift());
+            }
+        }
+
+        // Sort Others (Standard Smart Sort - Featured First)
+        others.sort((a, b) => {
+            const hasBgA = hasTeamBg(a);
+            const hasBgB = hasTeamBg(b);
+            if (hasBgA && !hasBgB) return -1;
+            if (!hasBgA && hasBgB) return 1;
             return 0;
         });
+
+        return [...sortedFootball, ...others];
     };
 
     const allSelections = getAllSelections();
@@ -205,8 +305,6 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
     const toggleSection = (section: keyof typeof collapsed) => {
         setCollapsed(prev => ({ ...prev, [section]: !prev[section] }));
     };
-
-    const [availableFiles, setAvailableFiles] = useState<string[]>([]);
 
     useEffect(() => {
         // Fetch available backgrounds
@@ -236,13 +334,16 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
     };
 
     // Legacy randomizer (numeric 1-8)
+    // Legacy randomizer (REMOVED - Now sets fallback filenames)
     const randomizeBackgroundsLegacy = () => {
+        // Fallback to safe defaults if no API data
+        const safeDefaults = ['bg-portada-1.png', 'bg-futbol-comodin-1.png', 'bg-futbol-comodin-2.png', 'bg-basket-comodin-1.png'];
         const count = slidesData.length + 2;
-        const shuffled = Array.from({ length: Math.max(count, 15) }, (_, i) => (i % 8) + 1)
-            .map(value => ({ value, sort: Math.random() }))
-            .sort((a, b) => a.sort - b.sort)
-            .map(({ value }) => String(value));
-        setConfig(prev => ({ ...prev, bgSelection: shuffled }));
+        const result: string[] = [];
+        for (let i = 0; i < count; i++) {
+            result.push(safeDefaults[i % safeDefaults.length]);
+        }
+        setConfig(prev => ({ ...prev, bgSelection: result }));
     };
 
     const smartSelectBackgrounds = () => {
@@ -255,8 +356,13 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
         const cleanStr = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
 
         // 1. COVER (Intro) - Must contain "portada"
+        // 1. COVER (Intro) - Must contain "portada"
         const portadas = availableFiles.filter(f => f.toLowerCase().includes('portada'));
-        newSelection.push(portadas.length > 0 ? pickRandom(portadas) : '1'); // Index 0
+        const coverBg = portadas.length > 0 ? pickRandom(portadas) : 'bg-portada-1.png'; // Fallback to filename
+        newSelection.push(coverBg);
+
+        // Track last used to prevent duplicates
+        let lastUsedBg = coverBg;
 
         // 2. BET SLIDES
         slidesData.forEach((chunk) => {
@@ -269,28 +375,23 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
                 if (currentSport !== mainSport) continue;
 
                 const { match } = parseBetDisplay(bet.match, bet.pick);
-                // "Home vs Away" -> ["Home", "Away"]
-                // Use robust regex split for VS, vs, or hyphen
                 const teams = match.split(/\s*vs\s*|\s*-\s*/i).map(t => t.trim()).filter(Boolean);
 
                 for (const team of teams) {
                     const cleanTeam = cleanStr(team);
-                    if (cleanTeam.length < 3) continue; // Skip short names
+                    if (cleanTeam.length < 3) continue;
 
-                    // Find files containing this team name
                     const matches = availableFiles.filter(f => cleanStr(f).includes(cleanTeam));
-
                     if (matches.length > 0) {
                         selectedBg = pickRandom(matches);
-                        break; // Found high priority
+                        break;
                     }
                 }
-                if (selectedBg) break; // Found match for this slide
+                if (selectedBg) break;
             }
 
-            // Fallback: Sport + Comodin
+            // Fallback: Sport + Comodin (Avoid repeating lastUsedBg)
             if (!selectedBg) {
-                // Priority: Sport of the FIRST bet in the slide
                 const keyword = mainSport === 'basketball' ? 'basket' : 'futbol';
 
                 const comodines = availableFiles.filter(f =>
@@ -299,11 +400,21 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
                 );
 
                 if (comodines.length > 0) {
-                    selectedBg = pickRandom(comodines);
+                    // Filter out the one just used
+                    const availableComodines = comodines.filter(c => c !== lastUsedBg);
+
+                    if (availableComodines.length > 0) {
+                        selectedBg = pickRandom(availableComodines);
+                    } else {
+                        // If only 1 exists and it was just used, we have no choice but to repeat or pick random from original
+                        selectedBg = pickRandom(comodines);
+                    }
                 }
             }
 
-            newSelection.push(selectedBg || '2');
+            const finalBg = selectedBg || 'bg-futbol-comodin-1.png'; // Fallback to filename
+            newSelection.push(finalBg);
+            lastUsedBg = finalBg;
         });
 
         // 3. OUTRO (Last) - Must contain "futbol" AND "comodin"
@@ -313,7 +424,7 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
         );
 
         // Try to pick one different from the last used slide if possible, otherwise random
-        let outroBg = outroFiles.length > 0 ? pickRandom(outroFiles) : '3';
+        let outroBg = outroFiles.length > 0 ? pickRandom(outroFiles) : 'bg-futbol-comodin-2.png'; // Fallback to filename
         newSelection.push(outroBg);
 
         setConfig(prev => ({ ...prev, bgSelection: newSelection }));
@@ -336,7 +447,9 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
                     useCORS: true,
                     width: 1080,
                     height: 1920,
-                    backgroundColor: null,
+                    windowWidth: 1080, // Simulate window size to prevent collapsing
+                    windowHeight: 1920,
+                    backgroundColor: '#000000',
                     logging: false,
                 });
                 generated.push(canvas.toDataURL('image/png'));
@@ -396,8 +509,40 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="text-xs text-white/50 block mb-1">Cuota (Texto Editable)</label>
-                                    <input value={config.introSubtitle} onChange={e => setConfig({ ...config, introSubtitle: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded p-2 text-white text-sm" />
+                                    <div className="flex justify-between items-center mb-1">
+                                        <label className="text-xs text-white/50">Cuota (Texto Editable)</label>
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="checkbox"
+                                                id="addHundred"
+                                                checked={config.addHundred}
+                                                onChange={(e) => {
+                                                    const isChecked = e.target.checked;
+
+                                                    // Logic to update text dynamically
+                                                    let current = config.introSubtitle.replace(' 📈', '').replace('+', '');
+                                                    let num = parseInt(current);
+
+                                                    if (!isNaN(num)) {
+                                                        if (isChecked) num = num * 10;
+                                                        else num = Math.round(num / 10);
+
+                                                        setConfig({
+                                                            ...config,
+                                                            addHundred: isChecked,
+                                                            introSubtitle: `+${num} 📈`
+                                                        });
+                                                    } else {
+                                                        // Fallback if text is not number
+                                                        setConfig({ ...config, addHundred: isChecked });
+                                                    }
+                                                }}
+                                                className="accent-emerald-500 w-3 h-3"
+                                            />
+                                            <label htmlFor="addHundred" className="text-[10px] text-emerald-400 cursor-pointer select-none">Añadir Centena</label>
+                                        </div>
+                                    </div>
+                                    <input value={config.introSubtitle} onChange={e => setConfig({ ...config, introSubtitle: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded p-2 text-white text-sm font-bold" />
                                 </div>
                             </div>
                         )}
@@ -548,11 +693,12 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
 
             {/* HIDDEN RENDER CONTAINER (1080x1920) */}
             <div className="fixed left-[-9999px] top-0 pointer-events-none">
-                <div ref={containerRef}>
+                <div ref={containerRef} style={{ width: '1080px', height: '1920px' }}>
 
                     {/* SLIDE 1: COVER */}
-                    <div className="w-[1080px] h-[1920px] relative flex flex-col items-center justify-start pt-[100px] font-sans overflow-hidden">
-                        <img src={config.bgSelection[0]?.includes('.') ? `/backgrounds/${config.bgSelection[0]}` : `/backgrounds/bg-${config.bgSelection[0] || '1'}.jpg`} onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1518091043644-c1d4457512c6?q=80&w=1920&fit=crop"} crossOrigin="anonymous" className="absolute inset-0 w-full h-full object-cover object-center z-0 opacity-100" alt="bg" />
+                    <div className="w-[1080px] h-[1920px] relative flex flex-col items-center justify-start pt-[200px] font-sans overflow-hidden bg-black">
+                        <img src={config.bgSelection[0]?.includes('.') ? `/backgrounds/${config.bgSelection[0]}` : `/backgrounds/${config.bgSelection[0] || 'bg-portada-1.png'}`} onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1518091043644-c1d4457512c6?q=80&w=1920&fit=crop"} crossOrigin="anonymous" className="absolute inset-0 w-full h-full min-w-full min-h-full object-cover object-center z-0 opacity-100 transform scale-[1.05]" alt="bg" />
+                        <div className="absolute inset-0 z-0 bg-black/5" />
 
                         <div className="relative z-10 w-full flex flex-col items-center gap-14 p-8">
                             {/* TITLE SPLIT: 2 blocks, 2nd block has icons */}
@@ -598,8 +744,9 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
 
                     {/* SLIDES 2-N: BETS (3 per slide) */}
                     {slidesData.map((chunk, slideIdx) => (
-                        <div key={slideIdx} className="w-[1080px] h-[1920px] relative flex flex-col items-center justify-center font-sans overflow-hidden">
-                            <img src={config.bgSelection[slideIdx + 1]?.includes('.') ? `/backgrounds/${config.bgSelection[slideIdx + 1]}` : `/backgrounds/bg-${config.bgSelection[slideIdx + 1] || '2'}.jpg`} onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?q=80&w=1920&fit=crop"} crossOrigin="anonymous" className="absolute inset-0 w-full h-full object-cover object-center z-0 opacity-100" alt="bg" />
+                        <div key={slideIdx} className="w-[1080px] h-[1920px] relative flex flex-col items-center justify-center font-sans overflow-hidden bg-black">
+                            <img src={config.bgSelection[slideIdx + 1]?.includes('.') ? `/backgrounds/${config.bgSelection[slideIdx + 1]}` : `/backgrounds/${config.bgSelection[slideIdx + 1] || 'bg-futbol-comodin-1.png'}`} onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?q=80&w=1920&fit=crop"} crossOrigin="anonymous" className="absolute inset-0 w-full h-full min-w-full min-h-full object-cover object-center z-0 opacity-100 transform scale-[1.05]" alt="bg" />
+                            <div className="absolute inset-0 z-0 bg-black/5" />
 
                             <div className="relative z-10 w-full h-full flex flex-col items-center justify-center p-8 gap-16 pb-[150px]">
                                 {chunk.map((bet: any, bIdx: number) => {
@@ -628,9 +775,10 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
                         </div>
                     ))}
 
-                    {/* LAST SLIDE: OUTRO */}
-                    <div className="w-[1080px] h-[1920px] relative flex flex-col items-center justify-start pt-[900px] font-sans overflow-hidden">
-                        <img src={config.bgSelection[slidesData.length + 1]?.includes('.') ? `/backgrounds/${config.bgSelection[slidesData.length + 1]}` : `/backgrounds/bg-${config.bgSelection[slidesData.length + 1] || '3'}.jpg`} onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1550989460-0adf9ea622e2?q=80&w=1920&fit=crop"} crossOrigin="anonymous" className="absolute inset-0 w-full h-full object-cover object-center z-0 opacity-90" alt="bg" />
+                    {/* SLIDE N: OUTRO */}
+                    <div className="w-[1080px] h-[1920px] relative flex flex-col items-center justify-start pt-[900px] gap-16 font-sans overflow-hidden bg-black">
+                        <img src={config.bgSelection[slidesData.length + 1]?.includes('.') ? `/backgrounds/${config.bgSelection[slidesData.length + 1]}` : `/backgrounds/${config.bgSelection[slidesData.length + 1] || 'bg-futbol-comodin-2.png'}`} onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1579952363873-1b9132c3f58a?q=80&w=1920&fit=crop"} crossOrigin="anonymous" className="absolute inset-0 w-full h-full min-w-full min-h-full object-cover object-center z-0 opacity-100 transform scale-[1.05]" alt="bg" />
+                        <div className="absolute inset-0 z-0 bg-black/5" />
 
                         <div className="relative z-10 w-full flex flex-col items-center gap-16 p-12">
 
