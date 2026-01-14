@@ -15,7 +15,7 @@ if backend_root not in sys.path:
 from src.services.redis_service import RedisService
 
 # Configuración del Modelo (1.5 Pro es el más estable para búsqueda web)
-GEMINI_MODEL = "gemini-1.5-pro"
+GEMINI_MODEL = "models/gemini-2.5-pro"
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 class AIChecker:
