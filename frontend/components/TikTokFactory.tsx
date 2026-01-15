@@ -783,17 +783,17 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                 return (
                                     <div className="flex flex-col items-center gap-4 w-full">
                                         {/* Line 1 */}
-                                        <div className="bg-white px-12 py-6 rounded-2xl w-fit max-w-[90%]">
-                                            <h1 className="text-7xl font-black text-black tracking-tighter leading-tight whitespace-nowrap text-center">
+                                        <div className="bg-white px-12 pt-2 pb-6 rounded-2xl w-fit max-w-[90%] flex items-center justify-center">
+                                            <h1 className="text-7xl font-black text-black tracking-tighter leading-tight whitespace-nowrap text-center pb-5">
                                                 {line1}
                                             </h1>
                                         </div>
                                         {/* Line 2 with Icons */}
-                                        <div className="bg-white px-12 py-4 rounded-2xl flex items-center gap-6 w-fit max-w-[95%]">
-                                            <h1 className="text-6xl font-black text-black tracking-tighter leading-tight whitespace-nowrap">
+                                        <div className="bg-white px-12 pt-2 pb-4 rounded-2xl flex items-center justify-center gap-6 w-fit max-w-[95%]">
+                                            <h1 className="text-6xl font-black text-black tracking-tighter leading-tight whitespace-nowrap pb-5">
                                                 {line2}
                                             </h1>
-                                            <div className="flex items-center gap-4">
+                                            <div className="flex items-center gap-4 pb-5">
                                                 {config.introEmoji1 && (
                                                     <span className="text-6xl filter drop-shadow hover:brightness-110">{config.introEmoji1}</span>
                                                 )}
@@ -808,8 +808,8 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
 
                             {/* ODDS PILL: STICKER STYLE (Editable) - Hide if empty */}
                             {config.introSubtitle && config.introSubtitle.trim() !== "" && (
-                                <div className="bg-white px-14 py-8 rounded-2xl mt-8">
-                                    <span className="text-7xl font-black text-black uppercase tracking-tighter leading-none">
+                                <div className="bg-white px-14 pt-4 pb-8 rounded-2xl mt-8 flex items-center justify-center">
+                                    <span className="text-7xl font-black text-black uppercase tracking-tighter leading-none pb-5">
                                         {config.introSubtitle}
                                     </span>
                                 </div>
@@ -834,8 +834,8 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                     return (
                                         <div key={bIdx} className="w-full flex flex-col items-center gap-4">
                                             {/* MATCH TITLE: Inverted Colors (Black BG, White Text) - NO BORDER */}
-                                            <div className="inline-block bg-black px-8 py-4 rounded-xl max-w-[95%] text-center">
-                                                <h3 className="text-5xl font-black text-white uppercase tracking-tight leading-tight whitespace-pre-wrap break-words">
+                                            <div className="bg-black px-8 pt-2 pb-4 rounded-xl max-w-[95%] border-2 border-black flex items-center justify-center text-center">
+                                                <h3 className="text-5xl font-black text-white uppercase tracking-tight leading-tight whitespace-pre-wrap break-words pb-5">
                                                     {match} {sportIcon}
                                                 </h3>
                                             </div>
@@ -860,8 +860,8 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                                 }
 
                                                 return (
-                                                    <div key={pIdx} className="inline-block bg-white px-8 py-4 rounded-xl max-w-[95%] text-center mt-[-10px]">
-                                                        <span className="text-5xl font-black text-black tracking-tight leading-tight whitespace-pre-wrap break-words">
+                                                    <div key={pIdx} className="bg-white px-8 pt-2 pb-4 rounded-xl max-w-[95%] flex items-center justify-center text-center mt-[-10px]">
+                                                        <span className="text-5xl font-black text-black tracking-tight leading-tight whitespace-pre-wrap break-words pb-5">
                                                             {formattedPick} ✅
                                                         </span>
                                                     </div>
