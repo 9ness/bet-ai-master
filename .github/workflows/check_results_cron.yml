@@ -1,4 +1,4 @@
-name: 3º - Comprobador Automático de Resultados
+name: 4º - Comprobador Automático de Resultados
 on:
   schedule:
     - cron: '0 * * * *' # Cada hora en punto

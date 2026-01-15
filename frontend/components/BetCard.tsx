@@ -408,6 +408,27 @@ const CountdownTimer = ({ targetTime, targetDate }: { targetTime: string, target
 
 import { usePathname } from 'next/navigation';
 
+// Helper: Replace "Local" and "Visitante" with actual team names
+const replaceTeamNames = (pick: string, matchName: string) => {
+    if (!pick || !matchName) return pick;
+    // Check if matchName is valid (contains vs)
+    if (!matchName.includes(' vs ') && !matchName.includes(' - ')) return pick;
+
+    // Split match name
+    const parts = matchName.split(/ vs | - /i);
+    if (parts.length < 2) return pick;
+
+    const homeTeam = parts[0].trim();
+    const awayTeam = parts[1].trim();
+
+    let newPick = pick;
+    // Replace Local/Visitante (Case Insensitive)
+    newPick = newPick.replace(/\bLocal\b/gi, homeTeam);
+    newPick = newPick.replace(/\bVisitante\b/gi, awayTeam);
+
+    return newPick;
+};
+
 export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
     const pathname = usePathname();
     const isModeAdmin = isAdmin || pathname?.startsWith('/admin');
@@ -743,32 +764,32 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
                                         </div>
                                         {sel.odd && <span className="text-[10px] bg-secondary px-1 rounded text-muted-foreground whitespace-nowrap">{sel.odd}</span>}
                                     </div>
-                                    <div className="flex justify-between items-center pl-2 border-l-2 border-primary/20">
-                                        <span className={`text-sm font-bold ${config.textColor}`}>{sel.pick}</span>
-                                        {/* Status Icon per selection */}
-                                        <div className="flex items-center gap-1">
-                                            {(sel.status === 'WON' || sel.status === 'GANADA') && <Check size={14} className="text-emerald-500" />}
-                                            {(sel.status === 'LOST' || sel.status === 'PERDIDA') && <XIcon size={14} className="text-rose-500" />}
-                                            {(sel.status === 'PENDING' || sel.status === 'PENDIENTE' || !sel.status) && (
-                                                <>
-                                                    {/* In Selections We also check time for started icon? Or keep simple. 
-                                                        User asked for "un icono". Let's assume global. 
-                                                        But if multiple selections have different times...
-                                                        Implementing per-selection start check is complex here without refactoring.
-                                                        Let's stick to showing time. */}
-                                                    <span className="text-[10px] font-mono text-muted-foreground mr-1.5 font-bold opacity-80 decoration-0 align-middle">
-                                                        {extractTime(sel.time || data.startTime || data.time)}
-                                                    </span>
-                                                    <SportIcon sport={sel.sport || data.sport} className="text-base" />
-                                                </>
+                                    <div className="flex justify-between items-start pl-2 border-l-2 border-primary/20">
+                                        <div className="flex flex-col">
+                                            <div className="flex items-center gap-1.5">
+                                                {/* Status Icon (Left side) */}
+                                                {(sel.status === 'WON' || sel.status === 'GANADA') && <Check size={14} className="text-emerald-500 shrink-0" />}
+                                                {(sel.status === 'LOST' || sel.status === 'PERDIDA') && <XIcon size={14} className="text-rose-500 shrink-0" />}
+
+                                                <span className={`text-sm font-bold ${config.textColor}`}>{replaceTeamNames(sel.pick, sel.match)}</span>
+                                            </div>
+
+                                            {/* Result Text (Below Name) */}
+                                            {sel.result && sel.result !== '?' && (
+                                                <div className="text-[10px] text-muted-foreground ml-5 font-mono">
+                                                    {sel.result}
+                                                </div>
                                             )}
                                         </div>
-                                    </div>
-                                    {sel.result && sel.result !== '?' && (
-                                        <div className="text-[10px] text-right text-muted-foreground mt-0.5">
-                                            {sel.result}
+
+                                        {/* Right Side: Always Time + SportIcon */}
+                                        <div className="flex items-center gap-1">
+                                            <span className="text-[10px] font-mono text-muted-foreground mr-1.5 font-bold opacity-80 decoration-0 align-middle">
+                                                {extractTime(sel.time || data.startTime || data.time)}
+                                            </span>
+                                            <SportIcon sport={sel.sport || data.sport} className="text-base" />
                                         </div>
-                                    )}
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -803,7 +824,7 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
                                             return (
                                                 <div key={i} className={`flex justify-between items-center pl-2 border-l-2 ${type === 'funbet' ? 'border-amber-500/30' : 'border-violet-500/30'} my-1`}>
                                                     <div className="flex items-center gap-2">
-                                                        <span className={`text-sm font-bold ${config.textColor}`}>{text}</span>
+                                                        <span className={`text-sm font-bold ${config.textColor}`}>{replaceTeamNames(text, matchName)}</span>
                                                         {isItemStarted && (!data.status || data.status === 'PENDING' || data.status === 'PENDIENTE') && (
                                                             <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20" title="En Juego">
                                                                 <Clock size={10} className="text-amber-500" />
@@ -826,7 +847,7 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
                         <div className="flex justify-between items-center">
                             <span className="text-muted-foreground text-sm">Pick</span>
                             <div className="flex items-center gap-2">
-                                <span className={`font-bold ${config.textColor}`}>{data.pick}</span>
+                                <span className={`font-bold ${config.textColor}`}>{replaceTeamNames(data.pick, data.match)}</span>
                                 {(data.status === 'WON' || data.status === 'GANADA') && (
                                     <Check size={18} className="text-emerald-500 stroke-[3px]" />
                                 )}
@@ -849,10 +870,9 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
                 <div className="flex items-end justify-between mt-4 px-1 border-t border-border pt-4">
                     <div className="flex flex-col">
                         <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider mb-0.5">Profit Est.</span>
-                        <span className={`font-mono font-black text-xl ${data.profit && data.profit < 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
-                            {data.profit ? `${data.profit > 0 ? '+' : ''}${data.profit}u` :
-                                data.estimated_units ? `+${data.estimated_units}u` :
-                                    `+${((data.stake || config.stake) * ((data.total_odd || data.odd) - 1)).toFixed(2)}u`}
+                        <span className="font-mono font-black text-xl text-emerald-500">
+                            {data.estimated_units ? `+${data.estimated_units}u` :
+                                `+${((data.stake || config.stake) * ((data.total_odd || data.odd) - 1)).toFixed(2)}u`}
                         </span>
                     </div>
 

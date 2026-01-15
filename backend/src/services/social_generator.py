@@ -20,7 +20,13 @@ def generate_viral_caption():
     bets_key = f"betai:daily_bets:{today_str}"
     
     console_log(f"📅 Obteniendo apuestas para: {today_str}")
-    data = redis.get_data(bets_key)
+    data = None
+    raw_data = redis.get(bets_key)
+    if raw_data:
+        try:
+             data = json.loads(raw_data)
+        except:
+             data = None
     
     if not data:
         console_log("❌ No se encontraron apuestas para hoy. Saliendo.")
@@ -114,7 +120,7 @@ def generate_viral_caption():
             }
             
             # Save to 'betai:tiktokfactory'
-            redis.conn.set("betai:tiktokfactory", json.dumps(output_payload))
+            redis.set_data("tiktokfactory", output_payload)
             console_log("💾 Guardado en Redis key: betai:tiktokfactory")
             
         except json.JSONDecodeError:

@@ -1,4 +1,4 @@
-name: 2.1Generate Social Content
+name: 3º Generar textos Tiktok
 
 on:
   workflow_run:

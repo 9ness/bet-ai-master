@@ -3,6 +3,7 @@ import os
 import json
 import time
 import requests
+import re
 from datetime import datetime, timedelta
 
 # Add parent directory to path to import services
@@ -262,7 +263,6 @@ def check_bets():
                         # Clean string: "más de 3.5 goles" -> "3.5"
                         clean_pick = pick.replace("más de", "").replace("over", "").replace("goles", "").replace("goals", "").replace("puntos", "").replace("points", "").replace("pts", "").strip()
                         # Extract first valid number
-                        import re
                         match = re.search(r'\d+(\.\d+)?', clean_pick)
                         if match:
                              val = float(match.group())
@@ -304,7 +304,6 @@ def check_bets():
                     elif "hándicap" in pick or "ah" in pick:
                         # Normalize: "Local AH +3.5" -> remove words -> "+3.5"
                         # Parsing logic: Find the number in the string (can be negative or positive)
-                        import re
                         # Regex to find number like +3.5, -4.5, 5.5
                         match_num = re.search(r'[-+]?\d*\.?\d+', pick.split(' ')[-1])
                         if match_num:
@@ -376,10 +375,10 @@ def check_bets():
                  print(f"      [!] Max attempts reached ({check_attempts}). Marked as MANUAL_CHECK.")
 
             if any_lost:
-                new_status = "LOSS"
+                new_status = "LOST"
                 bet["profit"] = -1 * bet["stake"]
             elif all_won and pending_count == 0:
-                new_status = "WIN"
+                new_status = "WON"
                 bet["profit"] = round(bet["estimated_units"], 2)
             
             if new_status != old_status:
@@ -388,10 +387,11 @@ def check_bets():
         
         # --- SAVE IF MODIFIED ---
         if bets_modified:
-             # Recalculate Day Profit
+            # Recalculate Day Profit
             day_profit = 0
             for b in day_data["bets"]:
-                if b.get("status") in ["WIN", "LOSS"]:
+                # Check for WON/LOST (Standard) and potentially legacy WIN/LOSS just in case
+                if b.get("status") in ["WON", "LOST", "WIN", "LOSS", "GANADA", "PERDIDA"]:
                     day_profit += b.get("profit", 0)
             
             day_data["day_profit"] = round(day_profit, 2)
