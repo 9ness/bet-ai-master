@@ -179,7 +179,11 @@ def check_bets():
             # --- PROCESS SELECTIONS ---
             for sel in selections:
                 # Same for selections: Only skip if strictly WON/LOST (New Schema)
-                if sel.get("status") in ["WON", "LOST", "PUSH", "VOID"]:
+                # EXCEPTION: Re-check Double Chance to fix previous bug
+                pick_lower = sel.get("pick", "").lower()
+                is_dc = "doble" in pick_lower or "double" in pick_lower or "1x" in pick_lower or "x2" in pick_lower or "12" in pick_lower
+                
+                if sel.get("status") in ["WON", "LOST", "PUSH", "VOID"] and not is_dc:
                     if sel["status"] == "LOST": any_lost = True
                     if sel["status"] != "WON": all_won = False
                     continue
@@ -236,6 +240,22 @@ def check_bets():
                             is_win = home_score > away_score
                         elif "visitante" in pick or "away" in pick or "2" in pick.split():
                             is_win = away_score > home_score
+
+                    # 1.5 DOUBLE CHANCE (Doble Oportunidad)
+                    elif "doble oportunidad" in pick or "double chance" in pick or "1x" in pick or "x2" in pick or "12" in pick.split():
+                        # Normalized check
+                        clean = pick.replace("doble oportunidad", "").replace("double chance", "").replace("(", "").replace(")", "").strip().upper()
+                        
+                        # Logic
+                        if "1X" in clean or "1X" in pick.upper():
+                            # Home Win OR Draw
+                            is_win = home_score >= away_score
+                        elif "X2" in clean or "X2" in pick.upper():
+                            # Away Win OR Draw
+                            is_win = away_score >= home_score
+                        elif "12" in clean or "12" in pick.split():
+                            # Home OR Away (No Draw)
+                            is_win = home_score != away_score
                             
                     # 2. GOALS / POINTS (OVER/UNDER)
                     elif "más de" in pick or "over" in pick:

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, RefreshCw, Check, X, CircleCheck, CircleX, Clock, ChevronDown, Save, Loader2, TrendingUp, MonitorPlay } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, RefreshCw, Check, X, CircleCheck, CircleX, Clock, ChevronDown, Save, Loader2, TrendingUp } from 'lucide-react';
 
 // --- FLAG MAPPINGS (Mirrored from BetCard.tsx) ---
 const LEAGUE_FLAGS: Record<number, string> = {
@@ -306,15 +306,15 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
             {/* Single Bet Result Display */}
             {(!hasDetails || details.length === 1) && (() => {
                 const single = details[0] || {};
-                if (single.result) {
+                if (single.result && single.result !== 'N/A') {
                     let s = (single.status || status || 'PENDING').toUpperCase();
                     if (s === 'GANADA') s = 'WON';
                     if (s === 'PERDIDA') s = 'LOST';
 
                     return (
                         <p className={`text-[10px] font-bold mb-3 ${s === 'WON' ? 'text-emerald-500' :
-                                s === 'LOST' ? 'text-rose-500' :
-                                    'text-muted-foreground'
+                            s === 'LOST' ? 'text-rose-500' :
+                                'text-muted-foreground'
                             }`}>
                             {single.result}
                         </p>
@@ -385,8 +385,8 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
                                                 <span className="text-muted-foreground mr-1 shrink-0 text-xs">{detail.match}:</span>
                                                 <span className="font-medium text-foreground text-xs">{detail.pick}</span>
                                             </div>
-                                            {/* RESULT LINE */}
-                                            {detail.result && (
+                                            {/* RESULT LINE - Hide if N/A */}
+                                            {detail.result && detail.result !== 'N/A' && (
                                                 <div className={`text-[10px] font-bold mt-0.5 ${(rawStatus === 'WON' || rawStatus === 'GANADA') ? 'text-emerald-500' :
                                                     (rawStatus === 'LOST' || rawStatus === 'PERDIDA') ? 'text-rose-500' :
                                                         'text-muted-foreground'
@@ -464,7 +464,7 @@ export default function ResultsCalendar() {
     const [loading, setLoading] = useState(false);
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const [isAdmin, setIsAdmin] = useState(false);
-    const [isChecking, setIsChecking] = useState(false);
+
 
     // LOCAL MUTABLE STATE FOR MODAL
     const [localDayData, setLocalDayData] = useState<DayHistory | null>(null);
@@ -565,22 +565,7 @@ export default function ResultsCalendar() {
 
     // ... (keep handleTriggerCheck, fetchData, nextMonth, prevMonth, renderDay)
 
-    const handleTriggerCheck = async (date: string) => {
-        if (!confirm(`¿Ejecutar comprobación para ${date}?`)) return;
-        setIsChecking(true);
-        try {
-            await fetch('/api/admin/trigger-check', {
-                method: 'POST',
-                body: JSON.stringify({ date })
-            });
-            alert("Comprobación iniciada. Espera unos segundos y recarga.");
-        } catch (e) {
-            console.error(e);
-            alert("Error al iniciar comprobación");
-        } finally {
-            setIsChecking(false);
-        }
-    };
+
 
     const handleUpdate = () => {
         // Refresh data after manual edit
@@ -754,18 +739,7 @@ export default function ResultsCalendar() {
 
                         {/* Modal Content */}
                         <div className="p-6 overflow-y-auto space-y-4 bg-background/95">
-                            {isAdmin && (
-                                <div className="flex justify-end mb-2">
-                                    <button
-                                        onClick={() => handleTriggerCheck(selectedDate)}
-                                        disabled={isChecking}
-                                        className="text-xs bg-primary/20 hover:bg-primary/30 text-primary px-3 py-1 rounded-full font-bold flex items-center gap-1 transition-colors"
-                                    >
-                                        <MonitorPlay size={12} />
-                                        {isChecking ? 'Ejecutando...' : 'Forzar Check API'}
-                                    </button>
-                                </div>
-                            )}
+
 
                             {(Array.isArray(displayData.bets) ? displayData.bets : Object.entries(displayData.bets || {}).map(([k, v]) => ({ ...(v as any), type: (v as any).type || k }))).map((bet: any, idx: number) => (
                                 <BetDetailCard

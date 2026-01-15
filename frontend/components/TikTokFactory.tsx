@@ -161,9 +161,9 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
         };
     };
 
-    // Prepare All Bets (Flatten Logic)
+    // Prepare All Bets (Grouped by Match)
     const getAllSelections = () => {
-        const all: any[] = [];
+        const flatBets: any[] = [];
         const rawBets = predictions?.bets || (Array.isArray(predictions) ? predictions : []);
 
         if (rawBets.length === 0) {
@@ -172,114 +172,123 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
             if (predictions?.funbet) rawBets.push(predictions.funbet);
         }
 
+        // 1. Flatten
         rawBets.forEach((bet: any) => {
             if (!bet) return;
             const parentSport = bet.sport;
 
-            if (bet.selections && Array.isArray(bet.selections) && bet.selections.length > 0) {
-                bet.selections.forEach((sel: any) => {
-                    all.push({
-                        ...sel,
-                        sport: (sel.sport || parentSport || 'football').toLowerCase()
-                    });
+            const addBet = (item: any) => {
+                flatBets.push({
+                    ...item,
+                    sport: (item.sport || parentSport || 'football').toLowerCase()
                 });
+            };
+
+            if (bet.selections && Array.isArray(bet.selections) && bet.selections.length > 0) {
+                bet.selections.forEach((sel: any) => addBet(sel));
             }
             else if (bet.components && Array.isArray(bet.components) && bet.components.length > 0) {
-                bet.components.forEach((comp: any) => {
-                    all.push({
-                        ...comp,
-                        sport: (comp.sport || parentSport || 'football').toLowerCase()
-                    });
-                });
+                bet.components.forEach((comp: any) => addBet(comp));
             }
             else if (bet.match && bet.pick) {
-                all.push({
-                    ...bet,
-                    sport: (bet.sport || parentSport || 'football').toLowerCase()
-                });
+                addBet(bet);
             }
         });
 
-        // Identify teams that have specific backgrounds
-        const teamsWithBg = new Set<string>();
+        // 2. Group by Normalized Match Name
+        const groups: Record<string, any> = {};
+
+        flatBets.forEach(bet => {
+            const { match, pick } = parseBetDisplay(bet.match, bet.pick);
+            // Normalize match key: remove spaces, lowercase
+            const matchKey = match.toLowerCase().replace(/\s+/g, '');
+
+            if (!groups[matchKey]) {
+                groups[matchKey] = {
+                    matchDisplay: match, // Keep the first display name found
+                    sport: bet.sport,
+                    picks: [],
+                    originalBets: []
+                };
+            }
+
+            // Add Pick
+            groups[matchKey].picks.push(pick);
+            groups[matchKey].originalBets.push(bet);
+        });
+
+        const groupedList = Object.values(groups);
+
+        // 3. Identify teams that have specific backgrounds (BY SPORT)
+        const teamsWithBg: Record<string, Set<string>> = {
+            football: new Set(),
+            basketball: new Set(),
+            tennis: new Set()
+        };
+
         availableFiles.forEach(file => {
             const lower = file.toLowerCase();
+            let sport = 'football';
+            if (lower.includes('basket')) sport = 'basketball';
+            else if (lower.includes('tenis') || lower.includes('tennis')) sport = 'tennis';
+
             if (lower.includes('bg-')) {
                 // Extract team name roughly: bg-futbol-INTER-1.png
                 const parts = lower.split('-');
                 if (parts.length >= 3) {
-                    teamsWithBg.add(parts[2]); // e.g. "inter", "napoli", "chelsea"
+                    teamsWithBg[sport].add(parts[2]);
                 }
             }
         });
 
-        const hasTeamBg = (bet: any) => {
-            const matchText = (bet.match || "").toLowerCase();
-            const pickText = (bet.pick || "").toLowerCase();
+        const cleanForMatch = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
-            // Check if any team in our set is present in match or pick
-            for (const team of Array.from(teamsWithBg)) {
-                if (team !== 'comodin' && (matchText.includes(team) || pickText.includes(team))) {
+        const hasTeamBg = (group: any) => {
+            const matchText = cleanForMatch(group.matchDisplay || "");
+            const sport = (group.sport || 'football').toLowerCase();
+
+            // Get relevant set of teams for this sport
+            const relevantTeams = teamsWithBg[sport] || teamsWithBg['football']; // Fallback only if unknown sport
+
+            // Check if any team in our set is present in match name
+            for (const team of Array.from(relevantTeams)) {
+                const cleanTeam = cleanForMatch(team);
+
+                if (team !== 'comodin' && matchText.includes(cleanTeam)) {
                     return true;
                 }
             }
             return false;
         };
 
-        // Split into Categories
+        // 4. Sort: Strict Priority
+        // Tier 1: Football (Featured > Regular)
+        // Tier 2: Others (Featured > Regular)
         const footballFeatured: any[] = [];
         const footballRegular: any[] = [];
-        const others: any[] = [];
+        const otherFeatured: any[] = [];
+        const otherRegular: any[] = [];
 
-        all.forEach(bet => {
-            const sport = (bet.sport || 'football').toLowerCase();
+        groupedList.forEach(group => {
+            const sport = (group.sport || 'football').toLowerCase();
+            const isFeatured = hasTeamBg(group);
+
             if (sport === 'football') {
-                if (hasTeamBg(bet)) {
-                    footballFeatured.push(bet);
-                } else {
-                    footballRegular.push(bet);
-                }
+                if (isFeatured) footballFeatured.push(group);
+                else footballRegular.push(group);
             } else {
-                others.push(bet);
+                if (isFeatured) otherFeatured.push(group);
+                else otherRegular.push(group);
             }
         });
 
-        // Interleave Football: [Feat, Reg, Reg, Feat, Reg, Reg...]
-        // Prioritize placing Featured items at indices 0, 3, 6... (Start of slides)
-        const sortedFootball: any[] = [];
-        while (footballFeatured.length > 0 || footballRegular.length > 0) {
-            // Position 1 (Slide Header): Prefer Featured
-            if (footballFeatured.length > 0) {
-                sortedFootball.push(footballFeatured.shift());
-            } else if (footballRegular.length > 0) {
-                sortedFootball.push(footballRegular.shift());
-            }
-
-            // Position 2: Prefer Regular
-            if (footballRegular.length > 0) {
-                sortedFootball.push(footballRegular.shift());
-            } else if (footballFeatured.length > 0) {
-                sortedFootball.push(footballFeatured.shift());
-            }
-
-            // Position 3: Prefer Regular
-            if (footballRegular.length > 0) {
-                sortedFootball.push(footballRegular.shift());
-            } else if (footballFeatured.length > 0) {
-                sortedFootball.push(footballFeatured.shift());
-            }
-        }
-
-        // Sort Others (Standard Smart Sort - Featured First)
-        others.sort((a, b) => {
-            const hasBgA = hasTeamBg(a);
-            const hasBgB = hasTeamBg(b);
-            if (hasBgA && !hasBgB) return -1;
-            if (!hasBgA && hasBgB) return 1;
-            return 0;
-        });
-
-        return [...sortedFootball, ...others];
+        // Combine strictly: All Football -> All Others
+        return [
+            ...footballFeatured,
+            ...footballRegular,
+            ...otherFeatured,
+            ...otherRegular
+        ];
     };
 
     const allSelections = getAllSelections();
@@ -370,18 +379,25 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
             const mainSport = (chunk[0]?.sport || 'football').toLowerCase();
 
             // Try to find Team Match (ONLY for bets matching the main sport)
-            for (const bet of chunk) {
-                const currentSport = (bet.sport || 'football').toLowerCase();
+            for (const group of chunk) {
+                const currentSport = (group.sport || 'football').toLowerCase();
                 if (currentSport !== mainSport) continue;
 
-                const { match } = parseBetDisplay(bet.match, bet.pick);
-                const teams = match.split(/\s*vs\s*|\s*-\s*/i).map(t => t.trim()).filter(Boolean);
+                // Use the group's match display directly
+                const matchDisplay = group.matchDisplay || "";
+                const teams = matchDisplay.split(/\s*vs\s*|\s*-\s*/i).map((t: string) => t.trim()).filter(Boolean);
 
                 for (const team of teams) {
                     const cleanTeam = cleanStr(team);
                     if (cleanTeam.length < 3) continue;
 
-                    const matches = availableFiles.filter(f => cleanStr(f).includes(cleanTeam));
+                    const matchSportKeyword = mainSport === 'basketball' ? 'basket' : 'futbol';
+
+                    const matches = availableFiles.filter(f =>
+                        !f.toLowerCase().includes('comodin') &&
+                        f.toLowerCase().includes(matchSportKeyword) &&
+                        cleanStr(f).includes(cleanTeam)
+                    );
                     if (matches.length > 0) {
                         selectedBg = pickRandom(matches);
                         break;
@@ -749,9 +765,9 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
                             <div className="absolute inset-0 z-0 bg-black/5" />
 
                             <div className="relative z-10 w-full h-full flex flex-col items-center justify-center p-8 gap-16 pb-[150px]">
-                                {chunk.map((bet: any, bIdx: number) => {
-                                    const { match, pick } = parseBetDisplay(bet.match, bet.pick);
-                                    const sportIcon = bet.sport === 'basketball' ? '🏀' : '⚽';
+                                {chunk.map((group: any, bIdx: number) => {
+                                    const { match } = parseBetDisplay(group.matchDisplay, "");
+                                    const sportIcon = group.sport === 'basketball' ? '🏀' : '⚽';
 
                                     return (
                                         <div key={bIdx} className="w-full flex flex-col items-center gap-4">
@@ -762,12 +778,17 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
                                                 </h3>
                                             </div>
 
-                                            {/* PICK + CHECK: Native Insta Style */}
-                                            <div className="inline-block bg-white px-8 py-4 rounded-xl max-w-[95%] text-center shadow-lg transform rotate-1 mt-[-10px]">
-                                                <span className="text-5xl font-black text-black uppercase tracking-tight leading-tight whitespace-pre-wrap break-words">
-                                                    {pick} ✅
-                                                </span>
-                                            </div>
+                                            {/* PICKS LOOP */}
+                                            {group.picks.map((pick: string, pIdx: number) => {
+                                                const { pick: displayPick } = parseBetDisplay(group.matchDisplay, pick);
+                                                return (
+                                                    <div key={pIdx} className="inline-block bg-white px-8 py-4 rounded-xl max-w-[95%] text-center shadow-lg transform rotate-1 mt-[-10px]">
+                                                        <span className="text-5xl font-black text-black uppercase tracking-tight leading-tight whitespace-pre-wrap break-words">
+                                                            {displayPick} ✅
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     );
                                 })}
