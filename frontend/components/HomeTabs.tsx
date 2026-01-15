@@ -5,12 +5,14 @@ import { Trophy, Activity, AlertTriangle } from 'lucide-react';
 import DailyPredictions from '@/components/DailyPredictions';
 import ResultsCalendar from '@/components/ResultsCalendar';
 import AdminAnalytics from '@/components/AdminAnalytics';
+import TikTokFactory from '@/components/TikTokFactory';
 
 type HomeTabsProps = {
     settings: {
         show_daily_bets: boolean;
         show_calendar: boolean;
         show_analytics: boolean;
+        show_tiktok?: boolean;
     };
     predictions: any;
     formattedDate: string;
@@ -22,7 +24,8 @@ export default function HomeTabs({ settings, predictions, formattedDate, isMock 
     const allTabs = [
         { id: 'daily_bets', label: '🎯 Análisis del Día', visible: settings.show_daily_bets },
         { id: 'calendar', label: '📅 Calendario 2026', visible: settings.show_calendar },
-        { id: 'analytics', label: '📊 Estadísticas', visible: settings.show_analytics }
+        { id: 'analytics', label: '📊 Estadísticas', visible: settings.show_analytics },
+        { id: 'tiktok', label: '🏭 TikTok Factory', visible: settings.show_tiktok }
     ];
 
     const visibleTabs = allTabs.filter(tab => tab.visible);
@@ -127,6 +130,12 @@ export default function HomeTabs({ settings, predictions, formattedDate, isMock 
                             <p className="text-muted-foreground text-sm">Análisis detallado de rentabilidad y evolución.</p>
                         </div>
                         <AdminAnalytics />
+                    </div>
+                )}
+
+                {activeTab === 'tiktok' && (
+                    <div className="animate-in zoom-in-95 duration-300">
+                        <TikTokFactory predictions={predictions} formattedDate={formattedDate} />
                     </div>
                 )}
             </main>

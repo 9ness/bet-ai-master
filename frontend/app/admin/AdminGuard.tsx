@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Lock, ArrowRight, RefreshCw, LayoutDashboard, DownloadCloud, BrainCircuit, ClipboardCheck, Activity as ActivityIcon, AlertTriangle, Database, ChevronDown, ChevronUp } from 'lucide-react';
+import { Lock, ArrowRight, RefreshCw, LayoutDashboard, DownloadCloud, BrainCircuit, ClipboardCheck, Activity as ActivityIcon, AlertTriangle, Database, ChevronDown, ChevronUp, Home } from 'lucide-react';
+import Link from 'next/link';
 import { verifyAdminPassword } from './actions';
 import ResultsCalendar from '@/components/ResultsCalendar';
 import AdminAnalytics from '@/components/AdminAnalytics';
@@ -35,6 +36,7 @@ export default function AdminGuard({
     });
     const [savingSettings, setSavingSettings] = useState(false);
     const [lastRun, setLastRun] = useState<{ date: string, status: string, message: string, script: string } | null>(null);
+    const [saveNotification, setSaveNotification] = useState<{ show: boolean, type: 'success' | 'error', message: string }>({ show: false, type: 'success', message: '' });
 
     // Trigger States
     const [fetchStatus, setFetchStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -44,7 +46,7 @@ export default function AdminGuard({
     const [showControls, setShowControls] = useState(false);
 
     useEffect(() => {
-        const sessionAuth = sessionStorage.getItem("admin_auth");
+        const sessionAuth = localStorage.getItem("admin_auth");
         if (sessionAuth === "true") {
             setIsAuthenticated(true);
         }
@@ -77,7 +79,7 @@ export default function AdminGuard({
 
         if (isValid) {
             setIsAuthenticated(true);
-            sessionStorage.setItem("admin_auth", "true");
+            localStorage.setItem("admin_auth", "true");
         } else {
             setLoginError("Contraseña incorrecta. Inténtalo de nuevo.");
             setPasswordInput("");
@@ -135,9 +137,12 @@ export default function AdminGuard({
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(settings)
             });
-            alert("Configuración guardada correctamente.");
+            // Success
+            setSaveNotification({ show: true, type: 'success', message: 'Configuración actualizada con éxito' });
+            setTimeout(() => setSaveNotification(prev => ({ ...prev, show: false })), 3000);
         } catch (e) {
-            alert("Error al guardar configuración.");
+            setSaveNotification({ show: true, type: 'error', message: 'Error al guardar la configuración.' });
+            setTimeout(() => setSaveNotification(prev => ({ ...prev, show: false })), 3000);
         } finally {
             setSavingSettings(false);
         }
@@ -201,10 +206,15 @@ export default function AdminGuard({
 
 
                     {/* Right Logout */}
-                    <div className="shrink-0">
+                    <div className="shrink-0 flex items-center gap-3">
+                        <Link href="/" className="text-xs font-bold text-gray-500 hover:text-white transition-colors flex items-center gap-1.5 px-3 py-1.5 rounded-full hover:bg-white/10 uppercase tracking-wider">
+                            <Home className="w-3.5 h-3.5" />
+                            Normal
+                        </Link>
+                        <div className="w-px h-4 bg-white/10 mx-1" />
                         <button
                             onClick={() => {
-                                sessionStorage.removeItem("admin_auth");
+                                localStorage.removeItem("admin_auth");
                                 setIsAuthenticated(false);
                             }}
                             className="text-gray-500 hover:text-white transition-colors p-1 hover:bg-white/10 rounded-full"
@@ -463,6 +473,22 @@ export default function AdminGuard({
                                     {savingSettings ? <RefreshCw className="animate-spin w-4 h-4" /> : <DownloadCloud className="w-4 h-4 rotate-180" />}
                                     {savingSettings ? 'Guardando...' : 'Guardar Configuración'}
                                 </button>
+
+                                {/* Notification Toast */}
+                                {saveNotification.show && (
+                                    <div className={`fixed bottom-8 right-8 z-50 px-6 py-4 rounded-2xl shadow-2xl border flex items-center gap-3 animate-in slide-in-from-bottom-5 fade-in duration-300 ${saveNotification.type === 'success'
+                                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                                        : 'bg-red-500/10 border-red-500/20 text-red-400'
+                                        }`}>
+                                        <div className={`p-2 rounded-full ${saveNotification.type === 'success' ? 'bg-emerald-500/20' : 'bg-red-500/20'}`}>
+                                            {saveNotification.type === 'success' ? <ClipboardCheck size={18} /> : <AlertTriangle size={18} />}
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold text-sm">{saveNotification.type === 'success' ? '¡Éxito!' : 'Error'}</h4>
+                                            <p className="text-xs opacity-90">{saveNotification.message}</p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}

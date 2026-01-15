@@ -3,6 +3,7 @@ import { Trophy } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Redis } from '@upstash/redis';
 import HomeTabs from '@/components/HomeTabs';
+import AdminReturnButton from '@/components/AdminReturnButton';
 
 // Initialize Redis
 const redis = new Redis({
@@ -98,7 +99,10 @@ export default async function Home() {
                             BET AI <span className="text-fuchsia-500">MASTER</span>
                         </span>
                     </div>
-                    <ThemeToggle />
+                    <div className="flex items-center gap-2">
+                        <AdminReturnButton />
+                        <ThemeToggle />
+                    </div>
                 </div>
             </nav>
 
