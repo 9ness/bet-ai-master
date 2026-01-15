@@ -29,7 +29,7 @@ PICK_TRANSLATIONS = {
     "Asian Hándicap": "Hándicap Asiático",
     "AH": "Hándicap Asiático",
     "Double Chance": "Doble Oportunidad",
-
+    "(ML)": "(Prórroga incluída)",
     "Corners": "Córners"
 }
 
@@ -127,7 +127,8 @@ def analyze():
             2. VALUE (De Valor): Cuota total 2.50 - 3.50. STAKE FIJO: 3.
             3. FUNBET (Arriesgada): Cuota total 10.00 - 20.00. STAKE FIJO: 1. 
             - REGLA FUNBET: Puedes combinar mercados. Para llegar a cuota 10+, usa selecciones con cuota individual entre 1.10 y 1.50.
-            - REGLA NO REPETIR: No repitas el mismo pronóstico en diferentes apuestas. Con esto nos aseguramos de no perder varias apuestas por un único pronóstico fallido.
+            - REGLA NO REPETIR: No repitas el mismo pronóstico en diferentes apuestas. Con esto nos aseguramos de no perder varias apuestas por un único pronóstico fallido. 
+            - REGLA EVENTO: Hay la posibilidad de que puedas hacer varios pronósticos diferentes para el mismo evento si te convencen mucho, siempre que no sean contradictorios (ej: victoria del local y over 2.5 goles).
 
             REGLAS DE FORMATO (STRICT JSON):
             - Devuelve UNICAMENTE un ARRAY JSON `[...]`.

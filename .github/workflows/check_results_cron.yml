@@ -1,0 +1,28 @@
+name: 3º - Comprobador Automático de Resultados
+on:
+  schedule:
+    - cron: '0 * * * *' # Cada hora en punto
+  workflow_dispatch:
+
+jobs:
+  check-results:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests redis python-dotenv
+
+      - name: Run Result Checker
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          API_KEY: ${{ secrets.API_KEY }}
+        run: python backend/src/services/check_api_results.py

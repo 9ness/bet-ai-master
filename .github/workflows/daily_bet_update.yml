@@ -1,7 +1,7 @@
 name: 2º - Recolector de datos API
 on:
   schedule:
-    - cron: '0 8 * * *' # 09:00 AM España
+    - cron: '0 7 * * *' # 08:00 AM España
   workflow_dispatch:
     inputs:
       mode:

@@ -436,6 +436,47 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
         });
     }
 
+    // Helper: Check if started
+    const [hasStarted, setHasStarted] = useState(false);
+
+    useEffect(() => {
+        const checkStarted = () => {
+            if (!startTime) return;
+            try {
+                const now = new Date();
+                let target = new Date();
+
+                // Reuse parsing logic
+                if (startTime.includes('T') || startTime.includes('-')) {
+                    target = new Date(startTime);
+                } else {
+                    const [hours, minutes] = startTime.split(':').map(Number);
+                    // Allow explicit date prop or data.date
+                    const dStr = date || data.date;
+                    if (dStr && dStr.includes('-')) {
+                        if (dStr.split('-')[0].length === 2 && dStr.split('-')[2].length === 4) {
+                            // DD-MM-YYYY
+                            const [d, m, y] = dStr.split('-').map(Number);
+                            target = new Date(y, m - 1, d);
+                        } else {
+                            target = new Date(dStr);
+                        }
+                    }
+                    target.setHours(hours, minutes, 0, 0);
+                }
+
+                if (now >= target) setHasStarted(true);
+            } catch (e) {
+                // ignore
+            }
+        };
+
+        checkStarted();
+        const timer = setInterval(checkStarted, 60000); // Update every minute
+        return () => clearInterval(timer);
+    }, [startTime, date, data.date]);
+
+
     const isListLayout = type === 'funbet' || (type === 'value' && !!componentsToRender && componentsToRender.length > 0);
 
     return (
@@ -455,6 +496,8 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
                     </div>
                 )}
 
+                {/* 1.5 STARTED Badge within Status Area (Optional, but user asked for ICON next to text mostly) -> Let's keep this clean */}
+
                 {/* 2. Start Time Badge (Always show if available) */}
                 {startTime && (
                     <div className="flex items-center gap-2">
@@ -463,9 +506,19 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
                             <span>{extractTime(startTime)}</span>
                         </div>
 
-                        {/* 3. Countdown (Only if PENDING/undefined) */}
+                        {/* 3. Countdown (Only if PENDING/undefined AND NOT Started) */}
                         {(!data.status || data.status === 'PENDING' || data.status === 'PENDIENTE') && (
-                            <CountdownTimer targetTime={startTime} targetDate={date || data.date} />
+                            hasStarted ? (
+                                <div className="text-[10px] font-bold text-blue-500 animate-pulse flex items-center gap-1">
+                                    <span className="relative flex h-2 w-2">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                                    </span>
+                                    EN JUEGO
+                                </div>
+                            ) : (
+                                <CountdownTimer targetTime={startTime} targetDate={date || data.date} />
+                            )
                         )}
                     </div>
                 )}
@@ -546,6 +599,11 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
                                             {(sel.status === 'LOST' || sel.status === 'PERDIDA') && <XIcon size={14} className="text-rose-500" />}
                                             {(sel.status === 'PENDING' || sel.status === 'PENDIENTE' || !sel.status) && (
                                                 <>
+                                                    {/* In Selections We also check time for started icon? Or keep simple. 
+                                                        User asked for "un icono". Let's assume global. 
+                                                        But if multiple selections have different times...
+                                                        Implementing per-selection start check is complex here without refactoring.
+                                                        Let's stick to showing time. */}
                                                     <span className="text-[10px] font-mono text-muted-foreground mr-1.5 font-bold opacity-80 decoration-0 align-middle">
                                                         {extractTime(sel.time || data.startTime || data.time)}
                                                     </span>
@@ -597,7 +655,22 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
                     ) : (
                         <div className="flex justify-between items-center">
                             <span className="text-muted-foreground text-sm">Pick</span>
-                            <span className={`font-bold ${config.textColor}`}>{data.pick}</span>
+                            <div className="flex items-center gap-2">
+                                <span className={`font-bold ${config.textColor}`}>{data.pick}</span>
+                                {(data.status === 'WON' || data.status === 'GANADA') && (
+                                    <Check size={18} className="text-emerald-500 stroke-[3px]" />
+                                )}
+                                {(data.status === 'LOST' || data.status === 'PERDIDA') && (
+                                    <XIcon size={18} className="text-rose-500 stroke-[3px]" />
+                                )}
+                                {/* PENDING + STARTED ICON */}
+                                {(!data.status || data.status === 'PENDING' || data.status === 'PENDIENTE') && hasStarted && (
+                                    <div className="relative flex items-center justify-center w-4 h-4" title="En Juego">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                                        <Clock size={16} className="text-blue-500 relative z-10 animate-pulse" />
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>
