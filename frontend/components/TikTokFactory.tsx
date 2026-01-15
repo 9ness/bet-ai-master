@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import html2canvas from 'html2canvas';
-import { Download, Loader2, Settings2, Image as ImageIcon, ChevronDown, ChevronRight, ChevronLeft, RefreshCw, Save, ScanEye, Link as LinkIcon, X } from 'lucide-react';
+import { Download, Loader2, Settings2, Image as ImageIcon, ChevronDown, ChevronRight, ChevronLeft, RefreshCw, Save, ScanEye, Link as LinkIcon, X, Copy, Check } from 'lucide-react';
 
 /* 
  * TIKTOK FACTORY v6.0 - SMART BACKGROUND ENGINE
@@ -22,6 +22,79 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
     const [images, setImages] = useState<string[]>([]);
     const [previewImg, setPreviewImg] = useState<string | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const [copiedCaption, setCopiedCaption] = useState(false);
+
+    // Social Content State
+    const [socialContent, setSocialContent] = useState<any>(null);
+    const [showSocialModal, setShowSocialModal] = useState(false);
+
+    // Fetch Social Content on Mount
+    useEffect(() => {
+        const fetchSocial = async () => {
+            try {
+                const res = await fetch('/api/social/tiktok');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.title) {
+                        setSocialContent(data);
+                    }
+                }
+            } catch (err) {
+                console.error("Error fetching social content", err);
+            }
+        };
+        fetchSocial();
+    }, []);
+
+    // Helper: Generate TikTok Caption (Fallback)
+    const generateCaption = () => {
+        // ... (Keep existing logic as fallback if APi content missing)
+        const allSelections = getAllSelections(); // Use result directly
+        let text = `${config.introTitle} ${config.introEmoji1}\n\n`;
+
+        allSelections.forEach((group: any) => {
+            const { match } = parseBetDisplay(group.matchDisplay, "");
+            const sportIcon = group.sport === 'basketball' ? '🏀' : '⚽';
+
+            text += `${sportIcon} ${match}\n`;
+
+            group.picks.forEach((pick: string, i: number) => {
+                const betRef = group.originalBets[i];
+                const reason = betRef.reason || "";
+                const odd = betRef.total_odd || betRef.odd || "";
+
+                const { pick: displayPick } = parseBetDisplay(group.matchDisplay, pick);
+
+                text += `✅ ${displayPick} ${odd ? `(@${parseFloat(odd).toFixed(2)})` : ''}\n`;
+                if (reason) {
+                    // Clean up reason: remove italics markers or markdown if any
+                    const cleanReason = reason.replace(/\*/g, "").trim();
+                    text += `📝 ${cleanReason}\n`;
+                }
+                text += `\n`;
+            });
+        });
+
+        text += `\n${config.outroTitle}\n${config.outroSub}\n`;
+        text += `\n#apuestas #parlay #futbol #nba #betting #deportes`;
+
+        return text;
+    };
+
+    const handleCopyCaption = () => {
+        const text = generateCaption();
+        navigator.clipboard.writeText(text).then(() => {
+            setCopiedCaption(true);
+            setTimeout(() => setCopiedCaption(false), 2000);
+        });
+    };
+
+    const handleCopyText = (text: string) => {
+        navigator.clipboard.writeText(text).then(() => {
+            // Simple alert or toast could go here, reusing setCopiedCaption for simplicity or new state
+            alert("¡Copiado al portapapeles!");
+        });
+    };
 
     // Dynamic date for default title
     const getDayName = () => {
@@ -535,7 +608,57 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
     };
 
     return (
-        <div className="w-full h-full flex flex-col md:flex-row bg-card border border-white/10 rounded-3xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-300">
+        <div className="w-full h-full flex flex-col md:flex-row bg-card border border-white/10 rounded-3xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-300 relative">
+
+            {/* SOCIAL MODAL */}
+            {showSocialModal && socialContent && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-6">
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-xl font-black text-white flex items-center gap-2">📱 Contenido Viral Generado</h2>
+                            <button onClick={() => setShowSocialModal(false)} className="text-white/50 hover:text-white">
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        {/* TITLE SECTION */}
+                        <div className="space-y-2">
+                            <label className="text-xs uppercase font-bold text-emerald-400">Título (Headline)</label>
+                            <div className="flex gap-2">
+                                <div className="flex-1 bg-black/50 p-3 rounded-xl border border-white/5 text-white font-bold text-lg">
+                                    {socialContent.title}
+                                </div>
+                                <button
+                                    onClick={() => handleCopyText(socialContent.title)}
+                                    className="bg-white text-black p-3 rounded-xl hover:bg-zinc-200 transition-colors"
+                                >
+                                    <Copy size={20} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* DESCRIPTION SECTION */}
+                        <div className="space-y-2">
+                            <label className="text-xs uppercase font-bold text-purple-400">Descripción (Caption)</label>
+                            <div className="flex gap-2 items-start">
+                                <div className="flex-1 bg-black/50 p-3 rounded-xl border border-white/5 text-white/80 text-sm whitespace-pre-wrap max-h-[300px] overflow-y-auto custom-scrollbar">
+                                    {socialContent.description || socialContent.caption}
+                                </div>
+                                <button
+                                    onClick={() => handleCopyText(socialContent.description || socialContent.caption)}
+                                    className="bg-white text-black p-3 rounded-xl hover:bg-zinc-200 transition-colors"
+                                >
+                                    <Copy size={20} />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="pt-4 border-t border-white/10 text-center">
+                            <p className="text-[10px] text-white/30">Generado automáticamente por Gemini • {new Date(socialContent.updated_at).toLocaleTimeString()}</p>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* LEFT: SETTINGS PANEL */}
             <div className="w-full md:w-1/3 border-r border-white/10 bg-black/40 flex flex-col h-auto md:h-full shrink-0">
@@ -672,30 +795,42 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                 </div>
 
                 <div className="p-4 border-t border-white/10 bg-black/20">
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-3 gap-2">
+                        {/* VIEW VIRAL BUTTON */}
+                        {socialContent && (
+                            <button
+                                onClick={() => setShowSocialModal(true)}
+                                className="bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 text-[10px] rounded-xl shadow-lg transition-all active:scale-95 flex flex-col items-center justify-center gap-1 leading-tight"
+                            >
+                                <ScanEye size={16} /> VER VIRAL
+                            </button>
+                        )}
+                        {!socialContent && (
+                            <button disabled className="bg-zinc-800 text-white/20 font-bold py-3 text-[10px] rounded-xl border border-white/5 flex flex-col items-center justify-center gap-1">
+                                <Loader2 size={16} /> NO DATA
+                            </button>
+                        )}
+
                         {/* GENERATE BUTTON */}
                         <button
                             onClick={generateImages}
                             disabled={generating}
-                            className="flex-1 bg-white hover:bg-gray-200 text-black font-bold py-3 text-xs rounded-xl shadow-lg transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                            className="bg-white hover:bg-gray-200 text-black font-bold py-3 text-[10px] rounded-xl shadow-lg transition-all active:scale-95 disabled:opacity-50 flex flex-col items-center justify-center gap-1 leading-tight"
                         >
                             {generating ? <Loader2 className="animate-spin" size={16} /> : <ImageIcon size={16} />}
-                            {generating ? 'RENDERING...' : 'GENERAR'}
+                            {generating ? '...' : 'GENERAR'}
                         </button>
 
                         {/* DOWNLOAD ALL BUTTON */}
                         <button
                             onClick={downloadAll}
                             disabled={images.length === 0}
-                            className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 text-xs rounded-xl shadow-lg transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 text-[10px] rounded-xl shadow-lg transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1 leading-tight"
                         >
                             <Save size={16} /> BAJAR TODO
                         </button>
                     </div>
-                    {allSelections.length === 0 && (
-                        <p className="text-center text-red-400 text-[10px] mt-1">⚠️ No se encontraron apuestas</p>
-                    )}
-                    <p className="text-center text-white/30 text-[10px] mt-1">{slidesData.length} diapositivas de apuestas (+2 portada/final)</p>
+                    <p className="text-center text-white/30 text-[10px] mt-2">{slidesData.length} slides (+2)</p>
                 </div>
             </div>
 

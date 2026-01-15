@@ -177,7 +177,7 @@ class SportsDataService:
                     "id": fix_id,
                     "date": date_str, 
                     "timestamp": match_ts, 
-                    "startTime": datetime.fromtimestamp(match_ts).strftime('%Y-%m-%d %H:%M'),
+                    "startTime": (datetime.fromtimestamp(match_ts) + timedelta(hours=1)).strftime('%Y-%m-%d %H:%M'),
                     "home": home,
                     "away": away,
                     "league": league_name,

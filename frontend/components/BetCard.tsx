@@ -176,8 +176,12 @@ const getEarliestTime = (data: BetData): string | null => {
 };
 
 // Helper: Extract odd from text if not provided
-const getCleanPickAndOdd = (pick: string, explicitOdd?: number) => {
-    if (explicitOdd) return { text: pick, odd: explicitOdd.toFixed(2) };
+const getCleanPickAndOdd = (pick: string, explicitOdd?: number | string) => {
+    if (explicitOdd) {
+        // If it's a number, format it. If it's a string (like a time erroneously placed there), pass it through.
+        const formattedOdd = typeof explicitOdd === 'number' ? explicitOdd.toFixed(2) : String(explicitOdd);
+        return { text: pick, odd: formattedOdd };
+    }
 
     const match = pick.match(/[\(@](\d+\.\d+)[\)]?/);
     if (match) {
@@ -224,20 +228,104 @@ const extractTime = (dateStr?: string) => {
 const FormattedReason = ({ text }: { text?: string }) => {
     if (!text) return null;
 
-    // Split by ". " to separate sentences
-    const parts = text.split('. ').filter(p => p.trim().length > 0);
+    // Check if the text contains numbered list patterns like "1)", "2)", "1.", "2."
+    // We look for a digit followed by ) or . and a space
+    const hasNumberedList = /\d+[\)\.]\s/.test(text);
+
+    let parts: string[] = [];
+
+    if (hasNumberedList) {
+        // Advanced Logic: Numbered Lists
+        // 1. Insert a special delimiter before every numbered item to force a split
+        //    RegEx looks for: Start of string OR whitespace + Digit + ) or . + space
+        //    We maintain the list marker ($2) but precede it with our split token
+        const formatted = text.replace(/(^|\s)(\d+[\)\.])\s/g, (match, prefix, num) => {
+            return `|SPLIT|${num} `;
+        });
+
+        // 2. Also keep the old logic of separating introductory text if needed, 
+        //    but usually the first split handles the intro.
+        //    We split by our token.
+        parts = formatted.split('|SPLIT|').filter(p => p.trim().length > 0);
+    } else {
+        // Fallback Logic: Standard Bullet Points (split by sentences)
+        parts = text.split('. ').filter(p => p.trim().length > 0);
+    }
+
+    // Helper to highlight data points in text
+    const highlightContent = (text: string) => {
+        // 1. Check for Title Pattern at start (e.g. "Analysis:", "Market Edge (15%):")
+        //    Looking for text ending in ':' at the start. 
+        //    Limit length to avoid bolding entire long sentences if they happen to have a colon far away.
+        //    NOTE: Removed 's' flag for compatibility. matching across lines if handled by parts split anyway.
+        const titleMatch = text.match(/^(.{3,60}?):(\s+[\s\S]*)/);
+
+        let titlePart = "";
+        let bodyPart = text;
+
+        if (titleMatch) {
+            titlePart = titleMatch[1] + ":"; // Include the colon
+            bodyPart = titleMatch[2]; // The rest
+        }
+
+        // 2. Highlight numbers/data in the body
+        //    Regex for: Percents (15%), Decimals (1.50, 2.5), Scores (0-0, 1-2), X/Y stakes (1/10)
+        //    We split by capturing group to separate plain text from highlights
+        const dataRegex = /(\d+(?:[\.,]\d+)?%|\b\d+\.\d{2}\b|\b\d+-\d+\b|\b\d+\/\d+\b)/g;
+
+        const renderBody = (body: string) => {
+            return body.split(dataRegex).map((chunk, i) => {
+                if (dataRegex.test(chunk)) {
+                    return <span key={i} className="font-bold text-foreground/90">{chunk}</span>;
+                }
+                return <span key={i}>{chunk}</span>;
+            });
+        };
+
+        return (
+            <>
+                {titlePart && (
+                    <strong className="text-foreground/90 font-bold block sm:inline mb-1 sm:mb-0">
+                        {titlePart}
+                    </strong>
+                )}
+                {renderBody(bodyPart)}
+            </>
+        );
+    };
 
     return (
-        <ul className="text-sm text-muted-foreground space-y-1.5 mt-3 text-left">
+        <ul className="text-sm text-muted-foreground space-y-2 mt-3 text-left font-normal">
             {parts.map((part, idx) => {
                 let content = part.trim();
-                // Add period back if missing (since split removes it from the middle ones, and last one might have it)
-                if (!content.endsWith('.')) content += '.';
+
+                // Check if this specific line is a numbered item
+                // NOTE: removed 's' flag for compatibility. format is usually single line or we use [\s\S] if needed.
+                const numberMatch = content.match(/^(\d+[\)\.])\s+([\s\S]*)/);
+
+                if (numberMatch && hasNumberedList) {
+                    const [_, num, rest] = numberMatch;
+
+                    return (
+                        <li key={idx} className="flex gap-2 items-start pl-1">
+                            {/* Number formatted in Primary Color */}
+                            <span className="text-primary font-bold mt-[2px] whitespace-nowrap">{num}</span>
+                            <span className="leading-relaxed opacity-90 block">
+                                {highlightContent(rest)}
+                            </span>
+                        </li>
+                    );
+                }
+
+                // Standard Bullet logic
+                if (!hasNumberedList && !content.endsWith('.')) content += '.';
 
                 return (
                     <li key={idx} className="flex gap-2 items-start">
                         <span className="text-primary font-bold mt-[3px] text-[10px]">•</span>
-                        <span className="italic leading-relaxed opacity-90">{content}</span>
+                        <span className="leading-relaxed opacity-90 block">
+                            {highlightContent(content)}
+                        </span>
                     </li>
                 );
             })}
@@ -438,15 +526,18 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
 
     // Helper: Check if started
     const [hasStarted, setHasStarted] = useState(false);
+    const [, setTick] = useState(0); // Force re-render every minute
 
     useEffect(() => {
         const checkStarted = () => {
+            setTick(t => t + 1); // Force update to re-evaluate checkTimePassed for all items
+
             if (!startTime) return;
             try {
                 const now = new Date();
                 let target = new Date();
 
-                // Reuse parsing logic
+                // Reuse parsing logic (Global Start Time)
                 if (startTime.includes('T') || startTime.includes('-')) {
                     target = new Date(startTime);
                 } else {
@@ -479,6 +570,67 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
 
     const isListLayout = type === 'funbet' || (type === 'value' && !!componentsToRender && componentsToRender.length > 0);
 
+    const checkTimePassed = (...candidates: (string | undefined | null)[]) => {
+        try {
+            const now = new Date();
+
+            // Check each candidate
+            for (const item of candidates) {
+                if (!item || typeof item !== 'string') continue;
+
+                // A. Try parsing full date "YYYY-MM-DD HH:MM" manually to FORCE LOCAL TIME
+                // This avoids "new Date(string)" interpreting as UTC/Invalid
+                const fullDateMatch = item.match(/(\d{4})-(\d{2})-(\d{2})[\sT](\d{2}):(\d{2})/);
+                if (fullDateMatch) {
+                    const year = parseInt(fullDateMatch[1], 10);
+                    const month = parseInt(fullDateMatch[2], 10) - 1;
+                    const day = parseInt(fullDateMatch[3], 10);
+                    const hour = parseInt(fullDateMatch[4], 10);
+                    const min = parseInt(fullDateMatch[5], 10);
+
+                    const target = new Date(year, month, day, hour, min, 0);
+                    if (now >= target) return true;
+                    continue;
+                }
+
+                // B. Fallback: Just "HH:MM" (e.g. from pick text or simple time)
+                // Find "16:00" and compare against "Today 16:00" (or Card Date 16:00)
+                const timeMatch = item.match(/(\d{1,2}):(\d{2})/);
+                if (timeMatch) {
+                    const hours = parseInt(timeMatch[1], 10);
+                    const minutes = parseInt(timeMatch[2], 10);
+
+                    let target = new Date(); // Defaults to Now (Today)
+
+                    // Try to set date from card data context if available
+                    const dStr = date || data.date;
+                    if (dStr) {
+                        // Support DD-MM-YYYY format common in this app
+                        if (dStr.includes('-') && dStr.split('-').length === 3) {
+                            const parts = dStr.split('-');
+                            if (parts[0].length === 2 && parts[2].length === 4) {
+                                target = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+                            } else {
+                                // Fallback try parse
+                                const parsed = new Date(dStr);
+                                if (!isNaN(parsed.getTime())) target = parsed;
+                            }
+                        }
+                    }
+
+                    // If target became Invalid, reset to Today
+                    if (isNaN(target.getTime())) target = new Date();
+
+                    // Force Local Hours
+                    target.setHours(hours, minutes, 0, 0);
+
+                    if (now >= target) return true;
+                }
+            }
+            return false;
+        } catch { return false; }
+    };
+
     return (
         <div className={`group relative bg-card border border-border rounded-3xl p-6 transition-all duration-300 hover:shadow-2xl ${config.cardBorder} ${config.cardShadow} ${type === 'value' ? 'scale-105 z-10 shadow-xl' : ''}`}>
             {/* Header Line */}
@@ -500,7 +652,7 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
 
                 {/* 2. Start Time Badge (Always show if available) */}
                 {startTime && (
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col items-end gap-1">
                         <div className={`flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground bg-secondary px-2 py-1 rounded-full border border-border/50`}>
                             <Clock size={12} className="text-primary/70" />
                             <span>{extractTime(startTime)}</span>
@@ -514,7 +666,7 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
                                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                                         <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
                                     </span>
-                                    EN JUEGO
+                                    <span>EN JUEGO</span>
                                 </div>
                             ) : (
                                 <CountdownTimer targetTime={startTime} targetDate={date || data.date} />
@@ -632,14 +784,32 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
                                         {matchName !== "Combinada" && matchName !== "Selecciones" && (
                                             <div className="flex justify-between items-center mb-1">
                                                 <span className="text-xs font-semibold text-foreground/80">{matchName}</span>
-                                                {items[0].time && <span className="text-[9px] text-muted-foreground flex items-center gap-1"><Clock size={9} /> {items[0].time}</span>}
+                                                {items[0].time && (() => {
+                                                    const isStarted = checkTimePassed(items[0].time);
+                                                    return (
+                                                        <span className={`text-[9px] flex items-center gap-1 ${isStarted ? 'text-amber-500 font-bold' : 'text-muted-foreground'}`}>
+                                                            <Clock size={9} /> {items[0].time}
+                                                        </span>
+                                                    );
+                                                })()}
                                             </div>
                                         )}
                                         {items.map((item, i) => {
                                             const { text, odd } = getCleanPickAndOdd(item.pick, item.odd);
+                                            // Fallback: Check time in pick OR display odd (if data mismatch)
+                                            // Pass all candidates separately so the function checks them all
+                                            const isItemStarted = checkTimePassed(item.time, item.pick, (typeof odd === 'string' ? odd : String(odd)));
+
                                             return (
                                                 <div key={i} className={`flex justify-between items-center pl-2 border-l-2 ${type === 'funbet' ? 'border-amber-500/30' : 'border-violet-500/30'} my-1`}>
-                                                    <span className={`text-sm font-bold ${config.textColor}`}>{text}</span>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`text-sm font-bold ${config.textColor}`}>{text}</span>
+                                                        {isItemStarted && (!data.status || data.status === 'PENDING' || data.status === 'PENDIENTE') && (
+                                                            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20" title="En Juego">
+                                                                <Clock size={10} className="text-amber-500" />
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                     {odd && (
                                                         <span className="text-xs font-mono font-bold text-muted-foreground bg-secondary/80 px-1.5 py-0.5 rounded border border-border/50 whitespace-nowrap ml-2">
                                                             {odd}
