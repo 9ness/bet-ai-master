@@ -159,11 +159,12 @@ def check_bets():
         bets_modified = False
         
         for bet in day_data["bets"]:
-            # Skip if already resolved (WIN/LOSS/PUSH/MANUAL_CHECK)
-            if bet.get("status") in ["WIN", "LOSS", "PUSH", "VOID", "MANUAL_CHECK"]:
+            # Skip if already finalized with NEW statuses
+            # We allow 'WIN', 'LOSS', 'PENDING' to be re-checked to update format/fix bugs
+            if bet.get("status") in ["WON", "LOST", "PUSH", "VOID", "MANUAL_CHECK"]:
                 continue
                 
-             # GLOBAL CHECK: Only proceed if ALL selections are resolved or we find a loser
+            # GLOBAL CHECK: Only proceed if ALL selections are resolved or we find a loser
             selections = bet.get("selections", [])
             if not selections: continue
             
@@ -177,10 +178,10 @@ def check_bets():
             
             # --- PROCESS SELECTIONS ---
             for sel in selections:
-                # Skip if selection already final
-                if sel.get("status") in ["WIN", "LOSS", "PUSH", "VOID"]:
-                    if sel["status"] == "LOSS": any_lost = True
-                    if sel["status"] != "WIN": all_won = False
+                # Same for selections: Only skip if strictly WON/LOST (New Schema)
+                if sel.get("status") in ["WON", "LOST", "PUSH", "VOID"]:
+                    if sel["status"] == "LOST": any_lost = True
+                    if sel["status"] != "WON": all_won = False
                     continue
                     
                 # Check Time Constraint (+3 hours margin)
