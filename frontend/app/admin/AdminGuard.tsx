@@ -9,15 +9,14 @@ import AdminAnalytics from '@/components/AdminAnalytics';
 
 import TikTokFactory from '@/components/TikTokFactory';
 
-export default function AdminGuard({
-    children,
-    predictions,
-    formattedDate
-}: {
+type AdminGuardProps = {
     children: React.ReactNode;
     predictions?: any;
     formattedDate?: string;
-}) {
+    rawDate?: string;
+};
+
+export default function AdminGuard({ children, predictions, formattedDate, rawDate }: AdminGuardProps) {
     // Auth State
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [passwordInput, setPasswordInput] = useState("");
@@ -377,7 +376,7 @@ export default function AdminGuard({
                         <div className="animate-in fade-in zoom-in-95 duration-200 h-[calc(100vh-12rem)]">
                             {/* Pass props if available */}
                             {predictions && formattedDate ? (
-                                <TikTokFactory predictions={predictions} formattedDate={formattedDate} />
+                                <TikTokFactory predictions={predictions} formattedDate={formattedDate} rawDate={rawDate} />
                             ) : (
                                 <div className="flex items-center justify-center h-full text-white/50">
                                     Cargando datos para TikTok Factory...

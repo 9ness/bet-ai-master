@@ -14,9 +14,10 @@ import { Download, Loader2, Settings2, Image as ImageIcon, ChevronDown, ChevronR
 type TikTokFactoryProps = {
     predictions: any;
     formattedDate: string;
+    rawDate?: string;
 };
 
-export default function TikTokFactory({ predictions, formattedDate }: TikTokFactoryProps) {
+export default function TikTokFactory({ predictions, formattedDate, rawDate }: TikTokFactoryProps) {
     const [generating, setGenerating] = useState(false);
     const [images, setImages] = useState<string[]>([]);
     const [previewImg, setPreviewImg] = useState<string | null>(null);
@@ -46,8 +47,26 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
         bgSelection: [] as string[],
 
         // Options
-        addHundred: true
+        addHundred: true,
+        useFullDate: true
     });
+
+    // Helper: Format Date like "Jueves 15 ene"
+    const getFormattedDateLong = () => {
+        try {
+            // Prefer rawDate (ISO) if available, otherwise fall back to formattedDate (which might fail)
+            const dateStr = rawDate || formattedDate;
+            const date = new Date(dateStr);
+            const dayName = new Intl.DateTimeFormat('es-ES', { weekday: 'long' }).format(date);
+            const dayNum = date.getDate();
+            const monthName = new Intl.DateTimeFormat('es-ES', { month: 'short' }).format(date);
+            const monthCap = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+            // Capitalize first letter of day
+            return `${dayName.charAt(0).toUpperCase() + dayName.slice(1)} ${dayNum} ${monthCap}`;
+        } catch (e) {
+            return formattedDate;
+        }
+    };
 
     // Helper: Calculate Total Odds for Initial State
     const calculateInitialOdds = (addHundred: boolean) => {
@@ -91,6 +110,32 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
 
         return `+${oddValue} 📈`;
     };
+
+    // Effect: Handle Date Format Toggle
+    useEffect(() => {
+        if (config.useFullDate) {
+            const longDate = getFormattedDateLong();
+            setConfig(prev => ({
+                ...prev,
+                introTitle: `JUBILADORA HOY\n${longDate}`,
+                introEmoji1: '⚽',
+                introEmoji2: '📅'
+            }));
+        } else {
+            // Revert to simple day name, but keep current title text if modified? 
+            // Better to reset to default pattern to match user expectation of "toggle"
+            setConfig(prev => ({
+                ...prev,
+                introTitle: `JUBILADORA HOY\n(${getDayName()})`,
+                // Don't necessarily revert emojis, or revert to default? 
+                // User didn't specify revert behavior, but implied specific emojis for specific format.
+                // Let's keep them as is if un-checked, or maybe reset to default?
+                // Let's leave them, or reset to default '🤫' '✅' if that was the state.
+                introEmoji1: '🤫',
+                introEmoji2: '✅'
+            }));
+        }
+    }, [config.useFullDate]);
 
     // Set initial introSubtitle after config is defined
     useEffect(() => {
@@ -513,6 +558,18 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
                                 <div>
                                     <label className="text-xs text-white/50 block mb-1">Título Principal</label>
                                     <textarea value={config.introTitle} onChange={e => setConfig({ ...config, introTitle: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded p-2 text-white text-sm h-16" />
+                                    <div className="mt-2 flex items-center gap-2">
+                                        <input
+                                            type="checkbox"
+                                            id="useFullDate"
+                                            checked={config.useFullDate}
+                                            onChange={(e) => setConfig({ ...config, useFullDate: e.target.checked })}
+                                            className="accent-emerald-500 w-4 h-4"
+                                        />
+                                        <label htmlFor="useFullDate" className="text-xs text-emerald-400 cursor-pointer select-none">
+                                            Usar Fecha Larga + Iconos
+                                        </label>
+                                    </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2">
                                     <div>
@@ -724,16 +781,16 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
                                 const line2 = parts[1] || "";
 
                                 return (
-                                    <div className="flex flex-col items-center gap-4 transform -rotate-2 w-full">
+                                    <div className="flex flex-col items-center gap-4 w-full">
                                         {/* Line 1 */}
-                                        <div className="bg-white px-12 py-6 rounded-2xl shadow-lg w-fit max-w-[90%]">
-                                            <h1 className="text-7xl font-black text-black uppercase tracking-tighter leading-tight whitespace-nowrap text-center">
+                                        <div className="bg-white px-12 py-6 rounded-2xl w-fit max-w-[90%]">
+                                            <h1 className="text-7xl font-black text-black tracking-tighter leading-tight whitespace-nowrap text-center">
                                                 {line1}
                                             </h1>
                                         </div>
                                         {/* Line 2 with Icons */}
-                                        <div className="bg-white px-12 py-4 rounded-2xl shadow-lg flex items-center gap-6 w-fit max-w-[95%]">
-                                            <h1 className="text-6xl font-black text-black uppercase tracking-tighter leading-tight whitespace-nowrap">
+                                        <div className="bg-white px-12 py-4 rounded-2xl flex items-center gap-6 w-fit max-w-[95%]">
+                                            <h1 className="text-6xl font-black text-black tracking-tighter leading-tight whitespace-nowrap">
                                                 {line2}
                                             </h1>
                                             <div className="flex items-center gap-4">
@@ -749,12 +806,14 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
                                 );
                             })()}
 
-                            {/* ODDS PILL: STICKER STYLE (Editable) */}
-                            <div className="bg-white px-14 py-8 rounded-2xl shadow-2xl transform rotate-2 mt-8">
-                                <span className="text-7xl font-black text-black uppercase tracking-tighter leading-none">
-                                    {config.introSubtitle}
-                                </span>
-                            </div>
+                            {/* ODDS PILL: STICKER STYLE (Editable) - Hide if empty */}
+                            {config.introSubtitle && config.introSubtitle.trim() !== "" && (
+                                <div className="bg-white px-14 py-8 rounded-2xl mt-8">
+                                    <span className="text-7xl font-black text-black uppercase tracking-tighter leading-none">
+                                        {config.introSubtitle}
+                                    </span>
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -769,11 +828,14 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
                                     const { match } = parseBetDisplay(group.matchDisplay, "");
                                     const sportIcon = group.sport === 'basketball' ? '🏀' : '⚽';
 
+                                    // Extract team names for comparison
+                                    const teams = match.toLowerCase().split(' vs ').map(t => t.trim());
+
                                     return (
                                         <div key={bIdx} className="w-full flex flex-col items-center gap-4">
-                                            {/* MATCH TITLE: Native Insta Style */}
-                                            <div className="inline-block bg-white px-8 py-4 rounded-xl max-w-[95%] text-center shadow-lg transform -rotate-1">
-                                                <h3 className="text-5xl font-black text-black uppercase tracking-tight leading-tight whitespace-pre-wrap break-words">
+                                            {/* MATCH TITLE: Inverted Colors (Black BG, White Text) - NO BORDER */}
+                                            <div className="inline-block bg-black px-8 py-4 rounded-xl max-w-[95%] text-center">
+                                                <h3 className="text-5xl font-black text-white uppercase tracking-tight leading-tight whitespace-pre-wrap break-words">
                                                     {match} {sportIcon}
                                                 </h3>
                                             </div>
@@ -781,10 +843,26 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
                                             {/* PICKS LOOP */}
                                             {group.picks.map((pick: string, pIdx: number) => {
                                                 const { pick: displayPick } = parseBetDisplay(group.matchDisplay, pick);
+
+                                                // Intelligent Casing Logic
+                                                let formattedPick = displayPick;
+                                                const lowerPick = displayPick.toLowerCase();
+
+                                                // Check if the pick is one of the teams
+                                                const isTeam = teams.some(t => lowerPick.includes(t) || t.includes(lowerPick));
+
+                                                if (isTeam) {
+                                                    // Title Case for Teams (e.g. "Orlando Magic")
+                                                    formattedPick = lowerPick.replace(/(?:^|\s)\S/g, a => a.toUpperCase());
+                                                } else {
+                                                    // Sentence Case for others (e.g. "Más de 1.5 goles")
+                                                    formattedPick = lowerPick.charAt(0).toUpperCase() + lowerPick.slice(1);
+                                                }
+
                                                 return (
-                                                    <div key={pIdx} className="inline-block bg-white px-8 py-4 rounded-xl max-w-[95%] text-center shadow-lg transform rotate-1 mt-[-10px]">
-                                                        <span className="text-5xl font-black text-black uppercase tracking-tight leading-tight whitespace-pre-wrap break-words">
-                                                            {displayPick} ✅
+                                                    <div key={pIdx} className="inline-block bg-white px-8 py-4 rounded-xl max-w-[95%] text-center mt-[-10px]">
+                                                        <span className="text-5xl font-black text-black tracking-tight leading-tight whitespace-pre-wrap break-words">
+                                                            {formattedPick} ✅
                                                         </span>
                                                     </div>
                                                 );
@@ -804,14 +882,14 @@ export default function TikTokFactory({ predictions, formattedDate }: TikTokFact
                         <div className="relative z-10 w-full flex flex-col items-center gap-16 p-12">
 
                             {/* MAIN TEXT - REMOVED SHADOW-2XL replaced with shadow-lg for flat look */}
-                            <div className="bg-white px-10 py-10 rounded-2xl max-w-[95%] text-center transform rotate-1">
+                            <div className="bg-white px-10 py-10 rounded-2xl max-w-[95%] text-center">
                                 <h2 className="text-7xl font-black text-black uppercase tracking-tighter leading-tight whitespace-pre-line">
                                     {config.outroTitle}
                                 </h2>
                             </div>
 
                             {/* SUBTEXT (White w/ shadow-lg) */}
-                            <div className="bg-white px-12 py-6 rounded-2xl transform -rotate-1">
+                            <div className="bg-white px-12 py-6 rounded-2xl">
                                 <p className="text-4xl font-black text-black uppercase tracking-tight">
                                     {config.outroSub}
                                 </p>

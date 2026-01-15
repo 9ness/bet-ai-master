@@ -22,7 +22,7 @@ export default async function AdminPage() {
     }
 
     return (
-        <AdminGuard predictions={predictions} formattedDate={formattedDate}>
+        <AdminGuard predictions={predictions} formattedDate={formattedDate} rawDate={date}>
             <DailyPredictions predictions={predictions} isAdmin={true} />
         </AdminGuard>
     );
