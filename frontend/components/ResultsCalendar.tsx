@@ -302,7 +302,26 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
                     </span>
                 );
             })()}
-            <p className="text-xs text-muted-foreground mb-3 italic">{bet.pick}</p>
+            <p className="text-xs text-muted-foreground mb-1 italic">{bet.pick}</p>
+            {/* Single Bet Result Display */}
+            {(!hasDetails || details.length === 1) && (() => {
+                const single = details[0] || {};
+                if (single.result) {
+                    let s = (single.status || status || 'PENDING').toUpperCase();
+                    if (s === 'GANADA') s = 'WON';
+                    if (s === 'PERDIDA') s = 'LOST';
+
+                    return (
+                        <p className={`text-[10px] font-bold mb-3 ${s === 'WON' ? 'text-emerald-500' :
+                                s === 'LOST' ? 'text-rose-500' :
+                                    'text-muted-foreground'
+                            }`}>
+                            {single.result}
+                        </p>
+                    );
+                }
+                return <div className="mb-3"></div>;
+            })()}
 
             {/* Expansion Toggle & Save Bar - Only show if > 1 selection (Combinada) */}
             {hasDetails && details.length > 1 && (
@@ -361,9 +380,20 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
                                             </div>
                                         )}
                                         {/* Line 2: Match: Pick */}
-                                        <div className="flex flex-wrap items-center leading-tight">
-                                            <span className="text-muted-foreground mr-1 shrink-0 text-xs">{detail.match}:</span>
-                                            <span className="font-medium text-foreground text-xs">{detail.pick}</span>
+                                        <div className="flex flex-col">
+                                            <div className="flex flex-wrap items-center leading-tight">
+                                                <span className="text-muted-foreground mr-1 shrink-0 text-xs">{detail.match}:</span>
+                                                <span className="font-medium text-foreground text-xs">{detail.pick}</span>
+                                            </div>
+                                            {/* RESULT LINE */}
+                                            {detail.result && (
+                                                <div className={`text-[10px] font-bold mt-0.5 ${(rawStatus === 'WON' || rawStatus === 'GANADA') ? 'text-emerald-500' :
+                                                    (rawStatus === 'LOST' || rawStatus === 'PERDIDA') ? 'text-rose-500' :
+                                                        'text-muted-foreground'
+                                                    }`}>
+                                                    {detail.result}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 

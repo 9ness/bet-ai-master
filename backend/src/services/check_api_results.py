@@ -220,6 +220,7 @@ def check_bets():
                     continue
                     
                 # --- EVALUATE WIN/LOSS ---
+                # --- LOGIC ENGINE ---
                 pick = sel["pick"].lower()
                 home_score = data["home_score"]
                 away_score = data["away_score"]
@@ -237,16 +238,33 @@ def check_bets():
                             
                     # 2. GOALS / POINTS (OVER/UNDER)
                     elif "más de" in pick or "over" in pick:
-                        val = float(pick.split()[-1].replace(",", "."))
+                        # Clean string: "más de 3.5 goles" -> "3.5"
+                        clean_pick = pick.replace("más de", "").replace("over", "").replace("goles", "").replace("goals", "").replace("puntos", "").replace("points", "").replace("pts", "").strip()
+                        # Extract first valid number
+                        import re
+                        match = re.search(r'\d+(\.\d+)?', clean_pick)
+                        if match:
+                             val = float(match.group())
+                        else:
+                             # Fallback
+                             val = float(clean_pick.split()[0].replace(",", "."))
+                        
                         total = home_score + away_score
                         is_win = total > val
+                        # Add totals to result
                         if sport == "basketball":
                             result_str += f" | {total} Pts"
                         else:
                             result_str += f" | {total} Goles"
                         
                     elif "menos de" in pick or "under" in pick:
-                        val = float(pick.split()[-1].replace(",", "."))
+                        clean_pick = pick.replace("menos de", "").replace("under", "").replace("goles", "").replace("goals", "").replace("puntos", "").replace("points", "").replace("pts", "").strip()
+                        match = re.search(r'\d+(\.\d+)?', clean_pick)
+                        if match:
+                             val = float(match.group())
+                        else:
+                             val = float(clean_pick.split()[0].replace(",", "."))
+                             
                         total = home_score + away_score
                         is_win = total < val
                         if sport == "basketball":
@@ -262,23 +280,38 @@ def check_bets():
                             is_win = home_score == 0 or away_score == 0
 
                     # 4. HANDICAP (Basket mainly)
-                    elif "hándicap" in pick:
-                        parts = pick.replace("hándicap", "").replace("asiático", "").split()
-                        line = float(parts[-1])
+                    elif "hándicap" in pick or "ah" in pick:
+                        # Normalize: "Local AH +3.5" -> remove words -> "+3.5"
+                        # Parsing logic: Find the number in the string (can be negative or positive)
+                        import re
+                        # Regex to find number like +3.5, -4.5, 5.5
+                        match_num = re.search(r'[-+]?\d*\.?\d+', pick.split(' ')[-1])
+                        if match_num:
+                            line = float(match_num.group())
+                        else:
+                            # Fallback if pick structure is unexpectedly complex
+                            parts = pick.replace("hándicap", "").replace("asiático", "").replace("ah", "").split()
+                            line = float(parts[-1])
                         
-                        margin = home_score - away_score
-                        
-                        if "local" in pick or "home" in pick:
-                            cover = margin + line
-                            is_win = cover > 0
-                            sign = "+" if cover > 0 else ""
-                            result_str += f" | {sign}{round(cover, 1)}"
+                        # Apply Handicap
+                        if "local" in pick or "home" in pick or "1" in pick.split():
+                            # Bet on Home with Line
+                            # Adjusted Home Score = Home + Line
+                            adj_home = home_score + line
+                            is_win = adj_home > away_score
                             
-                        elif "visitante" in pick or "away" in pick:
-                            cover = -margin + line
-                            is_win = cover > 0
-                            sign = "+" if cover > 0 else ""
-                            result_str += f" | {sign}{round(cover, 1)}"
+                            diff = adj_home - away_score
+                            sign = "+" if diff > 0 else ""
+                            result_str += f" | {sign}{round(diff, 1)}"
+                            
+                        elif "visitante" in pick or "away" in pick or "2" in pick.split():
+                            # Bet on Away with Line
+                            adj_away = away_score + line
+                            is_win = adj_away > home_score
+                            
+                            diff = adj_away - home_score
+                            sign = "+" if diff > 0 else ""
+                            result_str += f" | {sign}{round(diff, 1)}"
 
                     # 5. CORNERS (Football)
                     elif "córner" in pick or "corner" in pick:
@@ -287,7 +320,8 @@ def check_bets():
                              result_str += f" | {total_corners} Córners"
                         
                         if "más de" in pick or "over" in pick:
-                            val = float(pick.split()[-1])
+                            clean_pick = pick.replace("más de", "").replace("over", "").replace("córners", "").replace("corners", "").strip()
+                            val = float(clean_pick.split()[0].replace(",", "."))
                             if total_corners is not None:
                                 is_win = total_corners > val
                             else:
@@ -295,12 +329,13 @@ def check_bets():
 
                 except Exception as e:
                     print(f"      [WARN] Logic Parsing Error for '{pick}': {e}")
+                    # Skip auto-eval if we can't parse logic
                     pending_count += 1
                     all_won = False
                     continue
 
                 # --- UPDATE SELECTION ---
-                status_str = "WIN" if is_win else "LOSS"
+                status_str = "WON" if is_win else "LOST"
                 print(f"      => Result: {status_str} ({result_str})")
                 
                 sel["status"] = status_str

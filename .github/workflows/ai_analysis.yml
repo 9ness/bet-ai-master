@@ -1,4 +1,4 @@
-name: 3º - Analizador AI Pro
+name: 2º - Analizador AI Pro
 on:
   workflow_run:
     workflows: ["2º - Recolector de datos API"]

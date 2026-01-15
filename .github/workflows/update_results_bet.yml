@@ -1,4 +1,4 @@
-name: 1º - Actualiza resultados día anterior
+name: 0º - (Pruebas AI) Actualiza resultados día anterior
 
 on:
   schedule:
