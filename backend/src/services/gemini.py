@@ -36,6 +36,19 @@ class GeminiService:
     def get_today_date(self):
         return datetime.now().strftime("%Y-%m-%d")
 
+    def generate_text(self, prompt):
+        """
+        Generic method to generate text from a prompt.
+        """
+        if not GOOGLE_AVAILABLE:
+            return None
+        try:
+            response = self.model.generate_content(prompt)
+            return response.text
+        except Exception as e:
+            print(f"[ERROR] Gemini generate_text failed: {e}")
+            return None
+
     def get_recommendations(self, analyzed_data):
         today_str = datetime.now().strftime("%Y-%m-%d")
         print(f"Generando recomendaciones para: {today_str}")

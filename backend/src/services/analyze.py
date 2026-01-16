@@ -30,6 +30,7 @@ PICK_TRANSLATIONS = {
     "AH": "Hándicap Asiático",
     "Double Chance": "Doble Oportunidad",
     "(ML)": "(Prórroga incluída)",
+    "BTTS": "Ambos marcan:",
     "Corners": "Córners"
 }
 
@@ -46,11 +47,20 @@ def clean_team_name(name):
     if name.endswith(" Away"): name = name[:-5]
     return name.strip()
 
-def translate_pick(pick_text):
+def translate_pick(pick_text, home_team=None, away_team=None):
     """
-    Translates betting terms to Spanish.
+    Translates betting terms to Spanish and maps 1X2 to Team Names.
     """
     if not pick_text: return pick_text
+
+    # Exact match for 1X2 Market (String or Int)
+    p = str(pick_text).strip().upper()
+    if p == "1" and home_team:
+        return f"Gana {home_team}"
+    if p == "2" and away_team:
+        return f"Gana {away_team}"
+    if p == "X":
+        return "Empate"
     
     # Simple replacement checks
     for eng, esp in PICK_TRANSLATIONS.items():
@@ -58,6 +68,13 @@ def translate_pick(pick_text):
             pick_text = pick_text.replace(eng, esp)
             
     return pick_text
+    
+# ... (inside loop) ...
+
+                    # Translate Pick
+                    home_name = clean_team_name(source.get("home", ""))
+                    away_name = clean_team_name(source.get("away", ""))
+                    sel["pick"] = translate_pick(sel.get("pick", ""), home_name, away_name)
 
 def validate_bets_pre(candidates):
     """
@@ -141,7 +158,7 @@ def analyze():
                 "type": "safe",
                 "sport": "football", // o "basketball"
                 "startTime": "YYYY-MM-DD HH:mm",
-                "match": "Título Descriptivo de la apuesta (si es combinada, indica una informacion breve para saber en una linea de que trata la combinada)",
+                "match": "Título Descriptivo de la apuesta (si es una combinada debes indicar una informacion breve para saber en una linea de que trata la combinada, no pongas el nombre del primer partido de la combinada)",
                 "pick": "Resumen del Pick",
                 "stake": 6, // 6 para safe, 3 para value, 1 para funbet
                 "total_odd": 0.0, // Deja en 0.0, el código lo calculará
@@ -200,22 +217,21 @@ def analyze():
                         print(f"    [WARN] Fixture ID {fid} not found in Raw Data. Skipping selection.")
                         continue
                         
-                    # INJECT REAL DATA
-                    sel["match"] = f"{clean_team_name(source['home'])} vs {clean_team_name(source['away'])}"
-                    
-                    # INJECT REAL DATA
-                    sel["match"] = f"{clean_team_name(source['home'])} vs {clean_team_name(source['away'])}"
-                    
-                    # Pass League Metadata for Frontend
-                    sel["league"] = source.get("league", "Unknown")
-                    sel["league_id"] = source.get("league_id")
-                    sel["country"] = source.get("country")
-                    
-                    sel["sport"] = source.get("sport", "football")
-                    sel["time"] = source.get("startTime") or datetime.fromtimestamp(source.get("timestamp", 0)).strftime("%Y-%m-%d %H:%M")
-                    
-                    # Translate Pick
-                    sel["pick"] = translate_pick(sel.get("pick", ""))
+                # INJECT REAL DATA
+                sel["match"] = f"{clean_team_name(source['home'])} vs {clean_team_name(source['away'])}"
+                
+                # Pass League Metadata for Frontend
+                sel["league"] = source.get("league", "Unknown")
+                sel["league_id"] = source.get("league_id")
+                sel["country"] = source.get("country")
+                
+                sel["sport"] = source.get("sport", "football")
+                sel["time"] = source.get("startTime") or datetime.fromtimestamp(source.get("timestamp", 0)).strftime("%Y-%m-%d %H:%M")
+                
+                # Translate Pick
+                home_name = clean_team_name(source.get("home", ""))
+                away_name = clean_team_name(source.get("away", ""))
+                sel["pick"] = translate_pick(sel.get("pick", ""), home_name, away_name)
                     
                     # Store
                     real_selections.append(sel)
@@ -228,6 +244,10 @@ def analyze():
                 # Update selections with valid ones only
                 if not real_selections:
                     validation_error = "Bet has no valid selections (IDs not found)."
+                
+                # Strict Sort by Time (Earliest First)
+                real_selections.sort(key=lambda x: x.get("time", "9999"))
+                
                 bet["selections"] = real_selections
                 
                 # Update top-level metadata from first selection
