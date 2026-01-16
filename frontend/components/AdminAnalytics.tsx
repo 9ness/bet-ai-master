@@ -11,6 +11,11 @@ export default function AdminAnalytics() {
     // Month Selection State
     const [currentDate, setCurrentDate] = useState(new Date());
 
+    // ACCORDION STATES (Strict Independence)
+    const [isResumenOpen, setIsResumenOpen] = useState(true);
+    const [isEvolucionOpen, setIsEvolucionOpen] = useState(false);
+    const [isDesgloseOpen, setIsDesgloseOpen] = useState(false);
+
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true); // Reset loading
@@ -106,13 +111,15 @@ export default function AdminAnalytics() {
     );
 
     // Collapsible Section Helper - Compact Style
-    const CollapsibleSection = ({ title, children, defaultOpen = false }: { title: string, children: React.ReactNode, defaultOpen?: boolean }) => {
-        const [isOpen, setIsOpen] = useState(defaultOpen);
-
+    // Collapsible Section Helper - Controlled Component
+    const CollapsibleSection = ({ title, children, isOpen, onToggle }: { title: string, children: React.ReactNode, isOpen: boolean, onToggle: (e: React.MouseEvent) => void }) => {
         return (
             <div className="border border-white/10 rounded-xl overflow-hidden bg-white/5 my-2 relative z-30">
                 <button
-                    onClick={() => setIsOpen(!isOpen)}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onToggle(e);
+                    }}
                     className="w-full flex items-center justify-between p-2 cursor-pointer hover:bg-white/5 transition-colors select-none"
                     type="button"
                 >
@@ -136,14 +143,18 @@ export default function AdminAnalytics() {
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
             {/* Header with Selector */}
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4 relative mb-6">
-                <div className="text-center md:text-left relative z-10 w-full md:w-auto">
-                    <div className="absolute top-0 left-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-[40px] pointer-events-none -translate-x-1/2 -translate-y-1/2" />
-                    <h2 className="text-2xl md:text-3xl font-black mb-1 flex items-center justify-center md:justify-start gap-2 tracking-tight">
-                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-500">Rendimiento</span>
-                        <span className="text-foreground">Mensual</span>
-                    </h2>
-                </div>
+            {/* Header with Selector */}
+            <div className="text-center mb-8 relative z-10">
+                <h2 className="text-3xl md:text-4xl font-black mb-3 tracking-tighter">
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-500">Rendimiento</span> <span className="text-white drop-shadow-[0_2px_10px_rgba(255,255,255,0.2)]">Mensual</span>
+                </h2>
+                <div className="w-24 h-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full mx-auto mb-4 animate-pulse" />
+                <p className="text-muted-foreground/80 font-medium max-w-xl mx-auto text-sm md:text-base leading-relaxed">
+                    Visualiza tus métricas clave. Detecta tendencias, optimiza tu estrategia y maximiza tus beneficios.
+                </p>
+            </div>
+
+            <div className="flex flex-col md:flex-row justify-center items-center gap-4 relative mb-6">
 
                 {/* MONTH SELECTOR */}
                 <div className="flex items-center gap-2 bg-secondary/20 p-1 rounded-full border border-white/5 relative z-10">
@@ -166,7 +177,11 @@ export default function AdminAnalytics() {
             </div>
 
             {/* SECTION 1: RESUMEN FINANCIERO (Open by Default) */}
-            <CollapsibleSection title="Resumen Financiero" defaultOpen={true}>
+            <CollapsibleSection
+                title="Resumen Financiero"
+                isOpen={isResumenOpen}
+                onToggle={() => setIsResumenOpen(!isResumenOpen)}
+            >
                 {/* Top Metrics Cards - GRID 3x2 on MD - COMPACT MODE */}
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                     {/* 1. PROFIT */}
@@ -264,7 +279,11 @@ export default function AdminAnalytics() {
             </CollapsibleSection>
 
             {/* Main Chart: Profit Evolution (Closed by Default) */}
-            <CollapsibleSection title={`Evolución (${formattedMonth})`} defaultOpen={false}>
+            <CollapsibleSection
+                title={`Evolución (${formattedMonth})`}
+                isOpen={isEvolucionOpen}
+                onToggle={() => setIsEvolucionOpen(!isEvolucionOpen)}
+            >
                 <div className="h-[250px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={data}>
@@ -296,7 +315,12 @@ export default function AdminAnalytics() {
 
             {/* DETAILED STATS GRID */}
             {/* DETAILED STATS GRID */}
-            <CollapsibleSection title="Desglose Detallado" defaultOpen={false}>
+            {/* DETAILED STATS GRID */}
+            <CollapsibleSection
+                title="Desglose Detallado"
+                isOpen={isDesgloseOpen}
+                onToggle={() => setIsDesgloseOpen(!isDesgloseOpen)}
+            >
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
                     {/* 1. PERFORMANCE BY TYPE (Bar Chart) */}

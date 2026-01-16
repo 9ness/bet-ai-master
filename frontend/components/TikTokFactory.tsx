@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import html2canvas from 'html2canvas';
 import { Download, Loader2, Settings2, Image as ImageIcon, ChevronDown, ChevronRight, ChevronLeft, RefreshCw, Save, ScanEye, Link as LinkIcon, X, Copy, Check } from 'lucide-react';
+import { triggerTouchFeedback } from '@/utils/haptics';
 
 /* 
  * TIKTOK FACTORY v6.0 - SMART BACKGROUND ENGINE
@@ -634,7 +635,8 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                 </div>
                                 <button
                                     onClick={() => handleCopyText(socialContent.title, 'title')}
-                                    className={`p-3 rounded-xl transition-all duration-300 ${copiedStates['title'] ? 'bg-emerald-500 text-white' : 'bg-white text-black hover:bg-zinc-200'}`}
+                                    onTouchStart={() => triggerTouchFeedback()}
+                                    className={`btn-active-effect p-3 rounded-xl transition-transform duration-300 ${copiedStates['title'] ? 'bg-emerald-500 text-white' : 'bg-white text-black hover:bg-zinc-200'}`}
                                 >
                                     {copiedStates['title'] ? <Check size={20} /> : <Copy size={20} />}
                                 </button>
@@ -650,7 +652,8 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                 </div>
                                 <button
                                     onClick={() => handleCopyText(socialContent.description || socialContent.caption, 'desc')}
-                                    className={`p-3 rounded-xl transition-all duration-300 ${copiedStates['desc'] ? 'bg-emerald-500 text-white' : 'bg-white text-black hover:bg-zinc-200'}`}
+                                    onTouchStart={() => triggerTouchFeedback()}
+                                    className={`btn-active-effect p-3 rounded-xl transition-transform duration-300 ${copiedStates['desc'] ? 'bg-emerald-500 text-white' : 'bg-white text-black hover:bg-zinc-200'}`}
                                 >
                                     {copiedStates['desc'] ? <Check size={20} /> : <Copy size={20} />}
                                 </button>
@@ -804,7 +807,8 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                         {socialContent && (
                             <button
                                 onClick={() => setShowSocialModal(true)}
-                                className="bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 text-[10px] rounded-xl shadow-lg transition-all active:scale-95 flex flex-col items-center justify-center gap-1 leading-tight"
+                                onTouchStart={() => triggerTouchFeedback()}
+                                className="btn-active-effect bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 text-[10px] rounded-xl shadow-lg transition-transform active:scale-95 flex flex-col items-center justify-center gap-1 leading-tight"
                             >
                                 <ScanEye size={16} /> VER VIRAL
                             </button>
@@ -818,8 +822,9 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                         {/* GENERATE BUTTON */}
                         <button
                             onClick={generateImages}
+                            onTouchStart={() => triggerTouchFeedback()}
                             disabled={generating}
-                            className="bg-white hover:bg-gray-200 text-black font-bold py-3 text-[10px] rounded-xl shadow-lg transition-all active:scale-95 disabled:opacity-50 flex flex-col items-center justify-center gap-1 leading-tight"
+                            className="btn-active-effect bg-white hover:bg-gray-200 text-black font-bold py-3 text-[10px] rounded-xl shadow-lg transition-transform active:scale-95 disabled:opacity-50 flex flex-col items-center justify-center gap-1 leading-tight"
                         >
                             {generating ? <Loader2 className="animate-spin" size={16} /> : <ImageIcon size={16} />}
                             {generating ? '...' : 'GENERAR'}
@@ -828,8 +833,9 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                         {/* DOWNLOAD ALL BUTTON */}
                         <button
                             onClick={downloadAll}
+                            onTouchStart={() => triggerTouchFeedback()}
                             disabled={images.length === 0}
-                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 text-[10px] rounded-xl shadow-lg transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1 leading-tight"
+                            className="btn-active-effect bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 text-[10px] rounded-xl shadow-lg transition-transform active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1 leading-tight"
                         >
                             <Save size={16} /> BAJAR TODO
                         </button>

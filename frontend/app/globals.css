@@ -4,7 +4,8 @@
 
 @layer base {
   :root {
-    --background: 240 10% 3.9%; /* Slate 950 #020617 used as base */
+    --background: 240 10% 3.9%;
+    /* Slate 950 #020617 used as base */
     --foreground: 0 0% 98%;
 
     --card: 240 10% 3.9%;
@@ -13,7 +14,8 @@
     --popover: 240 10% 3.9%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 142 70.6% 45.3%; /* Emerald 500 */
+    --primary: 142 70.6% 45.3%;
+    /* Emerald 500 */
     --primary-foreground: 144 100% 97%;
 
     --secondary: 240 3.7% 15.9%;
@@ -70,7 +72,16 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground transition-colors duration-300;
   }
+}
+
+.btn-active-effect {
+  transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-active-effect:active {
+  transform: scale(0.96);
 }

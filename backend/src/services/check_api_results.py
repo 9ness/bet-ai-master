@@ -677,6 +677,15 @@ def update_monthly_stats(rs, month_str):
     
     win_rate_days = (summary["positive_days"] / summary["operated_days"] * 100) if summary["operated_days"] > 0 else 0.0
 
+    # Calculate Yesterday Profit
+    yesterday_str = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    yesterday_profit = 0.0
+    
+    for entry in chart_evolution:
+        if entry["date"] == yesterday_str:
+            yesterday_profit = entry["daily_profit"]
+            break
+
     final_summary = {
         "total_profit": round(summary["total_profit"], 2),
         "total_stake": round(summary["total_stake"], 2),
@@ -684,7 +693,8 @@ def update_monthly_stats(rs, month_str):
         "profit_factor": round(profit_factor, 2),
         "roi": round(roi, 2),
         "max_drawdown": round(max_drawdown, 2),
-        "win_rate_days": round(win_rate_days, 2) # Target ~55.6
+        "win_rate_days": round(win_rate_days, 2), # Target ~55.6
+        "yesterday_profit": round(yesterday_profit, 2)
     }
     
     # 2. Performance By Type
@@ -730,6 +740,7 @@ def update_monthly_stats(rs, month_str):
         "profit_factor": final_summary["profit_factor"],
         "max_drawdown": final_summary["max_drawdown"],
         "win_rate_days": final_summary["win_rate_days"],
+        "yesterday_profit": final_summary.get("yesterday_profit", 0.0),
         
         # Nested Objects
         "summary": final_summary,

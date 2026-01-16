@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Target, PartyPopper, Clock, Check, X as XIcon, RefreshCw, Save, ChevronDown, ChevronUp } from 'lucide-react';
+import { triggerTouchFeedback } from '@/utils/haptics';
 
 type Selection = {
     fixture_id?: number;
@@ -334,57 +335,58 @@ const FormattedReason = ({ text }: { text?: string }) => {
     );
 };
 
-// Countdown Timer Component
+// Countdown Timer Component (Hydration Safe)
 const CountdownTimer = ({ targetTime, targetDate }: { targetTime: string, targetDate?: string }) => {
-    const calculateTimeLeft = () => {
-        try {
-            const now = new Date();
-            // Parse target time
-            // Formats: "19:30" or "2024-05-12T19:30:00"
-            let target = new Date();
-
-            if (targetTime.includes('T') || targetTime.includes('-')) {
-                target = new Date(targetTime);
-            } else {
-                // Assume HH:mm
-                const [hours, minutes] = targetTime.split(':').map(Number);
-                if (targetDate && targetDate.includes('-')) {
-                    // Handle DD-MM-YYYY
-                    if (targetDate.includes('-') && targetDate.split('-')[0].length === 2) {
-                        const [d, m, y] = targetDate.split('-').map(Number);
-                        target = new Date(y, m - 1, d);
-                    } else {
-                        target = new Date(targetDate);
-                    }
-                }
-                target.setHours(hours, minutes, 0, 0);
-            }
-
-            const difference = target.getTime() - now.getTime();
-
-            if (difference > 0) {
-                return {
-                    hours: Math.floor((difference / (1000 * 60 * 60))),
-                    minutes: Math.floor((difference / 1000 / 60) % 60),
-                    seconds: Math.floor((difference / 1000) % 60),
-                    total: difference
-                };
-            }
-        } catch (e) {
-            return null;
-        }
-        return null;
-    };
-
-    const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
+    // 1. Initialize with null to ensure Server matching (nothing rendered initially)
+    const [timeLeft, setTimeLeft] = useState<{ hours: number, minutes: number, seconds: number, total: number } | null>(null);
 
     useEffect(() => {
+        const calculateTimeLeft = () => {
+            try {
+                const now = new Date();
+                let target = new Date();
+
+                if (targetTime.includes('T') || targetTime.includes('-')) {
+                    target = new Date(targetTime);
+                } else {
+                    const [hours, minutes] = targetTime.split(':').map(Number);
+                    if (targetDate && targetDate.includes('-')) {
+                        if (targetDate.split('-')[0].length === 2) {
+                            const [d, m, y] = targetDate.split('-').map(Number);
+                            target = new Date(y, m - 1, d);
+                        } else {
+                            target = new Date(targetDate);
+                        }
+                    }
+                    target.setHours(hours, minutes, 0, 0);
+                }
+
+                const difference = target.getTime() - now.getTime();
+
+                if (difference > 0) {
+                    return {
+                        hours: Math.floor((difference / (1000 * 60 * 60))),
+                        minutes: Math.floor((difference / 1000 / 60) % 60),
+                        seconds: Math.floor((difference / 1000) % 60),
+                        total: difference
+                    };
+                }
+            } catch (e) {
+                return null;
+            }
+            return null;
+        };
+
+        // Initial calculation on mount
+        setTimeLeft(calculateTimeLeft());
+
         const timer = setInterval(() => {
             setTimeLeft(calculateTimeLeft());
         }, 1000);
         return () => clearInterval(timer);
     }, [targetTime, targetDate]);
 
+    // Render nothing until mounted and calculated
     if (!timeLeft) return null;
 
     // Color Logic
@@ -408,6 +410,27 @@ const CountdownTimer = ({ targetTime, targetDate }: { targetTime: string, target
 };
 
 import { usePathname } from 'next/navigation';
+
+// Componente para manejar el estado "En Juego" de forma segura para hidratación
+const InPlayIndicator = ({ time, startTime, dataTime, status, checkTimePassedFn }: { time?: string, startTime?: string | null, dataTime?: string, status?: string, checkTimePassedFn: (...args: (string | undefined | null)[]) => boolean }) => {
+    const [isVisible, setIsVisible] = useState(false);
+
+    useEffect(() => {
+        const check = () => {
+            const isStarted = checkTimePassedFn(time, startTime, dataTime);
+            const isPending = !status || status === 'PENDING' || status === 'PENDIENTE';
+            setIsVisible(isStarted && isPending);
+        };
+
+        check(); // Check immediately on mount
+        const timer = setInterval(check, 60000);
+        return () => clearInterval(timer);
+    }, [time, startTime, dataTime, status]); // Removed checkTimePassedFn from deps as it's stable or changing it shouldn't re-trigger loop issues if pure
+
+    if (!isVisible) return null;
+
+    return <Clock size={14} className="text-amber-500 shrink-0 animate-pulse" />;
+};
 
 // Helper: Replace "Local" and "Visitante" with actual team names
 const replaceTeamNames = (pick: string, matchName: string) => {
@@ -548,11 +571,11 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
 
     // Helper: Check if started
     const [hasStarted, setHasStarted] = useState(false);
-    const [, setTick] = useState(0); // Force re-render every minute
+    // const [, setTick] = useState(0); // Removing tick, we'll use local effect
 
     useEffect(() => {
         const checkStarted = () => {
-            setTick(t => t + 1); // Force update to re-evaluate checkTimePassed for all items
+            // setTick(t => t + 1); // Force update to re-evaluate checkTimePassed for all items
 
             if (!startTime) return;
             try {
@@ -592,6 +615,7 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
 
     const isListLayout = type === 'funbet' || (type === 'value' && !!componentsToRender && componentsToRender.length > 0);
 
+    // Keeping this function for use in InPlayIndicator prop, but ensuring it's not called in render
     const checkTimePassed = (...candidates: (string | undefined | null)[]) => {
         try {
             const now = new Date();
@@ -645,6 +669,14 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
 
                     // Force Local Hours
                     target.setHours(hours, minutes, 0, 0);
+
+                    // LOGIC FIX: User Rule "Always if past 23:59 it is next day"
+                    // Heuristic: If time is "early morning" (00:00 - 09:59) and we are parsing strictly from HH:MM
+                    // relative to a base date (e.g. "Today's Bets"), it usually implies the FOLLOWING calendar day.
+                    // Example: "Jan 16 Bets" listing a "01:00" game means "Jan 17 01:00".
+                    if (hours < 10) {
+                        target.setDate(target.getDate() + 1);
+                    }
 
                     if (now >= target) return true;
                 }
@@ -779,6 +811,15 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
                                                 {(sel.status === 'WON' || sel.status === 'GANADA') && <Check size={14} className="text-emerald-500 shrink-0" />}
                                                 {(sel.status === 'LOST' || sel.status === 'PERDIDA') && <XIcon size={14} className="text-rose-500 shrink-0" />}
 
+                                                {/* In Play Component */}
+                                                <InPlayIndicator
+                                                    time={sel.time}
+                                                    startTime={data.startTime || data.time}
+                                                    dataTime={undefined}
+                                                    status={sel.status}
+                                                    checkTimePassedFn={checkTimePassed}
+                                                />
+
                                                 <span className={`text-sm font-bold ${config.textColor}`}>{replaceTeamNames(sel.pick, sel.match)}</span>
                                             </div>
 
@@ -878,7 +919,10 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
                 <div className="flex items-end justify-between mt-4 px-1 border-t border-border pt-4">
                     <div className="flex flex-col">
                         <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider mb-0.5">Profit Est.</span>
-                        <span className="font-mono font-black text-xl text-emerald-500">
+                        <span
+                            className="font-mono font-black text-xl text-emerald-500"
+                            style={{ textShadow: "0 0 10px rgba(52, 211, 153, 0.8), 0 0 20px rgba(52, 211, 153, 0.4)" }}
+                        >
                             {data.estimated_units ? `+${data.estimated_units}u` :
                                 `+${((data.stake || config.stake) * ((data.total_odd || data.odd) - 1)).toFixed(2)}u`}
                         </span>
@@ -901,7 +945,8 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
                 <div className="pt-4 border-t border-border mt-4">
                     <button
                         onClick={() => setReasonOpen(!reasonOpen)}
-                        className="md:hidden w-full flex items-center justify-between text-muted-foreground text-[10px] uppercase font-bold tracking-wider mb-2 hover:text-foreground transition-colors"
+                        onTouchStart={() => triggerTouchFeedback()}
+                        className="btn-active-effect md:hidden w-full flex items-center justify-between text-muted-foreground text-[10px] uppercase font-bold tracking-wider mb-2 hover:text-foreground transition-transform"
                     >
                         <span>Análisis</span>
                         {reasonOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}

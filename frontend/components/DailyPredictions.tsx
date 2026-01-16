@@ -37,15 +37,16 @@ export default function DailyPredictions({ predictions, isAdmin }: DailyPredicti
 
 
     return (
-        <section className="max-w-7xl mx-auto px-4 py-8">
-            <div className="flex flex-col md:flex-row md:items-center justify-between mb-8">
-                <h2 className="text-3xl font-black flex items-center gap-2">
-                    <Trophy className="text-fuchsia-500" />
-                    Apuestas del Día
+        <section className="max-w-7xl mx-auto px-4 pt-0 pb-6">
+            {/* Styled Header */}
+            <div className="text-center mb-8 md:mb-16 relative z-10">
+                <h2 className="text-3xl md:text-4xl font-black mb-3 tracking-tighter flex items-center justify-center gap-3">
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Apuestas</span> <span className="text-white drop-shadow-[0_2px_10px_rgba(255,255,255,0.2)]">del Día</span>
                 </h2>
-
-                {/* Profit Display */}
-
+                <div className="w-24 h-1.5 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full mx-auto mb-2 animate-pulse" />
+                <p className="text-muted-foreground/80 font-medium max-w-xl mx-auto text-sm md:text-base leading-relaxed">
+                    Selección diaria de oportunidades de alta probabilidad. Análisis detallado y transparencia total.
+                </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">

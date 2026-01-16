@@ -35,7 +35,11 @@ export async function GET(req: NextRequest) {
             pipeline.get(`${prefix}daily_bets:${date}`);
         }
 
-        const results = await pipeline.exec<(string | null)[]>();
+        // Parallel Fetch: Stats + Daily Pipeline
+        const [statsRaw, results] = await Promise.all([
+            redis.get(`${prefix}stats:${month}`),
+            pipeline.exec<(string | null)[]>()
+        ]);
 
         // Process Results
         const daysMap: Record<string, any> = {};
@@ -154,13 +158,17 @@ export async function GET(req: NextRequest) {
             }
         });
 
-        // 3. Get Pre-calculated Stats (Source of Truth: Python Script)
+        // 3. Get Pre-calculated Stats (Already fetched in parallel)
         const statsKey = `${prefix}stats:${month}`;
-        const storedStatsRaw = await redis.get(statsKey);
+        const storedStatsRaw = statsRaw;
         let finalStats: any = null;
 
         if (storedStatsRaw) {
-            finalStats = typeof storedStatsRaw === 'string' ? JSON.parse(storedStatsRaw) : storedStatsRaw;
+            const parsed = typeof storedStatsRaw === 'string' ? JSON.parse(storedStatsRaw) : storedStatsRaw;
+            finalStats = {
+                ...parsed,
+                yesterday_profit: parsed.yesterday_profit ?? 0
+            };
         } else {
             // Fallback if Python hasn't run yet
             finalStats = {
@@ -170,7 +178,8 @@ export async function GET(req: NextRequest) {
                 // Zeroes for complex stats not calc'd here
                 profit_factor: 0,
                 roi: 0,
-                max_drawdown: 0
+                max_drawdown: 0,
+                yesterday_profit: 0
             };
         }
 

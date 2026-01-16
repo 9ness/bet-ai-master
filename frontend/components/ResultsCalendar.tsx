@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, RefreshCw, Check, X, CircleCheck, CircleX, Clock, ChevronDown, Save, Loader2, TrendingUp } from 'lucide-react';
 
 // --- FLAG MAPPINGS (Mirrored from BetCard.tsx) ---
@@ -677,6 +678,17 @@ export default function ResultsCalendar() {
         <div className="w-full max-w-7xl mx-auto px-4 pb-4 pt-0 md:px-8 md:pb-8 md:pt-0 space-y-8">
             {/* Header */}
             {/* Header */}
+            {/* Header */}
+            <div className="text-center mb-8 relative z-10">
+                <h2 className="text-3xl md:text-4xl font-black mb-3 tracking-tighter">
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400">Resultados</span> <span className="text-white drop-shadow-[0_2px_10px_rgba(255,255,255,0.2)]">Históricos</span>
+                </h2>
+                <div className="w-24 h-1.5 bg-gradient-to-r from-violet-500 to-fuchsia-500 rounded-full mx-auto mb-4 animate-pulse" />
+                <p className="text-muted-foreground/80 font-medium max-w-xl mx-auto text-sm md:text-base leading-relaxed">
+                    Transparencia total. Revisa cada día, cada apuesta y cada resultado. Sin filtros.
+                </p>
+            </div>
+
             <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
                 {/* MONTH SELECTOR */}
                 <div className="flex items-center gap-4 bg-secondary/20 p-1.5 rounded-full border border-white/5 relative z-10">
@@ -729,9 +741,9 @@ export default function ResultsCalendar() {
                 {Array.from({ length: daysInMonth }).map((_, i) => renderDay(i + 1))}
             </div>
 
-            {/* Detail Modal */}
-            {selectedDate && displayData && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
+            {/* Detail Modal - PORTALED TO BODY TO FIX BLUR/Z-INDEX */}
+            {selectedDate && displayData && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
                     <div className="bg-card w-full max-w-2xl border border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-300">
 
                         {/* Modal Header */}
@@ -808,7 +820,8 @@ export default function ResultsCalendar() {
                             ))}
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );

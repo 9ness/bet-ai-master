@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Lock, ArrowRight, RefreshCw, LayoutDashboard, DownloadCloud, BrainCircuit, ClipboardCheck, Activity as ActivityIcon, AlertTriangle, Database, ChevronDown, ChevronUp, Home } from 'lucide-react';
+import { triggerTouchFeedback } from '@/utils/haptics';
 import Link from 'next/link';
 import { verifyAdminPassword } from './actions';
 import ResultsCalendar from '@/components/ResultsCalendar';
@@ -23,8 +24,35 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
     const [loginError, setLoginError] = useState("");
     const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
-    // Tab State
-    const [activeTab, setActiveTab] = useState<'analysis' | 'calendar' | 'analytics' | 'settings' | 'tiktok'>('analysis');
+    // Tab State & Swipe Logic
+    const [activeTab, setActiveTab] = useState<'analysis' | 'calendar' | 'analytics' | 'tiktok' | 'settings'>('analysis');
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const tabOrder = ['analysis', 'calendar', 'analytics', 'tiktok', 'settings'];
+
+    // Sync scroll with state
+    const handleScroll = () => {
+        if (!scrollContainerRef.current) return;
+        const scrollLeft = scrollContainerRef.current.scrollLeft;
+        const width = scrollContainerRef.current.clientWidth;
+        const index = Math.round(scrollLeft / width);
+
+        const newTab = tabOrder[index] as any;
+        if (newTab && newTab !== activeTab) {
+            setActiveTab(newTab);
+        }
+    };
+
+    const scrollToTab = (tab: string) => {
+        const index = tabOrder.indexOf(tab);
+        if (index !== -1 && scrollContainerRef.current) {
+            const width = scrollContainerRef.current.clientWidth;
+            scrollContainerRef.current.scrollTo({
+                left: width * index,
+                behavior: 'smooth'
+            });
+            setActiveTab(tab as any);
+        }
+    };
 
     // Settings State
     const [settings, setSettings] = useState({
@@ -43,6 +71,56 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
     const [checkStatus, setCheckStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [collectStatus, setCollectStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [showControls, setShowControls] = useState(false);
+
+    // Header Stats State (Synced with HomeTabs)
+    const [headerStats, setHeaderStats] = useState({
+        profit: 0,
+        yieldVal: 0,
+        yesterdayProfit: 0
+    });
+
+    // Fetch Header Stats
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const now = new Date();
+                const monthStr = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
+
+                const res = await fetch(`/api/admin/history?month=${monthStr}`);
+                const json = await res.json();
+
+                if (json.stats) {
+                    // Dynamic Lookup for Yesterday's Profit from Chart Evolution
+                    const yesterday = new Date();
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+                    let yesterdayProfitVal = 0;
+
+                    if (Array.isArray(json.stats.chart_evolution)) {
+                        const yesterdayEntry = json.stats.chart_evolution.find((e: any) => e.date === yesterdayStr);
+                        if (yesterdayEntry) {
+                            yesterdayProfitVal = yesterdayEntry.daily_profit;
+                        } else {
+                            yesterdayProfitVal = json.stats.yesterday_profit ?? 0;
+                        }
+                    } else {
+                        yesterdayProfitVal = json.stats.yesterday_profit ?? 0;
+                    }
+
+                    setHeaderStats({
+                        profit: json.stats.total_profit || 0,
+                        yieldVal: json.stats.yield || 0,
+                        yesterdayProfit: yesterdayProfitVal
+                    });
+                }
+            } catch (e) {
+                console.error("Failed to fetch header stats", e);
+            }
+        };
+
+        fetchStats();
+    }, []);
 
     useEffect(() => {
         const sessionAuth = localStorage.getItem("admin_auth");
@@ -229,15 +307,16 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                 <div className="absolute top-0 left-1/4 w-96 h-96 bg-fuchsia-500/20 rounded-full blur-[128px] pointer-events-none opacity-50" />
                 <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-violet-500/20 rounded-full blur-[128px] pointer-events-none opacity-50" />
 
-                <div className="max-w-4xl mx-auto px-4 pt-2 pb-4 md:py-8 text-center relative z-10 flex flex-col items-center">
+                <div className="max-w-4xl mx-auto px-4 py-4 md:py-6 text-center relative z-10">
 
-                    {/* Toggle Trigger */}
+                    {/* Toggle Trigger (Badge Style) */}
                     <button
                         onClick={() => setShowControls(!showControls)}
-                        className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-secondary/50 backdrop-blur-sm text-secondary-foreground text-xs font-medium mb-4 hover:bg-secondary/80 transition-all cursor-pointer border border-white/5 active:scale-95 group">
-                        <ActivityIcon size={14} className="text-fuchsia-500 animate-pulse" />
-                        <span>Vista de Administrador</span>
-                        {showControls ? <ChevronUp size={14} className="text-muted-foreground" /> : <ChevronDown size={14} className="text-muted-foreground" />}
+                        className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full bg-secondary/50 text-secondary-foreground text-[10px] font-bold mb-3 hover:bg-secondary/80 transition-colors cursor-pointer border border-white/5 active:scale-95 group"
+                    >
+                        <ActivityIcon size={10} className="text-fuchsia-500 animate-pulse" />
+                        <span>VISTA DE ADMINISTRADOR</span>
+                        {showControls ? <ChevronUp size={10} className="text-muted-foreground ml-1" /> : <ChevronDown size={10} className="text-muted-foreground ml-1" />}
                     </button>
 
                     {/* Collapsible Admin Actions */}
@@ -246,22 +325,25 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                             <div className="flex items-center justify-center gap-2 w-full">
                                 <button
                                     onClick={handleCheckBets}
+                                    onTouchStart={() => triggerTouchFeedback()}
                                     disabled={checkStatus === 'loading'}
-                                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[10px] md:text-xs font-bold border border-slate-500/50 transition-all whitespace-nowrap shadow-lg shadow-black/20 ${checkStatus === 'loading' ? 'opacity-50' : 'bg-slate-800/80 hover:bg-slate-700 hover:scale-105'}`}>
+                                    className={`btn-active-effect flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[10px] md:text-xs font-bold border border-slate-500/50 transition-all whitespace-nowrap shadow-lg shadow-black/20 ${checkStatus === 'loading' ? 'opacity-50' : 'bg-slate-800/80 hover:bg-slate-700 hover:scale-105'}`}>
                                     <ClipboardCheck className="w-3.5 h-3.5" />
                                     {checkStatus === 'loading' ? '...' : 'Comprobar'}
                                 </button>
                                 <button
                                     onClick={handleCollect}
+                                    onTouchStart={() => triggerTouchFeedback()}
                                     disabled={collectStatus === 'loading'}
-                                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[10px] md:text-xs font-bold border border-blue-500/50 transition-all whitespace-nowrap shadow-lg shadow-blue-500/10 ${collectStatus === 'loading' ? 'opacity-50' : 'bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 hover:scale-105'}`}>
+                                    className={`btn-active-effect flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[10px] md:text-xs font-bold border border-blue-500/50 transition-transform whitespace-nowrap shadow-lg shadow-blue-500/10 ${collectStatus === 'loading' ? 'opacity-50' : 'bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 hover:scale-105'}`}>
                                     <Database className="w-3.5 h-3.5" />
                                     {collectStatus === 'loading' ? '...' : 'Recolectar'}
                                 </button>
                                 <button
                                     onClick={handleAnalyze}
+                                    onTouchStart={() => triggerTouchFeedback()}
                                     disabled={analyzeStatus === 'loading'}
-                                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[10px] md:text-xs font-bold border border-emerald-500/50 transition-all whitespace-nowrap shadow-lg shadow-emerald-500/10 ${analyzeStatus === 'loading' ? 'opacity-50' : 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 hover:scale-105'}`}>
+                                    className={`btn-active-effect flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[10px] md:text-xs font-bold border border-emerald-500/50 transition-transform whitespace-nowrap shadow-lg shadow-emerald-500/10 ${analyzeStatus === 'loading' ? 'opacity-50' : 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 hover:scale-105'}`}>
                                     <BrainCircuit className="w-3.5 h-3.5" />
                                     {analyzeStatus === 'loading' ? '...' : 'Analizar'}
                                 </button>
@@ -286,58 +368,103 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                         </div>
                     </div>
 
-                    <h1 className="text-3xl md:text-5xl font-black mb-4 tracking-tight leading-tight">
-                        BET AI MASTER <br className="hidden md:block" />
-                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-fuchsia-500 to-violet-500 animate-gradient block md:inline mt-2 md:mt-0">
+                    {/* Main Title COMPACT */}
+                    <div className="flex flex-col md:flex-row items-center justify-center gap-2 md:gap-4 mb-3">
+                        <h1 className="text-2xl md:text-5xl font-black tracking-tighter leading-none">
+                            BET AI <span className="text-fuchsia-500">MASTER</span>
+                        </h1>
+                        <span className="hidden md:block text-muted-foreground/30 text-3xl font-thin">|</span>
+                        <h2 className="text-lg md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-fuchsia-500 to-violet-500 animate-gradient">
                             PANEL DE CONTROL
-                        </span>
-                    </h1>
+                        </h2>
+                    </div>
 
-                    <p className="text-sm md:text-lg text-muted-foreground/80 max-w-xl mx-auto mb-4 leading-relaxed capitalize">
-                        Predicciones para: <span className="font-bold text-foreground">{formattedDate}</span>
-                    </p>
+                    {/* Date & Stats Row - SINGLE LINE LAYOUT */}
+                    <div className="flex flex-col md:flex-row items-center justify-center gap-3">
+                        {/* Date */}
+                        <div className="flex flex-col items-center md:items-end">
+                            <p className="text-xs md:text-sm text-muted-foreground font-medium capitalize flex items-center gap-1.5 whitespace-nowrap">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                {formattedDate}
+                            </p>
+                            <p className="text-[10px] uppercase tracking-widest text-muted-foreground/40 font-bold mt-0.5">
+                                Actualización Diaria 10:00 AM
+                            </p>
+                        </div>
+
+                        <span className="hidden md:block text-muted-foreground/20">|</span>
+
+                        {/* SOCIAL PROOF TICKER */}
+                        <div className="flex flex-nowrap items-center justify-center gap-2 overflow-x-auto max-w-full pb-1 md:pb-0 scrollbar-hide">
+                            {/* Profit Badge */}
+                            <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg shrink-0">
+                                <span className="text-[9px] text-emerald-500/70 font-bold uppercase tracking-wider">Ganancias</span>
+                                <span className="text-xs font-black text-emerald-400">+{headerStats.profit.toFixed(2)} u</span>
+                            </div>
+
+                            {/* Yield Badge */}
+                            <div className="flex items-center gap-1.5 bg-fuchsia-500/10 border border-fuchsia-500/20 px-2.5 py-1 rounded-lg shrink-0">
+                                <span className="text-[9px] text-fuchsia-500/70 font-bold uppercase tracking-wider">Yield</span>
+                                <span className="text-xs font-black text-fuchsia-400">{headerStats.yieldVal.toFixed(2)}%</span>
+                            </div>
+
+                            {/* Yesterday Result (Only if exists) */}
+                            {headerStats.yesterdayProfit !== null && (
+                                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border shrink-0 ${headerStats.yesterdayProfit >= 0 ? 'bg-blue-500/10 border-blue-500/20' : 'bg-rose-500/10 border-rose-500/20'}`}>
+                                    <span className={`text-[9px] font-bold uppercase tracking-wider ${headerStats.yesterdayProfit >= 0 ? 'text-blue-500/70' : 'text-rose-500/70'}`}>Ayer</span>
+                                    <span className={`text-xs font-black ${headerStats.yesterdayProfit >= 0 ? 'text-blue-400' : 'text-rose-400'}`}>
+                                        {headerStats.yesterdayProfit > 0 ? '+' : ''}{headerStats.yesterdayProfit.toFixed(2)} u
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 </div>
             </div>
 
             {/* Navigation Tabs */}
-            {/* Navigation Tabs */}
             <div className="bg-black/80 backdrop-blur-md border-b border-white/5 sticky top-16 z-[90]">
                 <div className="max-w-7xl mx-auto px-2 md:px-4 flex justify-between md:justify-start md:gap-6 overflow-x-hidden">
                     <button
-                        onClick={() => setActiveTab('analysis')}
-                        className={`flex-1 md:flex-none py-3 md:py-4 text-xs md:text-sm font-bold border-b-2 transition-colors flex justify-center md:justify-start items-center gap-1.5 md:gap-2
+                        onClick={() => scrollToTab('analysis')}
+                        onTouchStart={() => triggerTouchFeedback()}
+                        className={`btn-active-effect flex-1 md:flex-none py-3 md:py-4 text-xs md:text-sm font-bold border-b-2 transition-transform flex justify-center md:justify-start items-center gap-1.5 md:gap-2
                         ${activeTab === 'analysis' ? 'border-fuchsia-500 text-fuchsia-400' : 'border-transparent text-gray-400 hover:text-white'}`}
                     >
                         <span className="md:hidden">🎯 Análisis</span>
-                        <span className="hidden md:block">🎯 Análisis del Día</span>
+                        <span className="hidden md:block">🎯 Análisis</span>
                     </button>
                     <button
-                        onClick={() => setActiveTab('calendar')}
-                        className={`flex-1 md:flex-none py-3 md:py-4 text-xs md:text-sm font-bold border-b-2 transition-colors flex justify-center md:justify-start items-center gap-1.5 md:gap-2
+                        onClick={() => scrollToTab('calendar')}
+                        onTouchStart={() => triggerTouchFeedback()}
+                        className={`btn-active-effect flex-1 md:flex-none py-3 md:py-4 text-xs md:text-sm font-bold border-b-2 transition-transform flex justify-center md:justify-start items-center gap-1.5 md:gap-2
                         ${activeTab === 'calendar' ? 'border-fuchsia-500 text-fuchsia-400' : 'border-transparent text-gray-400 hover:text-white'}`}
                     >
                         <span className="md:hidden">📅 Calendario</span>
-                        <span className="hidden md:block">📅 Calendario 2026</span>
+                        <span className="hidden md:block">📅 Calendario</span>
                     </button>
                     <button
-                        onClick={() => setActiveTab('analytics')}
-                        className={`flex-1 md:flex-none py-3 md:py-4 text-xs md:text-sm font-bold border-b-2 transition-colors flex justify-center md:justify-start items-center gap-1.5 md:gap-2
+                        onClick={() => scrollToTab('analytics')}
+                        onTouchStart={() => triggerTouchFeedback()}
+                        className={`btn-active-effect flex-1 md:flex-none py-3 md:py-4 text-xs md:text-sm font-bold border-b-2 transition-transform flex justify-center md:justify-start items-center gap-1.5 md:gap-2
                         ${activeTab === 'analytics' ? 'border-fuchsia-500 text-fuchsia-400' : 'border-transparent text-gray-400 hover:text-white'}`}
                     >
                         <span className="md:hidden">📊 Estadísticas</span>
                         <span className="hidden md:block">📊 Estadísticas</span>
                     </button>
                     <button
-                        onClick={() => setActiveTab('tiktok')}
-                        className={`flex-1 md:flex-none py-3 md:py-4 text-xs md:text-sm font-bold border-b-2 transition-colors flex justify-center md:justify-start items-center gap-1.5 md:gap-2
+                        onClick={() => scrollToTab('tiktok')}
+                        onTouchStart={() => triggerTouchFeedback()}
+                        className={`btn-active-effect flex-1 md:flex-none py-3 md:py-4 text-xs md:text-sm font-bold border-b-2 transition-transform flex justify-center md:justify-start items-center gap-1.5 md:gap-2
                         ${activeTab === 'tiktok' ? 'border-fuchsia-500 text-fuchsia-400' : 'border-transparent text-gray-400 hover:text-white'}`}
                     >
                         <span className="md:hidden">🏭 Factory</span>
                         <span className="hidden md:block">🏭 TikTok Factory</span>
                     </button>
                     <button
-                        onClick={() => setActiveTab('settings')}
-                        className={`flex-1 md:flex-none py-3 md:py-4 text-xs md:text-sm font-bold border-b-2 transition-colors flex justify-center md:justify-start items-center gap-1.5 md:gap-2
+                        onClick={() => scrollToTab('settings')}
+                        onTouchStart={() => triggerTouchFeedback()}
+                        className={`btn-active-effect flex-1 md:flex-none py-3 md:py-4 text-xs md:text-sm font-bold border-b-2 transition-transform flex justify-center md:justify-start items-center gap-1.5 md:gap-2
                         ${activeTab === 'settings' ? 'border-fuchsia-500 text-fuchsia-400' : 'border-transparent text-gray-400 hover:text-white'}`}
                     >
                         <span className="md:hidden">⚙️ Ajustes</span>
@@ -346,35 +473,40 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                 </div>
             </div>
 
-            {/* Main Content Area */}
+            {/* Main Content Area - SWIPEABLE */}
             <div className="flex-1 relative min-h-[calc(100vh-8rem)] bg-background/50">
-                <main className="max-w-7xl mx-auto px-4 py-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-
-                    {/* Tab 1: Analysis (Children = Page Preview) */}
-                    <div className={activeTab === 'analysis' ? 'block' : 'hidden'}>
-                        <div className="opacity-90 hover:opacity-100 transition-opacity">
-                            {children}
-                        </div>
+                <div
+                    ref={scrollContainerRef}
+                    onScroll={handleScroll}
+                    className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide h-full"
+                    style={{ scrollBehavior: 'smooth' }}
+                >
+                    {/* Tab 1: Analysis */}
+                    <div className="w-full shrink-0 snap-start active:cursor-grabbing h-full">
+                        <main className="max-w-7xl mx-auto px-4 py-8">
+                            <div className="opacity-90 hover:opacity-100 transition-opacity">
+                                {children}
+                            </div>
+                        </main>
                     </div>
 
                     {/* Tab 2: Calendar */}
-                    {activeTab === 'calendar' && (
-                        <div className="animate-in fade-in zoom-in-95 duration-200">
+                    <div className="w-full shrink-0 snap-start active:cursor-grabbing h-full">
+                        <main className="max-w-7xl mx-auto px-4 py-8">
                             <ResultsCalendar />
-                        </div>
-                    )}
+                        </main>
+                    </div>
 
                     {/* Tab 3: Analytics */}
-                    {activeTab === 'analytics' && (
-                        <div className="animate-in fade-in zoom-in-95 duration-200">
+                    <div className="w-full shrink-0 snap-start active:cursor-grabbing h-full">
+                        <main className="max-w-7xl mx-auto px-4 py-8">
                             <AdminAnalytics />
-                        </div>
-                    )}
+                        </main>
+                    </div>
 
                     {/* Tab 4: TikTok Factory */}
-                    {activeTab === 'tiktok' && (
-                        <div className="animate-in fade-in zoom-in-95 duration-200 h-[calc(100vh-12rem)]">
-                            {/* Pass props if available */}
+                    <div className="w-full shrink-0 snap-start active:cursor-grabbing h-full">
+                        <main className="max-w-7xl mx-auto px-4 py-8 h-full">
                             {predictions && formattedDate ? (
                                 <TikTokFactory predictions={predictions} formattedDate={formattedDate} rawDate={rawDate} />
                             ) : (
@@ -382,13 +514,13 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                     Cargando datos para TikTok Factory...
                                 </div>
                             )}
-                        </div>
-                    )}
+                        </main>
+                    </div>
 
                     {/* Tab 5: Settings */}
-                    {activeTab === 'settings' && (
-                        <div className="animate-in fade-in zoom-in-95 duration-200 max-w-2xl mx-auto">
-                            <div className="bg-card border border-border/50 rounded-2xl p-6 md:p-8 space-y-8">
+                    <div className="w-full shrink-0 snap-start active:cursor-grabbing h-full">
+                        <main className="max-w-7xl mx-auto px-4 py-8">
+                            <div className="max-w-2xl mx-auto bg-card border border-border/50 rounded-2xl p-6 md:p-8 space-y-8">
                                 <h3 className="text-xl font-bold flex items-center gap-2">
                                     <BrainCircuit className="text-fuchsia-500" />
                                     Control de Visibilidad (Home)
@@ -466,8 +598,9 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
 
                                 <button
                                     onClick={handleSaveSettings}
+                                    onTouchStart={() => triggerTouchFeedback()}
                                     disabled={savingSettings}
-                                    className="w-full bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-fuchsia-500/20 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                                    className="btn-active-effect w-full bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold py-3 rounded-xl transition-transform shadow-lg shadow-fuchsia-500/20 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
                                 >
                                     {savingSettings ? <RefreshCw className="animate-spin w-4 h-4" /> : <DownloadCloud className="w-4 h-4 rotate-180" />}
                                     {savingSettings ? 'Guardando...' : 'Guardar Configuración'}
@@ -489,10 +622,10 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                     </div>
                                 )}
                             </div>
-                        </div>
-                    )}
-                </main>
+                        </main>
+                    </div>
+                </div>
             </div>
-        </div>
+        </div >
     );
 }

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Trophy, Activity, AlertTriangle } from 'lucide-react';
+import { triggerTouchFeedback } from '@/utils/haptics';
 import DailyPredictions from '@/components/DailyPredictions';
 import ResultsCalendar from '@/components/ResultsCalendar';
 import AdminAnalytics from '@/components/AdminAnalytics';
@@ -22,10 +23,10 @@ type HomeTabsProps = {
 export default function HomeTabs({ settings, predictions, formattedDate, isMock }: HomeTabsProps) {
     // 1. Determine Visible Tabs based on Settings
     const allTabs = [
-        { id: 'daily_bets', label: '🎯 Análisis del Día', visible: settings.show_daily_bets },
-        { id: 'calendar', label: '📅 Calendario 2026', visible: settings.show_calendar },
+        { id: 'daily_bets', label: '🎯 Apuestas', visible: settings.show_daily_bets },
+        { id: 'calendar', label: '📅 Calendario', visible: settings.show_calendar },
         { id: 'analytics', label: '📊 Estadísticas', visible: settings.show_analytics },
-        { id: 'tiktok', label: '🏭 TikTok Factory', visible: settings.show_tiktok }
+        { id: 'tiktok', label: '🏭 TikTok', visible: settings.show_tiktok }
     ];
 
     const visibleTabs = allTabs.filter(tab => tab.visible);
@@ -38,7 +39,7 @@ export default function HomeTabs({ settings, predictions, formattedDate, isMock 
     const [headerStats, setHeaderStats] = useState({
         profit: 0,
         yieldVal: 0,
-        yesterdayProfit: null as number | null
+        yesterdayProfit: 0
     });
 
     // Fetch Header Stats
@@ -52,22 +53,32 @@ export default function HomeTabs({ settings, predictions, formattedDate, isMock 
                 const json = await res.json();
 
                 if (json.stats) {
-                    // Calculate Yesterday's Profit
-                    let yesterProfit = null;
-                    if (json.days) {
-                        const yesterday = new Date();
-                        yesterday.setDate(yesterday.getDate() - 1);
-                        const yStr = `${yesterday.getFullYear()}-${(yesterday.getMonth() + 1).toString().padStart(2, '0')}-${yesterday.getDate().toString().padStart(2, '0')}`;
+                    // Dynamic Lookup for Yesterday's Profit from Chart Evolution
+                    // This is more robust than relying on the single summary field
+                    const yesterday = new Date();
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    const yesterdayStr = yesterday.toISOString().split('T')[0];
 
-                        if (json.days[yStr]) {
-                            yesterProfit = json.days[yStr].day_profit;
+                    let yesterdayProfitVal = 0;
+
+                    // Try to find in chart_evolution first (User Preferred Source)
+                    if (Array.isArray(json.stats.chart_evolution)) {
+                        const yesterdayEntry = json.stats.chart_evolution.find((e: any) => e.date === yesterdayStr);
+                        if (yesterdayEntry) {
+                            yesterdayProfitVal = yesterdayEntry.daily_profit;
+                        } else {
+                            // usage fallback if not in array
+                            yesterdayProfitVal = json.stats.yesterday_profit ?? 0;
                         }
+                    } else {
+                        // Fallback to summary property
+                        yesterdayProfitVal = json.stats.yesterday_profit ?? 0;
                     }
 
                     setHeaderStats({
                         profit: json.stats.total_profit || 0,
                         yieldVal: json.stats.yield || 0,
-                        yesterdayProfit: yesterProfit
+                        yesterdayProfit: yesterdayProfitVal
                     });
                 }
             } catch (e) {
@@ -87,43 +98,34 @@ export default function HomeTabs({ settings, predictions, formattedDate, isMock 
         }
     }, [visibleTabs, activeTab]);
 
-    // 3. Swipe Logic
-    const [touchStart, setTouchStart] = useState<number | null>(null);
-    const [touchEnd, setTouchEnd] = useState<number | null>(null);
+    // 3. Scroll & Swipe Logic (Replaced manual touch handlers)
+    const scrollRef = React.useRef<HTMLDivElement>(null);
 
-    // Minimum swipe distance (in px) 
-    const minSwipeDistance = 75;
+    // Sync Scroll to Active Tab (Bidirectional Sync)
+    const handleScroll = () => {
+        if (!scrollRef.current) return;
+        const scrollLeft = scrollRef.current.scrollLeft;
+        const width = scrollRef.current.clientWidth;
 
-    const onTouchStart = (e: React.TouchEvent) => {
-        setTouchEnd(null); // Reset
-        setTouchStart(e.targetTouches[0].clientX);
+        // Find visible index
+        const index = Math.round(scrollLeft / width);
+
+        // Update active tab if changed
+        if (visibleTabs[index] && visibleTabs[index].id !== activeTab) {
+            triggerTouchFeedback(); // Haptic on swipe change
+            setActiveTab(visibleTabs[index].id);
+        }
     };
 
-    const onTouchMove = (e: React.TouchEvent) => {
-        setTouchEnd(e.targetTouches[0].clientX);
-    };
-
-    const onTouchEnd = () => {
-        if (!touchStart || !touchEnd) return;
-
-        const distance = touchStart - touchEnd;
-        const isLeftSwipe = distance > minSwipeDistance;
-        const isRightSwipe = distance < -minSwipeDistance;
-
-        if (isLeftSwipe || isRightSwipe) {
-            const currentIndex = visibleTabs.findIndex(t => t.id === activeTab);
-
-            if (isLeftSwipe) {
-                // Next Tab (Limit to last index)
-                if (currentIndex < visibleTabs.length - 1) {
-                    setActiveTab(visibleTabs[currentIndex + 1].id);
-                }
-            } else {
-                // Prev Tab (Limit to 0)
-                if (currentIndex > 0) {
-                    setActiveTab(visibleTabs[currentIndex - 1].id);
-                }
-            }
+    const scrollToTab = (tabId: string) => {
+        triggerTouchFeedback(); // Haptic on click
+        setActiveTab(tabId);
+        const index = visibleTabs.findIndex(t => t.id === tabId);
+        if (scrollRef.current && index >= 0) {
+            scrollRef.current.scrollTo({
+                left: index * scrollRef.current.clientWidth,
+                behavior: 'smooth'
+            });
         }
     };
 
@@ -136,12 +138,7 @@ export default function HomeTabs({ settings, predictions, formattedDate, isMock 
     }
 
     return (
-        <div
-            className="w-full"
-            onTouchStart={onTouchStart}
-            onTouchMove={onTouchMove}
-            onTouchEnd={onTouchEnd}
-        >
+        <div className="w-full">
             {/* COMPACT HERO SECTION */}
             <div className="relative overflow-hidden border-b border-border bg-background/50">
                 <div className="absolute top-0 left-1/4 w-96 h-96 bg-fuchsia-500/10 rounded-full blur-[128px] pointer-events-none opacity-30" />
@@ -171,6 +168,9 @@ export default function HomeTabs({ settings, predictions, formattedDate, isMock 
                         <p className="text-xs md:text-sm text-muted-foreground font-medium capitalize flex items-center gap-1.5 whitespace-nowrap">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                             {formattedDate}
+                        </p>
+                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground/40 font-bold mt-0.5">
+                            Actualización Diaria 10:00 AM
                         </p>
 
                         <span className="hidden md:block text-muted-foreground/20">|</span>
@@ -220,9 +220,11 @@ export default function HomeTabs({ settings, predictions, formattedDate, isMock 
                         {visibleTabs.map(tab => (
                             <button
                                 key={tab.id}
-                                onClick={() => setActiveTab(tab.id)}
+                                onClick={() => scrollToTab(tab.id)}
+                                onTouchStart={() => triggerTouchFeedback()}
                                 className={`
-                                    flex-1 md:flex-none py-3 px-4 md:py-4 text-xs md:text-sm font-bold border-b-2 transition-all 
+                                    btn-active-effect
+                                    flex-1 md:flex-none py-3 px-4 md:py-4 text-xs md:text-sm font-bold border-b-2 transition-transform 
                                     ${activeTab === tab.id
                                         ? 'border-fuchsia-500 text-fuchsia-500'
                                         : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-secondary/20'}
@@ -235,43 +237,47 @@ export default function HomeTabs({ settings, predictions, formattedDate, isMock 
                 </div>
             )}
 
-            {/* CONTENT AREA */}
-            <main className="max-w-7xl mx-auto px-4 py-8 min-h-[500px] animate-in fade-in slide-in-from-bottom-4 duration-500">
-                {activeTab === 'daily_bets' && (
-                    <div className="animate-in zoom-in-95 duration-300">
-                        <DailyPredictions predictions={predictions} />
-                    </div>
-                )}
+            {/* HORIZONTAL SCROLL SNAP CONTAINER */}
+            <div
+                ref={scrollRef}
+                className="flex-1 w-full flex overflow-x-auto snap-x snap-mandatory scrollbar-hide"
+                style={{ scrollBehavior: 'smooth' }}
+                onScroll={handleScroll}
+            >
+                {visibleTabs.map(tab => (
+                    <div
+                        key={tab.id}
+                        className="min-w-full w-full snap-start flex-shrink-0"
+                        style={{ willChange: 'transform' }}
+                    >
+                        <div className="w-full max-w-7xl mx-auto px-2 md:px-4 pt-4 pb-4 md:pb-8 min-h-[50vh]">
+                            {tab.id === 'daily_bets' && (
+                                <div className="animate-in fade-in duration-500">
+                                    <DailyPredictions predictions={predictions} isAdmin={false} />
+                                </div>
+                            )}
 
-                {activeTab === 'calendar' && (
-                    <div className="animate-in zoom-in-95 duration-300">
-                        <div className="mb-2 text-center md:text-left relative">
-                            <div className="absolute top-0 left-0 w-24 h-24 bg-fuchsia-500/10 rounded-full blur-[40px] pointer-events-none" />
-                            <h2 className="text-3xl md:text-4xl font-black mb-3 flex items-center justify-center md:justify-start gap-3 tracking-tight">
-                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-500">Resultados</span>
-                                <span className="text-foreground">Históricos</span>
-                            </h2>
-                            <p className="text-muted-foreground text-base md:text-lg max-w-2xl text-center md:text-left leading-relaxed">
-                                Transparencia total. Revisa cada día, cada apuesta y cada resultado. Sin filtros.
-                            </p>
-                            <div className="h-1 w-24 bg-gradient-to-r from-fuchsia-500 to-violet-500 rounded-full mt-4 mx-auto md:mx-0 opacity-50" />
+                            {tab.id === 'calendar' && (
+                                <div className="animate-in fade-in duration-500">
+                                    <ResultsCalendar />
+                                </div>
+                            )}
+
+                            {tab.id === 'analytics' && (
+                                <div className="animate-in fade-in duration-500">
+                                    <AdminAnalytics />
+                                </div>
+                            )}
+
+                            {tab.id === 'tiktok' && (
+                                <div className="animate-in fade-in duration-500">
+                                    <TikTokFactory formattedDate={formattedDate} predictions={predictions} />
+                                </div>
+                            )}
                         </div>
-                        <ResultsCalendar />
                     </div>
-                )}
-
-                {activeTab === 'analytics' && (
-                    <div className="animate-in zoom-in-95 duration-300">
-                        <AdminAnalytics />
-                    </div>
-                )}
-
-                {activeTab === 'tiktok' && (
-                    <div className="animate-in zoom-in-95 duration-300">
-                        <TikTokFactory predictions={predictions} formattedDate={formattedDate} />
-                    </div>
-                )}
-            </main>
+                ))}
+            </div>
         </div>
     );
 }
