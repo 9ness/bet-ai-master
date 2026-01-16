@@ -21,6 +21,7 @@ def generate_viral_caption():
     
     console_log(f"📅 Obteniendo apuestas para: {today_str}")
     data = None
+    # Force Git Update: Ensure we use .get() not .get_data()
     raw_data = redis.get(bets_key)
     if raw_data:
         try:
