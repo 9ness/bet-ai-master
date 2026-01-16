@@ -674,26 +674,40 @@ export default function ResultsCalendar() {
     const displayData = localDayData && (localDayData.date === selectedDate) ? localDayData : (selectedDate ? history[selectedDate] : null);
 
     return (
-        <div className="w-full max-w-7xl mx-auto p-4 md:p-8 space-y-8">
+        <div className="w-full max-w-7xl mx-auto px-4 pb-4 pt-0 md:px-8 md:pb-8 md:pt-0 space-y-8">
             {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-6">
-                <div className="flex items-center gap-4 bg-background/50 p-2 rounded-full border border-border/50 shadow-inner">
-                    <button onClick={prevMonth} className="p-2 hover:bg-secondary rounded-full transition-colors"><ChevronLeft size={20} /></button>
-                    <span className="font-bold text-lg md:text-xl min-w-[160px] text-center capitalize">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+                {/* MONTH SELECTOR */}
+                <div className="flex items-center gap-4 bg-secondary/20 p-1.5 rounded-full border border-white/5 relative z-10">
+                    <button
+                        onClick={prevMonth}
+                        className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/70 hover:text-white"
+                    >
+                        <ChevronLeft size={20} />
+                    </button>
+                    <span className="text-sm font-bold w-40 text-center uppercase tracking-wider">
                         {currentDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
                     </span>
-                    <button onClick={nextMonth} className="p-2 hover:bg-secondary rounded-full transition-colors"><ChevronRight size={20} /></button>
+                    <button
+                        onClick={nextMonth}
+                        className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/70 hover:text-white"
+                    >
+                        <ChevronRight size={20} />
+                    </button>
                 </div>
 
-                <div className="flex items-center gap-4 px-8 py-4 bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 border border-violet-500/20 rounded-2xl md:ml-auto shadow-lg shadow-violet-900/10">
-                    <div className="p-3 bg-violet-500/20 rounded-xl text-violet-400 border border-violet-500/30">
-                        <TrendingUp size={28} />
-                    </div>
-                    <div>
-                        <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest mb-0.5">Balance Mensual</p>
-                        <p className={`text-3xl font-black tracking-tight ${stats && (Number(stats.total_profit) >= 0) ? 'text-emerald-400 drop-shadow-[0_0_15px_rgba(52,211,153,0.3)]' : 'text-rose-400 drop-shadow-[0_0_15px_rgba(251,113,133,0.3)]'}`}>
-                            {stats ? (Number(stats.total_profit) > 0 ? '+' : '') + Number(stats.total_profit).toFixed(2) : '0.00'} u
-                        </p>
+                <div className="flex items-center gap-4 px-8 py-4 bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 border border-violet-500/20 rounded-2xl md:ml-auto shadow-lg shadow-violet-900/10 w-full md:w-auto justify-between md:justify-start">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-violet-500/20 rounded-xl text-violet-400 border border-violet-500/30">
+                            <TrendingUp size={28} />
+                        </div>
+                        <div>
+                            <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest mb-0.5">Balance Mensual</p>
+                            <p className={`text-3xl font-black tracking-tight ${stats && (Number(stats.total_profit) >= 0) ? 'text-emerald-400 drop-shadow-[0_0_15px_rgba(52,211,153,0.3)]' : 'text-rose-400 drop-shadow-[0_0_15px_rgba(251,113,133,0.3)]'}`}>
+                                {stats ? (Number(stats.total_profit) > 0 ? '+' : '') + Number(stats.total_profit).toFixed(2) : '0.00'} u
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>

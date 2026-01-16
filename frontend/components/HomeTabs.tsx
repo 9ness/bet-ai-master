@@ -41,6 +41,46 @@ export default function HomeTabs({ settings, predictions, formattedDate, isMock 
         }
     }, [visibleTabs, activeTab]);
 
+    // 3. Swipe Logic
+    const [touchStart, setTouchStart] = useState<number | null>(null);
+    const [touchEnd, setTouchEnd] = useState<number | null>(null);
+
+    // Minimum swipe distance (in px) 
+    const minSwipeDistance = 75;
+
+    const onTouchStart = (e: React.TouchEvent) => {
+        setTouchEnd(null); // Reset
+        setTouchStart(e.targetTouches[0].clientX);
+    };
+
+    const onTouchMove = (e: React.TouchEvent) => {
+        setTouchEnd(e.targetTouches[0].clientX);
+    };
+
+    const onTouchEnd = () => {
+        if (!touchStart || !touchEnd) return;
+
+        const distance = touchStart - touchEnd;
+        const isLeftSwipe = distance > minSwipeDistance;
+        const isRightSwipe = distance < -minSwipeDistance;
+
+        if (isLeftSwipe || isRightSwipe) {
+            const currentIndex = visibleTabs.findIndex(t => t.id === activeTab);
+
+            if (isLeftSwipe) {
+                // Next Tab (Limit to last index)
+                if (currentIndex < visibleTabs.length - 1) {
+                    setActiveTab(visibleTabs[currentIndex + 1].id);
+                }
+            } else {
+                // Prev Tab (Limit to 0)
+                if (currentIndex > 0) {
+                    setActiveTab(visibleTabs[currentIndex - 1].id);
+                }
+            }
+        }
+    };
+
     if (visibleTabs.length === 0) {
         return (
             <div className="min-h-[50vh] flex items-center justify-center text-muted-foreground">
@@ -50,7 +90,12 @@ export default function HomeTabs({ settings, predictions, formattedDate, isMock 
     }
 
     return (
-        <div className="w-full">
+        <div
+            className="w-full"
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
+        >
             {/* HER HERO SECTION (Moved from page.tsx) */}
             <div className="relative overflow-hidden border-b border-border">
                 <div className="absolute top-0 left-1/4 w-96 h-96 bg-fuchsia-500/20 rounded-full blur-[128px] pointer-events-none opacity-50" />
@@ -115,7 +160,7 @@ export default function HomeTabs({ settings, predictions, formattedDate, isMock 
 
                 {activeTab === 'calendar' && (
                     <div className="animate-in zoom-in-95 duration-300">
-                        <div className="mb-12 text-center md:text-left relative">
+                        <div className="mb-2 text-center md:text-left relative">
                             <div className="absolute top-0 left-0 w-24 h-24 bg-fuchsia-500/10 rounded-full blur-[40px] pointer-events-none" />
                             <h2 className="text-3xl md:text-4xl font-black mb-3 flex items-center justify-center md:justify-start gap-3 tracking-tight">
                                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-500">Resultados</span>
@@ -132,17 +177,6 @@ export default function HomeTabs({ settings, predictions, formattedDate, isMock 
 
                 {activeTab === 'analytics' && (
                     <div className="animate-in zoom-in-95 duration-300">
-                        <div className="mb-12 text-center md:text-left relative">
-                            <div className="absolute top-0 left-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-[40px] pointer-events-none" />
-                            <h2 className="text-3xl md:text-4xl font-black mb-3 flex items-center justify-center md:justify-start gap-3 tracking-tight">
-                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-500">Rendimiento</span>
-                                <span className="text-foreground">Mensual</span>
-                            </h2>
-                            <p className="text-muted-foreground text-base md:text-lg max-w-2xl text-center md:text-left leading-relaxed">
-                                Métricas detalladas sobre la rentabilidad y estabilidad de la estrategia.
-                            </p>
-                            <div className="h-1 w-24 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full mt-4 mx-auto md:mx-0 opacity-50" />
-                        </div>
                         <AdminAnalytics />
                     </div>
                 )}
