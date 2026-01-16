@@ -116,6 +116,10 @@ class GeminiService:
             
             # --- BACKEND RECALCULATION (Strict Enforcing) ---
             for bet in bets_list:
+                # 0. Init Globals (Top of JSON)
+                bet["status"] = "PENDING" 
+                bet["check_attempts"] = 0
+                
                 # 1. Enforce Fixed Stake
                 b_type = bet.get("betType", "safe").lower()
                 if "safe" in b_type: fixed_stake = 6
@@ -147,6 +151,7 @@ class GeminiService:
             final_output = {
                 "date": today_str,
                 "is_real": True,
+                "status": "PENDING",
                 "bets": bets_list
             }
             
