@@ -89,10 +89,14 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         });
     };
 
-    const handleCopyText = (text: string) => {
+    const [copiedStates, setCopiedStates] = useState<Record<string, boolean>>({});
+
+    const handleCopyText = (text: string, key: string) => {
         navigator.clipboard.writeText(text).then(() => {
-            // Simple alert or toast could go here, reusing setCopiedCaption for simplicity or new state
-            alert("¡Copiado al portapapeles!");
+            setCopiedStates(prev => ({ ...prev, [key]: true }));
+            setTimeout(() => {
+                setCopiedStates(prev => ({ ...prev, [key]: false }));
+            }, 2000);
         });
     };
 
@@ -629,10 +633,10 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                     {socialContent.title}
                                 </div>
                                 <button
-                                    onClick={() => handleCopyText(socialContent.title)}
-                                    className="bg-white text-black p-3 rounded-xl hover:bg-zinc-200 transition-colors"
+                                    onClick={() => handleCopyText(socialContent.title, 'title')}
+                                    className={`p-3 rounded-xl transition-all duration-300 ${copiedStates['title'] ? 'bg-emerald-500 text-white' : 'bg-white text-black hover:bg-zinc-200'}`}
                                 >
-                                    <Copy size={20} />
+                                    {copiedStates['title'] ? <Check size={20} /> : <Copy size={20} />}
                                 </button>
                             </div>
                         </div>
@@ -645,10 +649,10 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                     {socialContent.description || socialContent.caption}
                                 </div>
                                 <button
-                                    onClick={() => handleCopyText(socialContent.description || socialContent.caption)}
-                                    className="bg-white text-black p-3 rounded-xl hover:bg-zinc-200 transition-colors"
+                                    onClick={() => handleCopyText(socialContent.description || socialContent.caption, 'desc')}
+                                    className={`p-3 rounded-xl transition-all duration-300 ${copiedStates['desc'] ? 'bg-emerald-500 text-white' : 'bg-white text-black hover:bg-zinc-200'}`}
                                 >
-                                    <Copy size={20} />
+                                    {copiedStates['desc'] ? <Check size={20} /> : <Copy size={20} />}
                                 </button>
                             </div>
                         </div>
