@@ -106,21 +106,32 @@ export default function AdminAnalytics() {
     );
 
     // Collapsible Section Helper - Compact Style
-    const CollapsibleSection = ({ title, children, isOpen = false }: { title: string, children: React.ReactNode, isOpen?: boolean }) => (
-        <details className="group border border-white/10 rounded-xl overflow-hidden bg-white/5 my-2" open={isOpen}>
-            <summary className="flex items-center justify-between p-2 cursor-pointer hover:bg-white/5 transition-colors select-none list-none">
-                <span className="text-sm font-bold uppercase text-muted-foreground flex items-center gap-2 pl-2">
-                    {title}
-                </span>
-                <div className="pr-2 text-muted-foreground">
-                    <ChevronDown className="w-4 h-4 group-open:rotate-180 transition-transform duration-300" />
-                </div>
-            </summary>
-            <div className="p-2 border-t border-white/10 animate-in slide-in-from-top-1 duration-200">
-                {children}
+    const CollapsibleSection = ({ title, children, defaultOpen = false }: { title: string, children: React.ReactNode, defaultOpen?: boolean }) => {
+        const [isOpen, setIsOpen] = useState(defaultOpen);
+
+        return (
+            <div className="border border-white/10 rounded-xl overflow-hidden bg-white/5 my-2 relative z-30">
+                <button
+                    onClick={() => setIsOpen(!isOpen)}
+                    className="w-full flex items-center justify-between p-2 cursor-pointer hover:bg-white/5 transition-colors select-none"
+                    type="button"
+                >
+                    <span className="text-sm font-bold uppercase text-muted-foreground flex items-center gap-2 pl-2">
+                        {title}
+                    </span>
+                    <div className="pr-2 text-muted-foreground">
+                        <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
+                    </div>
+                </button>
+
+                {isOpen && (
+                    <div className="p-2 border-t border-white/10 animate-in slide-in-from-top-1 duration-200">
+                        {children}
+                    </div>
+                )}
             </div>
-        </details>
-    );
+        );
+    };
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
@@ -155,7 +166,7 @@ export default function AdminAnalytics() {
             </div>
 
             {/* SECTION 1: RESUMEN FINANCIERO (Open by Default) */}
-            <CollapsibleSection title="Resumen Financiero" isOpen={true}>
+            <CollapsibleSection title="Resumen Financiero" defaultOpen={true}>
                 {/* Top Metrics Cards - GRID 3x2 on MD - COMPACT MODE */}
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                     {/* 1. PROFIT */}
@@ -253,7 +264,7 @@ export default function AdminAnalytics() {
             </CollapsibleSection>
 
             {/* Main Chart: Profit Evolution (Closed by Default) */}
-            <CollapsibleSection title={`Evolución (${formattedMonth})`} isOpen={false}>
+            <CollapsibleSection title={`Evolución (${formattedMonth})`} defaultOpen={false}>
                 <div className="h-[250px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={data}>
@@ -285,7 +296,7 @@ export default function AdminAnalytics() {
 
             {/* DETAILED STATS GRID */}
             {/* DETAILED STATS GRID */}
-            <CollapsibleSection title="Desglose Detallado">
+            <CollapsibleSection title="Desglose Detallado" defaultOpen={false}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
                     {/* 1. PERFORMANCE BY TYPE (Bar Chart) */}

@@ -486,40 +486,40 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
         safe: {
             type: 'safe',
             icon: ShieldCheck,
-            color: 'emerald',
+            color: 'cyan',
             title: 'La Segura',
             subtitle: 'Probabilidad Alta',
-            cardBorder: 'hover:border-emerald-500/50',
-            cardShadow: 'hover:shadow-emerald-500/10',
-            headerBg: 'bg-emerald-500',
-            iconBg: 'bg-emerald-500/10',
-            textColor: 'text-emerald-500',
+            cardBorder: 'hover:border-cyan-500/50',
+            cardShadow: 'hover:shadow-cyan-500/10',
+            headerBg: 'bg-cyan-500',
+            iconBg: 'bg-cyan-500/10',
+            textColor: 'text-cyan-500',
             stake: 6
         },
         value: {
             type: 'value',
             icon: Target,
-            color: 'violet',
+            color: 'amber',
             title: 'De Valor',
             subtitle: 'Rentabilidad Alta',
-            cardBorder: 'hover:border-violet-500/50',
-            cardShadow: 'hover:shadow-violet-500/10',
-            headerBg: 'bg-violet-500',
-            iconBg: 'bg-violet-500/10',
-            textColor: 'text-violet-500',
-            stake: 3
-        },
-        funbet: {
-            type: 'funbet',
-            icon: PartyPopper,
-            color: 'amber',
-            title: 'Funbet',
-            subtitle: 'Arriesgada',
             cardBorder: 'hover:border-amber-500/50',
             cardShadow: 'hover:shadow-amber-500/10',
             headerBg: 'bg-amber-500',
             iconBg: 'bg-amber-500/10',
             textColor: 'text-amber-500',
+            stake: 3
+        },
+        funbet: {
+            type: 'funbet',
+            icon: PartyPopper,
+            color: 'fuchsia',
+            title: 'Funbet',
+            subtitle: 'Arriesgada',
+            cardBorder: 'hover:border-fuchsia-500/50',
+            cardShadow: 'hover:shadow-fuchsia-500/10',
+            headerBg: 'bg-fuchsia-500',
+            iconBg: 'bg-fuchsia-500/10',
+            textColor: 'text-fuchsia-500',
             stake: 1
         }
     };
@@ -709,7 +709,7 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
 
             {/* Value Badge */}
             {type === 'value' && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-violet-600 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest shadow-lg">
+                <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-amber-600 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest shadow-lg">
                     Recomendado
                 </div>
             )}

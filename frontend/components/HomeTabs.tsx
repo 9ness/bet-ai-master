@@ -34,6 +34,52 @@ export default function HomeTabs({ settings, predictions, formattedDate, isMock 
     // Default to the first visible tab, or empty string if none
     const [activeTab, setActiveTab] = useState(visibleTabs.length > 0 ? visibleTabs[0].id : '');
 
+    // Header Stats State
+    const [headerStats, setHeaderStats] = useState({
+        profit: 0,
+        yieldVal: 0,
+        yesterdayProfit: null as number | null
+    });
+
+    // Fetch Header Stats
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const now = new Date();
+                const monthStr = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
+
+                const res = await fetch(`/api/admin/history?month=${monthStr}`);
+                const json = await res.json();
+
+                if (json.stats) {
+                    // Calculate Yesterday's Profit
+                    let yesterProfit = null;
+                    if (json.days) {
+                        const yesterday = new Date();
+                        yesterday.setDate(yesterday.getDate() - 1);
+                        const yStr = `${yesterday.getFullYear()}-${(yesterday.getMonth() + 1).toString().padStart(2, '0')}-${yesterday.getDate().toString().padStart(2, '0')}`;
+
+                        if (json.days[yStr]) {
+                            yesterProfit = json.days[yStr].day_profit;
+                        }
+                    }
+
+                    setHeaderStats({
+                        profit: json.stats.total_profit || 0,
+                        yieldVal: json.stats.yield || 0,
+                        yesterdayProfit: yesterProfit
+                    });
+                }
+            } catch (e) {
+                console.error("Failed to fetch header stats", e);
+            }
+        };
+
+        if (settings.show_analytics) {
+            fetchStats();
+        }
+    }, [settings.show_analytics]);
+
     // Reset active tab if visibility changes
     useEffect(() => {
         if (!visibleTabs.find(t => t.id === activeTab) && visibleTabs.length > 0) {
@@ -96,33 +142,72 @@ export default function HomeTabs({ settings, predictions, formattedDate, isMock 
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
         >
-            {/* HER HERO SECTION (Moved from page.tsx) */}
-            <div className="relative overflow-hidden border-b border-border">
-                <div className="absolute top-0 left-1/4 w-96 h-96 bg-fuchsia-500/20 rounded-full blur-[128px] pointer-events-none opacity-50" />
-                <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-violet-500/20 rounded-full blur-[128px] pointer-events-none opacity-50" />
+            {/* COMPACT HERO SECTION */}
+            <div className="relative overflow-hidden border-b border-border bg-background/50">
+                <div className="absolute top-0 left-1/4 w-96 h-96 bg-fuchsia-500/10 rounded-full blur-[128px] pointer-events-none opacity-30" />
+                <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-[128px] pointer-events-none opacity-30" />
 
-                <div className="max-w-4xl mx-auto px-4 py-8 md:py-16 text-center relative z-10">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-secondary text-secondary-foreground text-sm font-medium mb-6 hover:bg-secondary/80 transition-colors cursor-default">
-                        <Activity size={14} className="text-fuchsia-500 animate-pulse" />
-                        <span>Análisis Pro con IA</span>
+                <div className="max-w-4xl mx-auto px-4 py-4 md:py-6 text-center relative z-10">
+                    {/* Top Badge */}
+                    <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full bg-secondary/50 text-secondary-foreground text-[10px] font-bold mb-3 hover:bg-secondary/80 transition-colors cursor-default border border-white/5">
+                        <Activity size={10} className="text-fuchsia-500 animate-pulse" />
+                        <span>ANÁLISIS Pro con IA</span>
                     </div>
 
-                    <h1 className="text-3xl md:text-7xl font-black mb-6 tracking-tight leading-tight">
-                        BET AI MASTER <br className="hidden md:block" />
-                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-fuchsia-500 to-violet-500 animate-gradient block md:inline mt-2 md:mt-0">
+                    {/* Main Title COMPACT */}
+                    <div className="flex flex-col md:flex-row items-center justify-center gap-2 md:gap-4 mb-3">
+                        <h1 className="text-2xl md:text-5xl font-black tracking-tighter leading-none">
+                            BET AI <span className="text-fuchsia-500">MASTER</span>
+                        </h1>
+                        <span className="hidden md:block text-muted-foreground/30 text-3xl font-thin">|</span>
+                        <h2 className="text-lg md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-fuchsia-500 to-violet-500 animate-gradient">
                             PREDICCIONES DIARIAS
-                        </span>
-                    </h1>
+                        </h2>
+                    </div>
 
-                    <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-6 leading-relaxed capitalize">
-                        Predicciones para el día: <br className="md:hidden" />
-                        <span className="font-bold text-foreground">{formattedDate}</span>
-                    </p>
+                    {/* Date & Stats Row - SINGLE LINE LAYOUT */}
+                    <div className="flex flex-col md:flex-row items-center justify-center gap-3">
+                        {/* Date */}
+                        <p className="text-xs md:text-sm text-muted-foreground font-medium capitalize flex items-center gap-1.5 whitespace-nowrap">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            {formattedDate}
+                        </p>
+
+                        <span className="hidden md:block text-muted-foreground/20">|</span>
+
+                        {/* SOCIAL PROOF TICKER */}
+                        {settings.show_analytics && (
+                            <div className="flex flex-nowrap items-center justify-center gap-2 overflow-x-auto max-w-full pb-1 md:pb-0 scrollbar-hide">
+                                {/* Profit Badge */}
+                                <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg shrink-0">
+                                    <span className="text-[9px] text-emerald-500/70 font-bold uppercase tracking-wider">Ganancias</span>
+                                    <span className="text-xs font-black text-emerald-400">+{headerStats.profit.toFixed(2)} u</span>
+                                </div>
+
+                                {/* Yield Badge */}
+                                <div className="flex items-center gap-1.5 bg-fuchsia-500/10 border border-fuchsia-500/20 px-2.5 py-1 rounded-lg shrink-0">
+                                    <span className="text-[9px] text-fuchsia-500/70 font-bold uppercase tracking-wider">Yield</span>
+                                    <span className="text-xs font-black text-fuchsia-400">{headerStats.yieldVal.toFixed(2)}%</span>
+                                </div>
+
+                                {/* Yesterday Result (Only if exists) */}
+                                {headerStats.yesterdayProfit !== null && (
+                                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border shrink-0 ${headerStats.yesterdayProfit >= 0 ? 'bg-blue-500/10 border-blue-500/20' : 'bg-rose-500/10 border-rose-500/20'}`}>
+                                        <span className={`text-[9px] font-bold uppercase tracking-wider ${headerStats.yesterdayProfit >= 0 ? 'text-blue-500/70' : 'text-rose-500/70'}`}>Ayer</span>
+                                        <span className={`text-xs font-black ${headerStats.yesterdayProfit >= 0 ? 'text-blue-400' : 'text-rose-400'}`}>
+                                            {headerStats.yesterdayProfit > 0 ? '+' : ''}{headerStats.yesterdayProfit.toFixed(2)} u
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
 
                     {isMock && (
-                        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/10 text-amber-500 border border-amber-500/20 mb-4">
+                        <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/10 text-amber-500 border border-amber-500/20 mb-4">
                             <AlertTriangle size={16} />
-                            <span className="text-sm font-medium">Modo Demostración (Datos de Ejemplo)</span>
+                            <span className="text-sm font-medium">Modo Demostración</span>
                         </div>
                     )}
                 </div>
