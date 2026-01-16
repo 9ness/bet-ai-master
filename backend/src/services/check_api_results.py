@@ -11,6 +11,28 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 
 from src.services.redis_service import RedisService
 
+# ENV LOADING
+try:
+    from dotenv import load_dotenv
+    # Look for .env.local in common paths (Root, Frontend, etc.)
+    base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) # backend/src/services -> backend
+    possible_paths = [
+        os.path.join(base_path, '.env.local'),
+        os.path.join(base_path, '../.env.local'),
+        os.path.join(base_path, '../frontend/.env.local'),
+        os.path.join(base_path, 'frontend/.env.local') # Just in case structure is flat
+    ]
+    
+    env_loaded = False
+    for p in possible_paths:
+        if os.path.exists(p):
+            load_dotenv(p)
+            # print(f"[INIT] Loaded env from {p}")
+            env_loaded = True
+            break
+except ImportError:
+    pass
+
 # API CONFIG
 API_KEY = os.getenv("API_KEY")
 FOOTBALL_API_URL = "https://v3.football.api-sports.io/fixtures"
@@ -228,6 +250,9 @@ def check_bets():
                 # --- EVALUATE WIN/LOSS ---
                 # --- LOGIC ENGINE ---
                 pick = sel["pick"].lower()
+                # Normalize accents manually to avoid encoding hell
+                pick = pick.replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o").replace("ú", "u")
+                
                 home_score = data["home_score"]
                 away_score = data["away_score"]
                 
@@ -259,7 +284,7 @@ def check_bets():
                             is_win = home_score != away_score
                             
                     # 2. GOALS / POINTS (OVER/UNDER)
-                    elif "más de" in pick or "over" in pick:
+                    elif "más de" in pick or "mas de" in pick or "over" in pick:
                         # Clean string: "más de 3.5 goles" -> "3.5"
                         clean_pick = pick.replace("más de", "").replace("over", "").replace("goles", "").replace("goals", "").replace("puntos", "").replace("points", "").replace("pts", "").strip()
                         # Extract first valid number
@@ -301,7 +326,7 @@ def check_bets():
                             is_win = home_score == 0 or away_score == 0
 
                     # 4. HANDICAP (Basket mainly)
-                    elif "hándicap" in pick or "ah" in pick:
+                    elif "hándicap" in pick or "handicap" in pick or "ah" in pick:
                         # Normalize: "Local AH +3.5" -> remove words -> "+3.5"
                         # Parsing logic: Find the number in the string (can be negative or positive)
                         # Regex to find number like +3.5, -4.5, 5.5

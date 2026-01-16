@@ -730,6 +730,47 @@ export default function ResultsCalendar() {
                                     <span className={`text-sm font-bold px-2 py-0.5 rounded transition-all duration-300 ${displayData.day_profit >= 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
                                         {displayData.day_profit > 0 ? '+' : ''}{displayData.day_profit.toFixed(2)} unidades
                                     </span>
+
+                                    {/* ADMIN RESET BUTTON (Conditional) */}
+                                    {isAdmin && (() => {
+                                        // Check if any bet needs reset
+                                        const bets = Array.isArray(displayData.bets) ? displayData.bets : Object.values(displayData.bets || {});
+                                        const hasStuckBets = bets.some((b: any) => {
+                                            const status = (b.status || 'PENDING');
+                                            const attempts = b.check_attempts || 0;
+                                            // Condition: Pending/Manual Check AND Attempts >= 3
+                                            return (status === 'PENDING' || status === 'MANUAL_CHECK') && attempts >= 3;
+                                        });
+
+                                        if (!hasStuckBets) return null;
+
+                                        return (
+                                            <button
+                                                onClick={async () => {
+                                                    if (!confirm("¿Resetear contador de intentos para TODOS los pendientes de este día?")) return;
+                                                    try {
+                                                        const res = await fetch('/api/admin/reset-attempts', {
+                                                            method: 'POST',
+                                                            headers: { 'Content-Type': 'application/json' },
+                                                            body: JSON.stringify({ date: selectedDate })
+                                                        });
+                                                        const d = await res.json();
+                                                        if (d.success) {
+                                                            alert(`Reseteados ${d.count} partidos.`);
+                                                            fetchData(); // Refresh
+                                                        } else {
+                                                            alert("Error: " + d.error);
+                                                        }
+                                                    } catch (e) {
+                                                        alert("Error de conexión");
+                                                    }
+                                                }}
+                                                className="ml-2 bg-amber-500/20 hover:bg-amber-500/40 text-amber-500 border border-amber-500/30 text-[10px] uppercase font-bold px-2 py-0.5 rounded flex items-center gap-1 transition-colors animate-pulse"
+                                            >
+                                                <RefreshCw size={12} /> Reset Stuck ({bets.filter((b: any) => (b.status === 'PENDING' || b.status === 'MANUAL_CHECK') && (b.check_attempts || 0) >= 3).length})
+                                            </button>
+                                        );
+                                    })()}
                                 </div>
                             </div>
                             <button onClick={() => setSelectedDate(null)} className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/70 hover:text-white">
