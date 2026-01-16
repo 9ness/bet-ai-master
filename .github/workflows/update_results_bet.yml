@@ -1,4 +1,4 @@
-name: 0º - (Pruebas AI) Actualiza resultados día anterior
+name: 0º - Comprobador de Resultados API
 
 on:
   schedule:
@@ -29,6 +29,7 @@ jobs:
         # Mapeo de ambas variables para asegurar detección en el script
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         GOOGLE_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        API_KEY: ${{ secrets.API_KEY }}
       run: |
         export PYTHONPATH=$PYTHONPATH:$(pwd)/backend
-        python backend/src/services/check_results.py
+        python backend/src/services/check_api_results.py

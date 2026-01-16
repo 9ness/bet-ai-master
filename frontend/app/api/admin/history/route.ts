@@ -154,20 +154,34 @@ export async function GET(req: NextRequest) {
             }
         });
 
-        // Calculate Stats Dynamically (REAL ROI/YIELD)
-        const dynamicStats = {
-            total_profit: Number(totalMonthlyProfit.toFixed(2)),
-            total_stake: Number(totalMonthlyStake.toFixed(2)),
-            yield: totalMonthlyStake > 0 ? Number(((totalMonthlyProfit / totalMonthlyStake) * 100).toFixed(2)) : 0,
-            win_rate: totalSettledDays > 0 ? Number(((wonDays / totalSettledDays) * 100).toFixed(1)) : 0
-        };
+        // 3. Get Pre-calculated Stats (Source of Truth: Python Script)
+        const statsKey = `${prefix}stats:${month}`;
+        const storedStatsRaw = await redis.get(statsKey);
+        let finalStats: any = null;
 
-        // Cache Stats for Dashboard
-        await redis.set(`${prefix}stats:${month}`, JSON.stringify(dynamicStats));
+        if (storedStatsRaw) {
+            finalStats = typeof storedStatsRaw === 'string' ? JSON.parse(storedStatsRaw) : storedStatsRaw;
+        } else {
+            // Fallback if Python hasn't run yet
+            finalStats = {
+                total_profit: Number(totalMonthlyProfit.toFixed(2)),
+                total_stake: Number(totalMonthlyStake.toFixed(2)),
+                yield: totalMonthlyStake > 0 ? Number(((totalMonthlyProfit / totalMonthlyStake) * 100).toFixed(2)) : 0,
+                // Zeroes for complex stats not calc'd here
+                profit_factor: 0,
+                roi: 0,
+                max_drawdown: 0
+            };
+        }
+
+        // Cache Stats for Dashboard (Only if we did fallback calc, otherwise no need to re-set)
+        if (!storedStatsRaw) {
+            await redis.set(statsKey, JSON.stringify(finalStats));
+        }
 
         return NextResponse.json({
             month,
-            stats: dynamicStats,
+            stats: finalStats,
             days: daysMap
         });
 

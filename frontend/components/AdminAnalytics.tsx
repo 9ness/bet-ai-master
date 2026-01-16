@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
-import { Loader2, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
+import { Loader2, TrendingUp, TrendingDown, DollarSign, Info } from 'lucide-react';
 
 export default function AdminAnalytics() {
     const [data, setData] = useState<any[]>([]);
@@ -53,40 +53,85 @@ export default function AdminAnalytics() {
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
             {/* Top Metrics Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
-                <div className="bg-card/40 border border-border/50 p-4 md:p-6 rounded-3xl flex items-center justify-between">
+            {/* Top Metrics Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+                {/* 1. PROFIT */}
+                <div className="group relative bg-card/40 border border-border/50 p-4 rounded-3xl flex flex-col justify-between h-32 md:h-auto hover:bg-card/60 transition-colors">
+                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="bg-black/90 text-white text-[10px] p-2 rounded border border-white/10 w-40 absolute right-0 -top-8 z-10 pointer-events-none">
+                            Ganancia neta total acumulada en unidades (u) este mes.
+                        </div>
+                    </div>
                     <div>
-                        <p className="text-muted-foreground text-[10px] md:text-xs uppercase font-bold tracking-widest">Profit Mensual</p>
-                        <h3 className={`text-3xl md:text-4xl font-black mt-1 md:mt-2 ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
-                            {stats?.total_profit > 0 ? '+' : ''}{stats?.total_profit} u
+                        <p className="text-muted-foreground text-[10px] uppercase font-bold tracking-widest flex items-center gap-1">
+                            Profit Mensual <Info size={10} className="text-muted-foreground/50" />
+                        </p>
+                        <h3 className={`text-2xl md:text-3xl font-black mt-1 ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {stats?.total_profit > 0 ? '+' : ''}{stats?.total_profit?.toFixed(2)} u
                         </h3>
                     </div>
-                    <div className={`p-3 md:p-4 rounded-full ${isPositive ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
-                        {isPositive ? <TrendingUp className="w-6 h-6 md:w-8 md:h-8" /> : <TrendingDown className="w-6 h-6 md:w-8 md:h-8" />}
+                    <div className="self-end p-2 rounded-full bg-secondary/20">
+                        <DollarSign className="w-5 h-5 text-foreground/70" />
                     </div>
                 </div>
 
-                <div className="bg-card/40 border border-border/50 p-4 md:p-6 rounded-3xl flex items-center justify-between">
+                {/* 2. ROI */}
+                <div className="group relative bg-card/40 border border-border/50 p-4 rounded-3xl flex flex-col justify-between h-32 md:h-auto hover:bg-card/60 transition-colors">
+                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="bg-black/90 text-white text-[10px] p-2 rounded border border-white/10 w-40 absolute right-0 -top-8 z-10 pointer-events-none">
+                            Rentabilidad obtenida respecto al bankroll inicial (base 100u).
+                        </div>
+                    </div>
                     <div>
-                        <p className="text-muted-foreground text-[10px] md:text-xs uppercase font-bold tracking-widest">WIN RATE</p>
-                        <h3 className={`text-3xl md:text-4xl font-black mt-1 md:mt-2 ${stats?.win_rate >= 50 ? 'text-emerald-400' : 'text-violet-400'}`}>
-                            {stats?.win_rate ?? 0}%
+                        <p className="text-muted-foreground text-[10px] uppercase font-bold tracking-widest flex items-center gap-1">
+                            ROI (Retorno) <Info size={10} className="text-muted-foreground/50" />
+                        </p>
+                        <h3 className={`text-2xl md:text-3xl font-black mt-1 ${stats?.roi >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {stats?.roi?.toFixed(2)}%
                         </h3>
                     </div>
-                    <div className={`p-3 md:p-4 rounded-full ${stats?.win_rate >= 50 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-violet-500/10 text-violet-500'}`}>
-                        <TrendingUp className="w-6 h-6 md:w-8 md:h-8" />
+                    <div className="self-end p-2 rounded-full bg-secondary/20">
+                        <TrendingUp className="w-5 h-5 text-foreground/70" />
                     </div>
                 </div>
 
-                <div className="bg-card/40 border border-border/50 p-4 md:p-6 rounded-3xl flex items-center justify-between">
+                {/* 3. MAX DRAWDOWN */}
+                <div className="group relative bg-card/40 border border-border/50 p-4 rounded-3xl flex flex-col justify-between h-32 md:h-auto hover:bg-card/60 transition-colors">
+                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="bg-black/90 text-white text-[10px] p-2 rounded border border-white/10 w-40 absolute right-0 -top-8 z-10 pointer-events-none">
+                            La mayor "mala racha" o caída acumulada desde un máximo.
+                        </div>
+                    </div>
                     <div>
-                        <p className="text-muted-foreground text-[10px] md:text-xs uppercase font-bold tracking-widest">Días Operados</p>
-                        <h3 className="text-3xl md:text-4xl font-black mt-1 md:mt-2 text-white">
-                            {data.length}
+                        <p className="text-muted-foreground text-[10px] uppercase font-bold tracking-widest flex items-center gap-1">
+                            Máxima Caída <Info size={10} className="text-muted-foreground/50" />
+                        </p>
+                        <h3 className="text-2xl md:text-3xl font-black mt-1 text-rose-400">
+                            -{stats?.max_drawdown?.toFixed(2)} u
                         </h3>
                     </div>
-                    <div className="p-3 md:p-4 rounded-full bg-blue-500/10 text-blue-500">
-                        <TrendingUp className="w-6 h-6 md:w-8 md:h-8" />
+                    <div className="self-end p-2 rounded-full bg-rose-500/10">
+                        <TrendingDown className="w-5 h-5 text-rose-500" />
+                    </div>
+                </div>
+
+                {/* 4. PROFIT FACTOR */}
+                <div className="group relative bg-card/40 border border-border/50 p-4 rounded-3xl flex flex-col justify-between h-32 md:h-auto hover:bg-card/60 transition-colors">
+                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="bg-black/90 text-white text-[10px] p-2 rounded border border-white/10 w-40 absolute right-0 -top-8 z-10 pointer-events-none">
+                            Relación entre ganancias brutas y pérdidas brutas. {'>'} 1 es rentable.
+                        </div>
+                    </div>
+                    <div>
+                        <p className="text-muted-foreground text-[10px] uppercase font-bold tracking-widest flex items-center gap-1">
+                            Factor Beneficio <Info size={10} className="text-muted-foreground/50" />
+                        </p>
+                        <h3 className={`text-2xl md:text-3xl font-black mt-1 ${stats?.profit_factor >= 1.5 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                            {stats?.profit_factor?.toFixed(2)}
+                        </h3>
+                    </div>
+                    <div className="self-end text-xs text-muted-foreground font-medium flex items-center gap-1">
+                        Meta: <span className="text-emerald-400 font-bold">&gt;1.5</span>
                     </div>
                 </div>
             </div>
@@ -122,6 +167,6 @@ export default function AdminAnalytics() {
                     </ResponsiveContainer>
                 </div>
             </div>
-        </div>
+        </div >
     );
 }

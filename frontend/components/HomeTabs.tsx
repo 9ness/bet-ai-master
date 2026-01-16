@@ -115,9 +115,16 @@ export default function HomeTabs({ settings, predictions, formattedDate, isMock 
 
                 {activeTab === 'calendar' && (
                     <div className="animate-in zoom-in-95 duration-300">
-                        <div className="mb-8">
-                            <h2 className="text-2xl font-black mb-2 flex items-center gap-2">Resultados Históricos</h2>
-                            <p className="text-muted-foreground text-sm">Transparencia total en nuestros resultados pasados.</p>
+                        <div className="mb-12 text-center md:text-left relative">
+                            <div className="absolute top-0 left-0 w-24 h-24 bg-fuchsia-500/10 rounded-full blur-[40px] pointer-events-none" />
+                            <h2 className="text-3xl md:text-4xl font-black mb-3 flex items-center justify-center md:justify-start gap-3 tracking-tight">
+                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-500">Resultados</span>
+                                <span className="text-foreground">Históricos</span>
+                            </h2>
+                            <p className="text-muted-foreground text-base md:text-lg max-w-2xl text-center md:text-left leading-relaxed">
+                                Transparencia total. Revisa cada día, cada apuesta y cada resultado. Sin filtros.
+                            </p>
+                            <div className="h-1 w-24 bg-gradient-to-r from-fuchsia-500 to-violet-500 rounded-full mt-4 mx-auto md:mx-0 opacity-50" />
                         </div>
                         <ResultsCalendar />
                     </div>
@@ -125,9 +132,16 @@ export default function HomeTabs({ settings, predictions, formattedDate, isMock 
 
                 {activeTab === 'analytics' && (
                     <div className="animate-in zoom-in-95 duration-300">
-                        <div className="mb-8">
-                            <h2 className="text-2xl font-black mb-2 flex items-center gap-2">Rendimiento Mensual</h2>
-                            <p className="text-muted-foreground text-sm">Análisis detallado de rentabilidad y evolución.</p>
+                        <div className="mb-12 text-center md:text-left relative">
+                            <div className="absolute top-0 left-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-[40px] pointer-events-none" />
+                            <h2 className="text-3xl md:text-4xl font-black mb-3 flex items-center justify-center md:justify-start gap-3 tracking-tight">
+                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-500">Rendimiento</span>
+                                <span className="text-foreground">Mensual</span>
+                            </h2>
+                            <p className="text-muted-foreground text-base md:text-lg max-w-2xl text-center md:text-left leading-relaxed">
+                                Métricas detalladas sobre la rentabilidad y estabilidad de la estrategia.
+                            </p>
+                            <div className="h-1 w-24 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full mt-4 mx-auto md:mx-0 opacity-50" />
                         </div>
                         <AdminAnalytics />
                     </div>

@@ -111,6 +111,7 @@ type BetData = {
     total_odd?: number;
     date?: string; // Sometimes present in data
     startTime?: string;
+    check_attempts?: number;
 };
 
 type BetCardProps = {
@@ -666,6 +667,13 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
                             'bg-rose-500/20 text-rose-500 border-rose-500/20'}`}>
                         {(data.status === 'WON' || data.status === 'GANADA') ? <Check size={12} /> : <XIcon size={12} />}
                         <span>{(data.status === 'WON' || data.status === 'GANADA') ? 'GANADA' : 'PERDIDA'}</span>
+                    </div>
+                )}
+                {/* 1.1 CHECK ATTEMPTS BADGE (ADMIN OR DEBUG) */}
+                {data.check_attempts !== undefined && data.check_attempts >= 0 && (
+                    <div className="flex items-center gap-1.5 text-[10px] font-mono px-2 py-0.5 rounded-full border bg-secondary/50 border-border/50 text-muted-foreground opacity-60">
+                        <RefreshCw size={10} />
+                        <span>Checks: {data.check_attempts}</span>
                     </div>
                 )}
 

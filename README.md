@@ -1,104 +1,117 @@
-# Guia de Inicio - Quiniela AI
+# 🧠 Quiniela AI - Bet Master
 
-Este archivo documenta los pasos necesarios para configurar y arrancar el proyecto en un entorno local. El proyecto consiste en un Backend (Python) para scraping y análisis, y un Frontend (Next.js) para visualizar las recomendaciones.
+Plataforma inteligente de predicción deportiva (Fútbol y Baloncesto) impulsada por IA (Gemini 3 Pro) y análisis de datos en tiempo real.
 
-## Prerrequisitos
+## 🚀 Características Principales
 
-*   **Python 3.10+**: Asegurate de tener Python instalado y añadido al PATH.
-*   **Node.js 18+**: Necesario para el frontend.
-*   **Cuenta de Google Cloud**: Para la API de Gemini y Google Sheets (opcional si usas API Mock).
+*   **Multi-Deporte**: Análisis simultáneo de Fútbol y Baloncesto (NBA/Euroliga).
+*   **IA Avanzada**: Motor de decisión basado en **Gemini 3 Pro** con prompts especializados (Risk Manager & Pro Tipster).
+*   **Tipos de Apuesta**:
+    *   🛡️ **SAFE**: Alta probabilidad (>75%), Stake 6.
+    *   💎 **VALUE**: Cuota 2.50+, Stake 3.
+    *   🎉 **FUNBET**: Combinadas de alta cuota (10+), Stake 1.
+*   **Admin Dashboard**: Panel de control para revisar historial, forzar análisis y gestionar apuestas manualmente.
+*   **Resultados Automáticos**: Verificación periódica de resultados y cálculo de profit/loss.
+*   **Social Factory**: Generación automática de guiones virales para TikTok basados en las apuestas del día.
 
 ---
 
-## 1. Configuración del Backend
+## 🛠️ Stack Tecnológico
 
-El backend se encarga de obtener los datos de los partidos, analizarlos y generar predicciones usando Gemini AI.
+*   **Backend**: Python 3.10+
+    *   `FastAPI` (o Scripts independientes ejecutados por Cron/Actions).
+    *   `Redis (Upstash)`: Base de datos en tiempo real y persistencia.
+    *   `Google Gemini SDK`: Generación de predicciones.
+*   **Frontend**: Next.js 14+ (App Router)
+    *   `Tailwind CSS` + `Lucide React`: UI moderna y responsive.
+    *   `Recharts`: Gráficos de rendimiento.
+*   **Infraestructura**:
+    *   **GitHub Actions**: Pipelines CI/CD para ejecución automática (Daily Update, Result Check, Social Content).
 
-### Pasos:
+---
 
-1.  **Navegar al directorio backend**:
-    ```bash
-    cd backend
-    ```
+## 📁 Estructura del Proyecto
 
-2.  **Crear un entorno virtual**:
-    Es recomendable usar un entorno virtual para aislar las dependencias.
-    ```bash
-    python -m venv venv
-    ```
+### Backend (`/backend`)
+*   `main.py`: Punto de entrada (CLI) para ejecutar flujos completos (Fetch -> Analyze -> Recommend).
+*   **Services (`/src/services`)**:
+    *   `fetch_odds.py`: Conexión con API-Sports (Fútbol y Basket) para obtener partidos y cuotas.
+    *   `analyzer.py`: Lógica pre-procesado de datos para la IA.
+    *   `gemini.py`: Cliente de Gemini que genera el JSON final de apuestas.
+    *   `check_api_results.py`: Comprueba resultados de partidos terminados y actualiza Redis.
+    *   `social_generator.py`: Genera captions para redes sociales leyendo de Redis.
+    *   `redis_service.py`: Cliente centralizado para Upstash (HTTP).
+*   **Tools**: Scripts de utilidad como `reset_attempts.py` (para depuración).
 
-3.  **Activar el entorno virtual**:
-    *   **Windows (PowerShell)**:
-        ```bash
-        .\venv\Scripts\Activate
-        ```
-    *   **Windows (CMD)**:
-        ```bash
-        .\venv\Scripts\activate.bat
-        ```
-    *   **Mac/Linux**:
-        ```bash
-        source venv/bin/activate
-        ```
+### Frontend (`/frontend`)
+*   **Páginas**:
+    *   `/`: Vista de usuario (Últimas apuestas).
+    *   `/admin`: Panel de administración (Calendario, Historial, Herramientas).
+*   **API Routes (`/app/api`)**:
+    *   `/api/admin/trigger-check`: Dispara la comprobación de resultados.
+    *   `/api/admin/reset-attempts`: **[NUEVO]** Resetea contadores de intentos para apuestas atascadas.
+    *   `/api/social/tiktok`: Endpoint para obtener contenido generado.
 
-4.  **Instalar dependencias**:
-    ```bash
-    pip install -r requirements.txt
-    ```
+---
 
-5.  **Configurar Variables de Entorno**:
-    Crea un archivo llamado `.env` dentro de la carpeta `backend/` y añade tu clave de API de Google Gemini:
-    ```env
-    GOOGLE_API_KEY=tu_api_key_de_gemini_aqui
-    ```
-    *(Si no tienes una API Key, el sistema usará un modo Mock con datos de prueba).*
+## ⚙️ Configuración Local
 
-6.  **Credenciales de Google Sheets (Opcional)**:
-    Si el proyecto requiere escribir en Google Sheets, coloca tu archivo `credentials.json` (descargado de Google Cloud Console) en la **raíz del proyecto** (`bet-ai-master/`).
+### 1. Variables de Entorno
+Crea un archivo `.env.local` en la raíz (o en `/frontend`) con las siguientes claves:
 
-### Ejecución del Backend:
+```env
+# APIs Externas
+API_KEY=tu_api_sports_key
+GOOGLE_API_KEY=tu_gemini_api_key
 
-Para correr el script principal que genera las predicciones:
+# Base de Datos (Upstash Redis)
+# NOTA: Usar versión REST (HTTP) para compatibilidad total
+UPSTASH_REDIS_REST_URL=https://tu-db.upstash.io
+UPSTASH_REDIS_REST_TOKEN=tu_token_upstash
+REDIS_PREFIX=betai:
 
-```bash
-python main.py
+# Configuración App
+NEXT_PUBLIC_ADMIN_MODE=true  # Opcional para ver UI Admin local
 ```
 
-Esto generará un archivo `data/recommendations_final.json` que el frontend consumirá.
+### 2. Backend (Python)
+```bash
+cd backend
+python -m venv venv
+# Activar entorno (Windows: .\venv\Scripts\Activate | Mac/Linux: source venv/bin/activate)
+pip install -r requirements.txt
+
+# Ejecutar manualmente un análisis
+python main.py --mode all
+```
+
+### 3. Frontend (Next.js)
+```bash
+cd frontend
+npm install
+npm run dev
+# Visitar http://localhost:3000
+```
 
 ---
 
-## 2. Configuración del Frontend
+## 🤖 Workflows Automáticos (GitHub Actions)
 
-El frontend es una aplicación web moderna construida con Next.js y Tailwind CSS.
+El proyecto funciona de forma autónoma gracias a los workflows definidos en `.github/workflows`:
 
-### Pasos:
-
-1.  **Navegar al directorio frontend**:
-    ```bash
-    cd frontend
-    ```
-    *(Si estabas en `backend`, ejecuta `cd ../frontend`)*
-
-2.  **Instalar dependencias**:
-    ```bash
-    npm install
-    ```
-    *(Si `npm install` falla por conflictos, prueba `npm install --legacy-peer-deps`)*
-
-3.  **Arrancar el servidor de desarrollo**:
-    ```bash
-    npm run dev
-    ```
-
-4.  **Ver la aplicación**:
-    Abre tu navegador y entra a [http://localhost:3000](http://localhost:3000).
+1.  **Daily Analysis**: Se ejecuta cada mañana. Obtiene partidos, analiza con IA y guarda en Redis (`daily_bets:YYYY-MM-DD`).
+2.  **Check Results**: Se ejecuta periódicamente. Verifica si los partidos han terminado y actualiza el estado (`WON`/`LOST`) y el profit.
+3.  **Social Content**: Se ejecuta tras el análisis. Genera textos para TikTok y los guarda en Redis (`tiktokfactory`).
 
 ---
 
-## Estructura de Carpetas Clave
+## 🛡️ Admin Tools & Debugging
 
-*   `/backend/main.py`: Punto de entrada del script de Python.
-*   `/backend/src/services`: Lógica de scraping, análisis y conexión con IA.
-*   `/frontend/app`: Páginas y lógica del frontend (Next.js App Router).
-*   `/data`: Carpeta donde se guardan los resultados JSON generados por el backend.
+Desde el panel `/admin` (o usando scripts), puedes gestionar el sistema:
+
+*   **Resetear Intentos**: Si una apuesta se queda en `PENDING` por errores de API tras varios intentos, usa el botón "Reset Pendientes" en el calendario para reiniciar el contador.
+*   **Fix Status**: Scripts como `check_api_results.py` tienen lógica de "auto-healing" para corregir inconsistencias en los estados.
+
+---
+
+Developed with ❤️ by **Bet AI Master Team**.

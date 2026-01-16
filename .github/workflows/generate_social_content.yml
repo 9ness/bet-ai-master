@@ -2,7 +2,7 @@ name: 3º Generar textos Tiktok
 
 on:
   workflow_run:
-    workflows: ["AI Analysis"]
+    workflows: ["2º - Analizador AI Pro"]
     types:
       - completed
   workflow_dispatch:
@@ -27,8 +27,8 @@ jobs:
 
       - name: Run Social Generator
         env:
-          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
-          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          REDIS_TOKEN: ${{ secrets.REDIS_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PYTHONPATH: ${{ github.workspace }}
         run: python backend/src/services/social_generator.py

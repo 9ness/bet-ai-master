@@ -447,6 +447,128 @@ def check_bets():
             print(f"[*] No changes for {date_str}")
 
     rs.log_status("Check Results", "SUCCESS" if total_updates > 0 else "IDLE", f"Updated {total_updates} days")
+    
+    # --- UPDATE MONTHLY STATS ---
+    # Always update stats to ensure consistency, even if no specific bet status changed this run
+    try:
+        current_month = datetime.now().strftime("%Y-%m")
+        update_monthly_stats(rs, current_month)
+    except Exception as e:
+        print(f"[WARN] Failed to update monthly stats: {e}")
+
+def update_monthly_stats(rs, month_str):
+    """
+    Recalculates advanced stats for the given month (YYYY-MM)
+    and saves to betai:stats:YYYY-MM
+    """
+    print(f"[*] Recalculating Stats for {month_str}...")
+    
+    # 1. Get all daily keys for this month
+    pattern = f"daily_bets:{month_str}-*"
+    keys = rs.keys(pattern)
+    if not keys:
+        print("   - No data found for this month.")
+        return
+
+    # Sort keys to ensure chronological order for Drawdown
+    keys.sort()
+    
+    total_profit = 0.0
+    total_stake = 0.0
+    gross_win = 0.0
+    gross_loss = 0.0
+    
+    # For Drawdown
+    running_balance = 0.0
+    peak_balance = -999999.0 # Start low
+    max_drawdown = 0.0
+    
+    # Base Bankroll for ROI (Configurable, default 100u)
+    BANKROLL = 100.0
+
+    for k in keys:
+        # keys() returns full keys with prefix usually, but rs.get() handles prefix if using helper?
+        # rs.keys() implementation in redis_service returns whatever REDIS returns.
+        # If prefix is "betai:", keys will be "betai:daily_bets:..."
+        # rs.get() expects clean key usually if it adds prefix. 
+        # But rs.get() implementation checks check_api_results.py...
+        # Let's use rs.client._send_command("GET", k) or handle prefix manually.
+        # Safest is to strip prefix if present for rs.get(), OR use raw command.
+        # Looking at RedisService, keys() adds prefix to pattern. Returns FULL keys.
+        # rs.get() adds prefix. So if we pass a full key to rs.get(), it might double prefix.
+        # Implementation of _get_key checks "if key.startswith(prefix)". So it is SAFE to pass full key.
+        
+        raw = rs.client._send_command("GET", k) # Raw get to be safe
+        if not raw: continue
+        
+        try:
+            day_data = json.loads(raw) if isinstance(raw, str) else raw
+        except: continue
+        
+        if not isinstance(day_data, dict):
+             print(f"   [SKIP] Invalid format for {k} (not a dict)")
+             continue
+
+        bets = day_data.get("bets", [])
+        day_profit = 0.0
+        
+        for bet in bets:
+            if not isinstance(bet, dict):
+                continue
+            status = bet.get("status", "PENDING")
+            if status not in ["WON", "LOST"]: continue
+            
+            profit = float(bet.get("profit", 0))
+            stake = float(bet.get("stake", 0))
+            
+            total_profit += profit
+            total_stake += stake
+            day_profit += profit
+            
+            if profit > 0:
+                gross_win += profit
+            elif profit < 0:
+                gross_loss += abs(profit)
+                
+        # Update Drawdown Curve (Daily closing basis)
+        # Assuming we start at 0 relative profit for the month
+        running_balance += day_profit
+        
+        if running_balance > peak_balance:
+            peak_balance = running_balance
+            
+        drawdown = peak_balance - running_balance
+        if drawdown > max_drawdown:
+            max_drawdown = drawdown
+            
+    # --- CALCULATE METRICS ---
+    
+    # 1. YIELD
+    yield_val = (total_profit / total_stake * 100) if total_stake > 0 else 0.0
+    
+    # 2. PROFIT FACTOR
+    # Avoid division by zero
+    profit_factor = (gross_win / gross_loss) if gross_loss > 0 else (gross_win if gross_win > 0 else 0.0)
+    
+    # 3. ROI
+    roi = (total_profit / BANKROLL) * 100
+    
+    stats_payload = {
+        "total_profit": round(total_profit, 2),
+        "total_stake": round(total_stake, 2),
+        "yield": round(yield_val, 2),
+        "profit_factor": round(profit_factor, 2),
+        "roi": round(roi, 2),
+        "max_drawdown": round(max_drawdown, 2),
+        "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    
+    # Save
+    stats_key = f"stats:{month_str}"
+    if rs.set_data(stats_key, stats_payload):
+        print(f"[STATS] Updated {stats_key}: {json.dumps(stats_payload)}")
+    else:
+        print(f"[ERR] Failed to save stats for {month_str}")
 
 if __name__ == "__main__":
     check_bets()
