@@ -1,0 +1,39 @@
+name: 2º Beta - Analizador AI Pro
+
+on:
+  workflow_run:
+    workflows: ["1º - Recolector de datos API"]
+    types: [completed]
+  workflow_dispatch:
+
+jobs:
+  run-analysis:
+    runs-on: ubuntu-latest
+    # Solo ejecutar si el recolector terminó con éxito o si se lanza manualmente
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        # Forzamos la instalación de la versión que soporta los modelos v3 y la herramienta google_search
+        pip install --upgrade google-generativeai redis
+        # Instalamos el resto de dependencias del proyecto
+        if [ -f backend/requirements.txt ]; then pip install -r backend/requirements.txt; fi
+        
+    - name: Run Analyze Engine
+      env:
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        REDIS_URL: ${{ secrets.REDIS_URL }}
+        REDIS_TOKEN: ${{ secrets.REDIS_TOKEN }}
+      run: |
+        # Ejecutamos analyze2.py que contiene el modelo gemini-3-pro-preview y el prompt con búsqueda
+        python backend/src/services/analyze2.py
