@@ -14,6 +14,9 @@ type HomeTabsProps = {
         show_calendar: boolean;
         show_analytics: boolean;
         show_tiktok?: boolean;
+        show_announcement?: boolean;
+        announcement_text?: string;
+        announcement_type?: 'info' | 'warning';
     };
     predictions: any;
     formattedDate: string;
@@ -169,9 +172,15 @@ export default function HomeTabs({ settings, predictions, formattedDate, isMock 
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                             {formattedDate}
                         </p>
-                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground/40 font-bold mt-0.5">
-                            Actualización Diaria 10:00 AM
-                        </p>
+                        {settings.show_announcement && settings.announcement_text ? (
+                            <p className={`uppercase tracking-widest font-bold mt-0.5 animate-pulse ${settings.announcement_type === 'warning' ? 'text-rose-500 drop-shadow-[0_0_8px_rgba(244,63,94,0.5)] text-[11px]' : 'text-blue-400 text-[10px]'}`}>
+                                {settings.announcement_text}
+                            </p>
+                        ) : (
+                            <p className="text-[10px] uppercase tracking-widest text-muted-foreground/40 font-bold mt-0.5">
+                                Actualización Diaria 10:00 AM
+                            </p>
+                        )}
 
                         <span className="hidden md:block text-muted-foreground/20">|</span>
 

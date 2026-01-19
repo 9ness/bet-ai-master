@@ -584,12 +584,17 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                 const canvas = await html2canvas(slide, {
                     scale: 1,
                     useCORS: true,
+                    allowTaint: true,
                     width: 1080,
                     height: 1920,
-                    windowWidth: 1080, // Simulate window size to prevent collapsing
+                    windowWidth: 1080,
                     windowHeight: 1920,
                     backgroundColor: '#000000',
                     logging: false,
+                    x: 0,
+                    y: 0,
+                    scrollX: 0,
+                    scrollY: 0
                 });
                 generated.push(canvas.toDataURL('image/png'));
             } catch (err) {
@@ -910,7 +915,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
             )}
 
             {/* HIDDEN RENDER CONTAINER (1080x1920) */}
-            <div className="fixed left-[-9999px] top-0 pointer-events-none">
+            <div className="fixed top-0 left-0 z-[-1000] opacity-0 pointer-events-none">
                 <div ref={containerRef} style={{ width: '1080px', height: '1920px' }}>
 
                     {/* SLIDE 1: COVER */}

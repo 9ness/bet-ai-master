@@ -28,7 +28,10 @@ export async function GET(req: NextRequest) {
             show_daily_bets: true,
             show_calendar: true,
             show_analytics: true,
-            show_tiktok: false
+            show_tiktok: false,
+            show_announcement: false,
+            announcement_text: '',
+            announcement_type: 'info'
         };
 
         return NextResponse.json({ ...defaults, ...settings, last_run: statusObj });

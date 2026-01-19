@@ -59,7 +59,10 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
         show_daily_bets: true,
         show_calendar: true,
         show_analytics: true,
-        show_tiktok: false
+        show_tiktok: false,
+        show_announcement: false,
+        announcement_text: "",
+        announcement_type: "info"
     });
     const [savingSettings, setSavingSettings] = useState(false);
     const [lastRun, setLastRun] = useState<{ date: string, status: string, message: string, script: string } | null>(null);
@@ -138,7 +141,10 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                         show_daily_bets: data.show_daily_bets ?? true,
                         show_calendar: data.show_calendar ?? true,
                         show_analytics: data.show_analytics ?? true,
-                        show_tiktok: data.show_tiktok ?? false
+                        show_tiktok: data.show_tiktok ?? false,
+                        show_announcement: data.show_announcement ?? false,
+                        announcement_text: data.announcement_text ?? "",
+                        announcement_type: data.announcement_type ?? "info"
                     });
                     if (data.last_run) {
                         setLastRun(data.last_run);
@@ -387,9 +393,15 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                                 {formattedDate}
                             </p>
-                            <p className="text-[10px] uppercase tracking-widest text-muted-foreground/40 font-bold mt-0.5">
-                                Actualización Diaria 10:00 AM
-                            </p>
+                            {settings.show_announcement && settings.announcement_text ? (
+                                <p className={`uppercase tracking-widest font-bold mt-0.5 animate-pulse ${settings.announcement_type === 'warning' ? 'text-rose-500 drop-shadow-[0_0_8px_rgba(244,63,94,0.5)] text-[11px]' : 'text-blue-400 text-[10px]'}`}>
+                                    {settings.announcement_text}
+                                </p>
+                            ) : (
+                                <p className="text-[10px] uppercase tracking-widest text-muted-foreground/40 font-bold mt-0.5">
+                                    Actualización Diaria 10:00 AM
+                                </p>
+                            )}
                         </div>
 
                         <span className="hidden md:block text-muted-foreground/20">|</span>
@@ -593,6 +605,60 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                             />
                                             <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-fuchsia-600"></div>
                                         </label>
+                                    </div>
+
+                                    {/* Item 5: Global Announcement */}
+                                    <div className="flex flex-col p-4 bg-secondary/30 rounded-xl border border-white/5 gap-4">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <h4 className={`font-bold transition-colors ${settings.announcement_type === 'warning' ? 'text-rose-400' : 'text-blue-400'}`}>Mostrar Anuncio Global</h4>
+                                                <p className="text-xs text-muted-foreground mt-1">Muestra un mensaje destacado arriba en la Home.</p>
+                                            </div>
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    className="sr-only peer"
+                                                    checked={settings.show_announcement}
+                                                    onChange={(e) => setSettings({ ...settings, show_announcement: e.target.checked })}
+                                                />
+                                                <div className={`w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all ${settings.announcement_type === 'warning' ? 'peer-checked:bg-rose-500' : 'peer-checked:bg-blue-500'}`}></div>
+                                            </label>
+                                        </div>
+
+                                        {/* Expanded Options */}
+                                        <div className={`overflow-hidden transition-all duration-300 ease-in-out ${settings.show_announcement ? 'max-h-[300px] opacity-100 pt-4 border-t border-white/5' : 'max-h-0 opacity-0'}`}>
+                                            <div className="space-y-4">
+                                                {/* Type Selector */}
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <button
+                                                        onClick={() => setSettings({ ...settings, announcement_type: 'info' })}
+                                                        className={`px-3 py-2 rounded-lg text-xs font-bold border transition-all flex items-center justify-center gap-2 ${settings.announcement_type === 'info' ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'bg-black/20 border-white/10 text-gray-400 hover:bg-white/5'}`}
+                                                    >
+                                                        <ActivityIcon size={14} />
+                                                        Información
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setSettings({ ...settings, announcement_type: 'warning' })}
+                                                        className={`px-3 py-2 rounded-lg text-xs font-bold border transition-all flex items-center justify-center gap-2 ${settings.announcement_type === 'warning' ? 'bg-rose-500/20 border-rose-500 text-rose-400' : 'bg-black/20 border-white/10 text-gray-400 hover:bg-white/5'}`}
+                                                    >
+                                                        <AlertTriangle size={14} />
+                                                        Importante
+                                                    </button>
+                                                </div>
+
+                                                {/* Text Input */}
+                                                <div>
+                                                    <label className="text-xs font-bold text-gray-400 mb-1.5 block">Mensaje del Anuncio</label>
+                                                    <textarea
+                                                        value={settings.announcement_text}
+                                                        onChange={(e) => setSettings({ ...settings, announcement_text: e.target.value })}
+                                                        placeholder="Escribe aquí el anuncio..."
+                                                        rows={2}
+                                                        className={`w-full bg-black/40 border rounded-lg px-3 py-2 text-sm text-white focus:outline-none transition-colors placeholder:text-white/20 resize-none ${settings.announcement_type === 'warning' ? 'border-rose-500/30 focus:border-rose-500' : 'border-white/10 focus:border-blue-500'}`}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
 

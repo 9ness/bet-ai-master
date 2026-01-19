@@ -80,7 +80,6 @@ def analyze():
             1. SÍNTESIS DE FÚTBOL (CORRELACIÓN Y PRESIÓN): 
                - Dinámica Ofensiva: Evalúa la correlación entre el volumen de remates (ID 87) y la generación de saques de esquina (ID 45). Determina si el estilo de juego es de transiciones rápidas o de posesión estática para predecir escenarios de goles vs. córners.
                - Vulnerabilidad Estructural: Analiza el diferencial de goles histórico cruzado con la solidez defensiva reciente. No priorices resultados; pondera la probabilidad de que un equipo rompa o mantenga su tendencia actual basándote en la calidad del oponente.
-               - Antes de emitir cualquier pronóstico, utiliza GOOGLE SEARCH para verificar el Injury Report (lesiones) de hoy en NBA/NCAA y bajas críticas en Football. Esto es importante para tomar decisiones, pero lo que sigue mandando son las cuotas, la búsqueda de google search es para determinar datos clave y asegurarte de que cada pronóstico es lo más fiable posible.
 
             2. DINÁMICA BASKETBALL/NBA (MÉTRICAS DE IMPACTO):
                - Disponibilidad y Roster: Realiza un escaneo crítico del Injury Report. Evalúa el impacto sistémico de la ausencia de jugadores clave (estrellas o especialistas defensivos). Ajusta la proyección de puntos y hándicaps basándote en la pérdida de PER (Player Efficiency Rating) y volumen de uso (Usage Rate).
@@ -90,6 +89,9 @@ def analyze():
             3. CRITERIO DE VALOR (PROBABILIDAD VS. CUOTA):
                 - Identificación de Edge: Tu misión es encontrar la discrepancia entre la probabilidad estadística calculada y la cuota ofrecida. Selecciona únicamente eventos donde el valor matemático sea evidente tras filtrar el ruido estadístico.
                 - Análisis Multivariante: Considera el factor campo, la relevancia del encuentro para ambos equipos y las tendencias históricas head-to-head como modificadores de la probabilidad base.
+                - Antes de emitir cualquier pronóstico, utiliza GOOGLE SEARCH para verificar el Injury Report (lesiones) de hoy en NBA/NCAA y bajas críticas en Football. Esto es importante para tomar decisiones, pero lo que sigue mandando son las cuotas, la búsqueda de google search es para determinar datos clave y asegurarte de que cada pronóstico es lo más fiable posible.
+
+    
 
             REGLAS DE SELECCIÓN Y STAKE:
             1. SAFE (La Segura): Cuota total 1.50 - 2.00. Probabilidad > 75%. STAKE FIJO: 6.
@@ -150,19 +152,28 @@ def analyze():
                 )
             )
 
-            # --- VERIFICACIÓN DE USO DE BÚSQUEDA ---
+            # --- VERIFICACIÓN DE USO DE BÚSQUEDA (MEJORADO) ---
             try:
-                # Verificamos si existen candidatos y metadatos de grounding
                 if hasattr(resp, 'candidates') and resp.candidates:
                     cand = resp.candidates[0]
                     if hasattr(cand, 'grounding_metadata') and cand.grounding_metadata:
                         gm = cand.grounding_metadata
-                        chunks_count = len(gm.grounding_chunks) if gm.grounding_chunks else 0
-                        print(f"[SEARCH EVIDENCE] 🔍 Google Search ejecutado. Fuentes consultadas: {chunks_count}")
+                        
+                        # 1. ¿Qué buscó la IA? (Esto es lo que quieres ver)
+                        if hasattr(gm, 'web_search_queries') and gm.web_search_queries:
+                            print(f"\n[SEARCH LOG] 🕵️  La IA ha buscado en Google: {gm.web_search_queries}")
+                        
+                        # 2. ¿Encontró resultados?
                         if gm.search_entry_point:
-                            print(f"[SEARCH EVIDENCE] 🌐 Resultados HTML generados.")
+                            print(f"[SEARCH LOG] 🌐 Google devolvió resultados visuales (HTML leído).")
+                        
+                        # 3. ¿Usó citas directas?
+                        chunks = len(gm.grounding_chunks) if gm.grounding_chunks else 0
+                        if chunks > 0:
+                            print(f"[SEARCH LOG] 📝 Se extrajeron {chunks} datos específicos.")
+                            
                     else:
-                        print("[SEARCH WARNING] No se detectaron metadatos de búsqueda en la respuesta.")
+                        print("[SEARCH WARNING] El modelo decidió NO buscar nada (confió en su memoria).")
             except Exception as e_log:
                 print(f"[DEBUG LOG] Error imprimiendo metadatos: {e_log}")
             # ---------------------------------------
