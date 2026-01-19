@@ -13,7 +13,6 @@ from google.genai import types
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 
 from src.services.redis_service import RedisService
-# from src.services.gemini import GeminiService # Comentado para usar cliente directo y evitar conflictos de versión
 
 # DICCIONARIO DE TRADUCCIÓN FORZADA
 PICK_TRANSLATIONS = {
@@ -42,19 +41,17 @@ def translate_pick(pick_text, home_team=None, away_team=None):
     return pick_text
 
 def analyze():
-    print("--- REANALYSIS SCRIPT STARTED (ANALYZE2 - PROMPT MAESTRO + SEARCH v2) ---")
+    print("--- REANALYSIS SCRIPT STARTED (ANALYZE2 - PROMPT MAESTRO + SEARCH v3) ---")
     
     # 1. Inicialización de Servicios
     try:
         rs = RedisService()
-        
-        # Inicializamos el cliente de Google directamente con la nueva SDK
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
             raise ValueError("GEMINI_API_KEY no encontrada en variables de entorno")
             
         client = genai.Client(api_key=api_key)
-        model_name = 'gemini-3-pro-preview' # Modelo potente solicitado
+        model_name = 'gemini-3-pro-preview'
         
     except Exception as e:
         print(f"[FATAL] Service Init Failed: {e}")
@@ -72,13 +69,10 @@ def analyze():
     raw_matches = json.loads(raw_json)
     fixture_map = {str(m.get("id")): m for m in raw_matches if m.get("id")}
 
-    # 3. PROMPT ORIGINAL (SIN ACORTAR)
+    # 3. PROMPT ORIGINAL
     base_prompt = f"""
             Estás operando en modo Risk Manager & Pro Tipster Multi-Sport (Football & Basketball/NBA).
             Tu objetivo es analizar los datos proporcionados y generar las 3 mejores apuestas del día (SAFE, VALUE, FUNBET).
-
-            INSTRUCCIÓN DE BÚSQUEDA OBLIGATORIA:
-            Antes de emitir cualquier pronóstico, utiliza GOOGLE SEARCH para verificar el Injury Report (lesiones) de hoy en NBA/NCAA y bajas críticas en Football. Cruza esto con las cuotas proporcionadas.
 
             IMPORTANTE: Tienes datos de Fútbol y de Baloncesto (NBA/Europa). Evalúa AMBOS deportes por igual. No ignores los partidos de madrugada si presentan mejores oportunidades que el fútbol.
 
@@ -86,6 +80,7 @@ def analyze():
             1. SÍNTESIS DE FÚTBOL (CORRELACIÓN Y PRESIÓN): 
                - Dinámica Ofensiva: Evalúa la correlación entre el volumen de remates (ID 87) y la generación de saques de esquina (ID 45). Determina si el estilo de juego es de transiciones rápidas o de posesión estática para predecir escenarios de goles vs. córners.
                - Vulnerabilidad Estructural: Analiza el diferencial de goles histórico cruzado con la solidez defensiva reciente. No priorices resultados; pondera la probabilidad de que un equipo rompa o mantenga su tendencia actual basándote en la calidad del oponente.
+               - Antes de emitir cualquier pronóstico, utiliza GOOGLE SEARCH para verificar el Injury Report (lesiones) de hoy en NBA/NCAA y bajas críticas en Football. Esto es importante para tomar decisiones, pero lo que sigue mandando son las cuotas, la búsqueda de google search es para determinar datos clave y asegurarte de que cada pronóstico es lo más fiable posible.
 
             2. DINÁMICA BASKETBALL/NBA (MÉTRICAS DE IMPACTO):
                - Disponibilidad y Roster: Realiza un escaneo crítico del Injury Report. Evalúa el impacto sistémico de la ausencia de jugadores clave (estrellas o especialistas defensivos). Ajusta la proyección de puntos y hándicaps basándote en la pérdida de PER (Player Efficiency Rating) y volumen de uso (Usage Rate).
@@ -101,26 +96,29 @@ def analyze():
             2. VALUE (De Valor): Cuota total 2.50 - 3.50. STAKE FIJO: 3.
             3. FUNBET (Arriesgada): Cuota total 10.00 - 20.00. STAKE FIJO: 1. 
             - REGLA FUNBET: Puedes combinar mercados. Para llegar a cuota 10+, usa selecciones con cuota individual entre 1.10 y 1.50.
-            - REGLA NO REPETIR: No repitas el mismo pronóstico en diferentes apuestas.
-            - REGLA EVENTO: Puedes hacer varios pronósticos para el mismo evento si no son contradictorios.
+            - REGLA NO REPETIR: No repitas el mismo pronóstico en diferentes apuestas. Con esto nos aseguramos de no perder varias apuestas por un único pronóstico fallido. 
+            - REGLA EVENTO: Hay la posibilidad de que puedas hacer varios pronósticos diferentes para el mismo evento si te convencen mucho, siempre que no sean contradictorios (ej: victoria del local y over 2.5 goles).
 
             REGLAS DE FORMATO (STRICT JSON):
-            - Devuelve UNICAMENTE un ARRAY JSON.
-            - El campo reason debe ser un informe de inteligencia técnica (sin incluir IDs).
+            - Devuelve UNICAMENTE un ARRAY JSON `[...]`.
+            - El campo reason debe ser un informe de inteligencia técnica. Debe explicar el PORQUÉ técnico de la selección (ej: 'La baja del pívot titular reduce la protección de aro un 15%, aumentando la probabilidad de puntos en la pintura y rebotes ofensivos del rival'). (NO incluyas ningún dato de ID en el "reason").
+            - MUY IMPORTANTE: Aunque tú propongas la "total_odd", el sistema la recalculará matemáticamente por código basándose en tus "selections".
 
             SCHEMA OBLIGATORIO:
-            [{{
-                "betType": "safe",
-                "sport": "football",
+            {{
+                "betType": "safe", // "safe", "value", "funbet"
+                "type": "safe",
+                "sport": "football", // o "basketball"
                 "startTime": "YYYY-MM-DD HH:mm",
-                "match": "Título Descriptivo",
+                "match": "Título Descriptivo de la apuesta (si es una combinada debes indicar una informacion breve para saber en una linea de que trata la combinada, no pongas el nombre del primer partido de la combinada)",
                 "pick": "Resumen del Pick",
-                "stake": 6,
-                "total_odd": 0.0,
-                "reason": "Análisis detallado.",
+                "stake": 6, // 6 para safe, 3 para value, 1 para funbet
+                "total_odd": 0.0, // Deja en 0.0, el código lo calculará
+                "estimated_units": 0.0, // Deja en 0.0, el código lo calculará
+                "reason": "Análisis detallado. (no incluir datos de IDs)",
                 "selections": [
                     {{
-                        "fixture_id": "ID",
+                        "fixture_id": 123456,
                         "sport": "football",
                         "league": "Nombre Liga",
                         "match": "Equipo A vs Equipo B",
@@ -129,7 +127,7 @@ def analyze():
                         "odd": 1.55
                     }}
                 ]
-            }}]
+            }}
 
             INPUT DATA:
             {json.dumps(raw_matches, indent=2)}
@@ -137,11 +135,10 @@ def analyze():
 
     valid_bets = None
     
-    # 4. Loop de Intentos con Nueva Sintaxis de Google Search
+    # 4. Loop de Intentos
     for i in range(3):
         print(f"[*] Gemini Attempt {i+1} (Research Mode)...")
         try:
-            # Configuración específica para Google Search en la nueva SDK
             search_tool = types.Tool(google_search=types.GoogleSearch())
             
             resp = client.models.generate_content(
@@ -149,14 +146,30 @@ def analyze():
                 contents=base_prompt,
                 config=types.GenerateContentConfig(
                     tools=[search_tool],
-                    response_mime_type='application/json' # Ayuda a que devuelva JSON puro
+                    response_mime_type='application/json'
                 )
             )
+
+            # --- VERIFICACIÓN DE USO DE BÚSQUEDA ---
+            try:
+                # Verificamos si existen candidatos y metadatos de grounding
+                if hasattr(resp, 'candidates') and resp.candidates:
+                    cand = resp.candidates[0]
+                    if hasattr(cand, 'grounding_metadata') and cand.grounding_metadata:
+                        gm = cand.grounding_metadata
+                        chunks_count = len(gm.grounding_chunks) if gm.grounding_chunks else 0
+                        print(f"[SEARCH EVIDENCE] 🔍 Google Search ejecutado. Fuentes consultadas: {chunks_count}")
+                        if gm.search_entry_point:
+                            print(f"[SEARCH EVIDENCE] 🌐 Resultados HTML generados.")
+                    else:
+                        print("[SEARCH WARNING] No se detectaron metadatos de búsqueda en la respuesta.")
+            except Exception as e_log:
+                print(f"[DEBUG LOG] Error imprimiendo metadatos: {e_log}")
+            # ---------------------------------------
             
-            # Limpieza y Parsing del JSON
+            # Limpieza y Parsing
             text = resp.text.replace("```json", "").replace("```", "").strip()
             
-            # Buscamos el array JSON en el texto por si hay intro/outro
             start_idx = text.find("[")
             end_idx = text.rfind("]")
             
@@ -164,9 +177,9 @@ def analyze():
                 json_str = text[start_idx:end_idx+1]
                 candidates = json.loads(json_str)
             else:
-                candidates = json.loads(text) # Intentamos parsear todo si no hay corchetes claros
+                candidates = json.loads(text)
             
-            # Procesamiento de candidatos
+            # Procesamiento
             for bet in candidates:
                 real_selections = []
                 for sel in bet.get("selections", []):
@@ -191,7 +204,7 @@ def analyze():
             break
         except Exception as e:
             print(f"[!] Reintentando por error: {e}")
-            time.sleep(2) # Pequeña pausa antes de reintentar
+            time.sleep(2)
 
     if not valid_bets: 
         print("[ERROR] No se pudieron generar apuestas válidas tras 3 intentos.")
@@ -209,8 +222,9 @@ def analyze():
         bet["estimated_units"] = round(bet["stake"] * (total_odd - 1), 2)
         final_output.append(bet)
 
+    # GUARDADO (Redis SET sobrescribe automáticamente)
     rs.save_daily_bets(today_str, final_output)
-    print(f"[SUCCESS] Análisis completado y guardado en Redis.")
+    print(f"[SUCCESS] Nuevas predicciones guardadas en Redis para {today_str}.")
 
 if __name__ == "__main__":
     analyze()
