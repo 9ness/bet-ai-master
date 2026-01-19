@@ -5,11 +5,15 @@ import time
 import math
 from datetime import datetime, timedelta
 
+# Importamos la nueva SDK de Google (requiere: pip install google-genai)
+from google import genai
+from google.genai import types
+
 # Path setup
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 
 from src.services.redis_service import RedisService
-from src.services.gemini import GeminiService
+# from src.services.gemini import GeminiService # Comentado para usar cliente directo y evitar conflictos de versión
 
 # DICCIONARIO DE TRADUCCIÓN FORZADA
 PICK_TRANSLATIONS = {
@@ -38,16 +42,25 @@ def translate_pick(pick_text, home_team=None, away_team=None):
     return pick_text
 
 def analyze():
-    print("--- REANALYSIS SCRIPT STARTED (ANALYZE2 - PROMPT MAESTRO + SEARCH) ---")
+    print("--- REANALYSIS SCRIPT STARTED (ANALYZE2 - PROMPT MAESTRO + SEARCH v2) ---")
     
+    # 1. Inicialización de Servicios
     try:
         rs = RedisService()
-        gs = GeminiService() 
-        gs.model_name = 'gemini-3-pro-preview' # Asegurar uso del modelo v3
+        
+        # Inicializamos el cliente de Google directamente con la nueva SDK
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY no encontrada en variables de entorno")
+            
+        client = genai.Client(api_key=api_key)
+        model_name = 'gemini-3-pro-preview' # Modelo potente solicitado
+        
     except Exception as e:
         print(f"[FATAL] Service Init Failed: {e}")
         return
 
+    # 2. Obtención de datos
     today_str = datetime.now().strftime("%Y-%m-%d")
     raw_key = f"betai:raw_matches:{today_str}"
     raw_json = rs.get(raw_key) or rs.get(f"raw_matches:{today_str}")
@@ -59,7 +72,7 @@ def analyze():
     raw_matches = json.loads(raw_json)
     fixture_map = {str(m.get("id")): m for m in raw_matches if m.get("id")}
 
-    # PROMPT ORIGINAL RESTAURADO CON GROUNDING ACTIVO
+    # 3. PROMPT ORIGINAL (SIN ACORTAR)
     base_prompt = f"""
             Estás operando en modo Risk Manager & Pro Tipster Multi-Sport (Football & Basketball/NBA).
             Tu objetivo es analizar los datos proporcionados y generar las 3 mejores apuestas del día (SAFE, VALUE, FUNBET).
@@ -123,16 +136,37 @@ def analyze():
             """
 
     valid_bets = None
+    
+    # 4. Loop de Intentos con Nueva Sintaxis de Google Search
     for i in range(3):
         print(f"[*] Gemini Attempt {i+1} (Research Mode)...")
         try:
-            resp = gs.model.generate_content(
-                base_prompt,
-                tools=[{'google_search': {}}]
-            )
-            text = resp.text.replace("```json", "").replace("```", "").strip()
-            candidates = json.loads(text[text.find("["):text.rfind("]")+1])
+            # Configuración específica para Google Search en la nueva SDK
+            search_tool = types.Tool(google_search=types.GoogleSearch())
             
+            resp = client.models.generate_content(
+                model=model_name,
+                contents=base_prompt,
+                config=types.GenerateContentConfig(
+                    tools=[search_tool],
+                    response_mime_type='application/json' # Ayuda a que devuelva JSON puro
+                )
+            )
+            
+            # Limpieza y Parsing del JSON
+            text = resp.text.replace("```json", "").replace("```", "").strip()
+            
+            # Buscamos el array JSON en el texto por si hay intro/outro
+            start_idx = text.find("[")
+            end_idx = text.rfind("]")
+            
+            if start_idx != -1 and end_idx != -1:
+                json_str = text[start_idx:end_idx+1]
+                candidates = json.loads(json_str)
+            else:
+                candidates = json.loads(text) # Intentamos parsear todo si no hay corchetes claros
+            
+            # Procesamiento de candidatos
             for bet in candidates:
                 real_selections = []
                 for sel in bet.get("selections", []):
@@ -157,12 +191,17 @@ def analyze():
             break
         except Exception as e:
             print(f"[!] Reintentando por error: {e}")
+            time.sleep(2) # Pequeña pausa antes de reintentar
 
-    if not valid_bets: return
+    if not valid_bets: 
+        print("[ERROR] No se pudieron generar apuestas válidas tras 3 intentos.")
+        return
 
     final_output = []
     for bet in valid_bets:
         odds = [float(s.get("odd", 1.0)) for s in bet["selections"]]
+        if not odds: continue
+        
         total_odd = round(math.prod(odds), 2)
         bet.update({"total_odd": total_odd, "odd": total_odd})
         bt = bet.get("betType", "safe").lower()
