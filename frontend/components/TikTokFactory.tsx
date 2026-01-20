@@ -589,7 +589,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                     height: 1920,
                     windowWidth: 1080,
                     windowHeight: 1920,
-                    backgroundColor: '#000000',
+                    backgroundColor: '#1a1a1a',
                     logging: false,
                     x: 0,
                     y: 0,

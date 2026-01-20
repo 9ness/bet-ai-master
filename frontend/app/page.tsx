@@ -44,21 +44,18 @@ export default async function Home() {
 
     console.log(`[Page] Loading Analysis for Date: ${today}`);
 
-    // Fetch Bets from Master Key (Primary Source of Truth as per user request)
+    // 1. Try Master Key First (User Preference / "Marketing" View)
     let betsData: any = await redis.get('betai:daily_bets');
 
+    // 2. Fallback to Specific Date (Today)
     if (!betsData) {
-        // Fallback: If master key is missing, try date-specific
         console.log(`[Frontend] Master key empty, trying betai:daily_bets:${today}`);
         betsData = await redis.get(`betai:daily_bets:${today}`);
     }
 
-    if (betsData) {
-        console.log('[Page Debug] Data fetched successfully.');
-    }
-
+    // 3. Fallback to Yesterday if Today unavailable
     if (!betsData) {
-        console.log(`[Frontend] No bets for ${today}, checking ${yesterday}...`);
+        console.log(`[Frontend] No data for ${today}, trying ${yesterday}`);
         betsData = await redis.get(`betai:daily_bets:${yesterday}`);
     }
 
