@@ -207,6 +207,77 @@ class RedisService:
             print(f"[Redis] Error en set_data para {key}: {e}")
             return False
 
+    # --- TELEGRAM MODULE ---
+    def save_telegram_queue(self, date_str, bets_data):
+        """
+        Genera y guarda los mensajes formateados para Telegram.
+        Regla de Retención: Mantiene máximo 2 fechas en el Hash 'betai:telegram_store'.
+        """
+        if not self.is_active: return
+
+        import uuid
+        
+        # 1. Recuperar Store actual (Hash)
+        store_key = self._get_key("telegram_store")
+        # HGETALL en Upstash REST devuelve array intercalado
+        current_store_raw = self._send_command("HGETALL", store_key)
+        
+        current_dates = []
+        if current_store_raw and isinstance(current_store_raw, list):
+            # Keys en índices pares: 0, 2, 4...
+            for i in range(0, len(current_store_raw), 2):
+                current_dates.append(current_store_raw[i])
+        
+        # Lógica de Retención: Mantener máximo 2 fechas
+        if len(current_dates) >= 2 and date_str not in current_dates:
+            current_dates.sort()
+            oldest = current_dates[0]
+            self._send_command("HDEL", store_key, oldest)
+            print(f"[Redis/Telegram] Limpieza: Borrada fecha antigua {oldest}")
+
+        # 2. Generar Payloads para el día actual
+        telegram_items = []
+        type_map = {
+            "safe": {"icon": "🛡️", "title": "LA APUESTA SEGURA"},
+            "value": {"icon": "⚡", "title": "LA APUESTA DE VALOR"},
+            "funbet": {"icon": "💣", "title": "LA FUNBET"}
+        }
+
+        for bet in bets_data:
+            b_type = bet.get("betType", "safe").lower()
+            info = type_map.get(b_type, type_map["safe"])
+            
+            matches_lines = []
+            for sel in bet.get("selections", []):
+                match_line = f"⚽ {sel.get('match')}\n🎯 {sel.get('pick')} @ {sel.get('odd')}"
+                matches_lines.append(match_line)
+            
+            matches_block = "\n\n".join(matches_lines)
+            
+            msg = (
+                f"{info['icon']} *{info['title']}*\n\n"
+                f"{matches_block}\n\n"
+                f"📊 *Cuota Total:* {bet.get('total_odd')}\n"
+                f"💰 *Stake:* {bet.get('stake')}/10\n\n"
+                f"🧠 *Análisis de BetAiMaster:*\n"
+                f"_{bet.get('reason')}_"
+            )
+
+            item = {
+                "id": str(uuid.uuid4()),
+                "tipo": info["title"].replace("LA ", ""),
+                "bet_type_key": b_type,
+                "enviado": False,
+                "mensaje": msg,
+                "timestamp": datetime.now().isoformat()
+            }
+            telegram_items.append(item)
+
+        # 3. Guardar en Hash (Field = date_str)
+        payload_json = json.dumps(telegram_items)
+        self._send_command("HSET", store_key, date_str, payload_json)
+        print(f"[Redis/Telegram] Guardados {len(telegram_items)} mensajes para {date_str}")
+
     def log_status(self, script_name, status, message=""):
         key = self._get_key("status:last_run")
         data = {

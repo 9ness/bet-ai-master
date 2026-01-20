@@ -7,12 +7,14 @@ import DailyPredictions from '@/components/DailyPredictions';
 import ResultsCalendar from '@/components/ResultsCalendar';
 import AdminAnalytics from '@/components/AdminAnalytics';
 import TikTokFactory from '@/components/TikTokFactory';
+import TelegramAdmin from '@/components/TelegramAdmin';
 
 type HomeTabsProps = {
     settings: {
         show_daily_bets: boolean;
         show_calendar: boolean;
         show_analytics: boolean;
+        show_telegram?: boolean;
         show_tiktok?: boolean;
         show_announcement?: boolean;
         announcement_text?: string;
@@ -29,6 +31,7 @@ export default function HomeTabs({ settings, predictions, formattedDate, isMock 
         { id: 'daily_bets', label: '🎯 Apuestas', visible: settings.show_daily_bets },
         { id: 'calendar', label: '📅 Calendario', visible: settings.show_calendar },
         { id: 'analytics', label: '📊 Estadísticas', visible: settings.show_analytics },
+        { id: 'telegram', label: '✈️ Telegram', visible: !!settings.show_telegram },
         { id: 'tiktok', label: '🏭 TikTok', visible: settings.show_tiktok }
     ];
 
@@ -275,6 +278,12 @@ export default function HomeTabs({ settings, predictions, formattedDate, isMock 
                             {tab.id === 'analytics' && (
                                 <div className="animate-in fade-in duration-500">
                                     <AdminAnalytics />
+                                </div>
+                            )}
+
+                            {tab.id === 'telegram' && (
+                                <div className="animate-in fade-in duration-500">
+                                    <TelegramAdmin />
                                 </div>
                             )}
 

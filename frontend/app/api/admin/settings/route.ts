@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
             show_daily_bets: true,
             show_calendar: true,
             show_analytics: true,
+            show_telegram: false,
             show_tiktok: false,
             show_announcement: false,
             announcement_text: '',

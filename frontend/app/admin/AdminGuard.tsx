@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { verifyAdminPassword } from './actions';
 import ResultsCalendar from '@/components/ResultsCalendar';
 import AdminAnalytics from '@/components/AdminAnalytics';
+import TelegramAdmin from '@/components/TelegramAdmin';
 
 import TikTokFactory from '@/components/TikTokFactory';
 
@@ -25,9 +26,9 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
     const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
     // Tab State & Swipe Logic
-    const [activeTab, setActiveTab] = useState<'analysis' | 'calendar' | 'analytics' | 'tiktok' | 'settings'>('analysis');
+    const [activeTab, setActiveTab] = useState<'analysis' | 'calendar' | 'analytics' | 'telegram' | 'tiktok' | 'settings'>('analysis');
     const scrollContainerRef = useRef<HTMLDivElement>(null);
-    const tabOrder = ['analysis', 'calendar', 'analytics', 'tiktok', 'settings'];
+    const tabOrder = ['analysis', 'calendar', 'analytics', 'telegram', 'tiktok', 'settings'];
 
     // Sync scroll with state
     const handleScroll = () => {
@@ -59,6 +60,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
         show_daily_bets: true,
         show_calendar: true,
         show_analytics: true,
+        show_telegram: false,
         show_tiktok: false,
         show_announcement: false,
         announcement_text: "",
@@ -139,8 +141,9 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                 if (data && !data.error) {
                     setSettings({
                         show_daily_bets: data.show_daily_bets ?? true,
-                        show_calendar: data.show_calendar ?? true,
-                        show_analytics: data.show_analytics ?? true,
+                        show_calendar: true,
+                        show_analytics: true,
+                        show_telegram: false,
                         show_tiktok: data.show_tiktok ?? false,
                         show_announcement: data.show_announcement ?? false,
                         announcement_text: data.announcement_text ?? "",
@@ -465,6 +468,15 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                         <span className="hidden md:block">📊 Estadísticas</span>
                     </button>
                     <button
+                        onClick={() => scrollToTab('telegram')}
+                        onTouchStart={() => triggerTouchFeedback()}
+                        className={`btn-active-effect flex-1 md:flex-none py-3 md:py-4 text-xs md:text-sm font-bold border-b-2 transition-transform flex justify-center md:justify-start items-center gap-1.5 md:gap-2
+                        ${activeTab === 'telegram' ? 'border-sky-500 text-sky-400' : 'border-transparent text-gray-400 hover:text-white'}`}
+                    >
+                        <span className="md:hidden">✈️</span>
+                        <span className="hidden md:block">✈️ Telegram</span>
+                    </button>
+                    <button
                         onClick={() => scrollToTab('tiktok')}
                         onTouchStart={() => triggerTouchFeedback()}
                         className={`btn-active-effect flex-1 md:flex-none py-3 md:py-4 text-xs md:text-sm font-bold border-b-2 transition-transform flex justify-center md:justify-start items-center gap-1.5 md:gap-2
@@ -513,6 +525,13 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                     <div className="w-full shrink-0 snap-start active:cursor-grabbing h-full">
                         <main className="max-w-7xl mx-auto px-4 py-8">
                             <AdminAnalytics />
+                        </main>
+                    </div>
+
+                    {/* Tab: Telegram */}
+                    <div className="w-full shrink-0 snap-start active:cursor-grabbing h-full">
+                        <main className="max-w-7xl mx-auto px-4 py-8">
+                            <TelegramAdmin />
                         </main>
                     </div>
 
@@ -587,6 +606,23 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                                 onChange={(e) => setSettings({ ...settings, show_analytics: e.target.checked })}
                                             />
                                             <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-fuchsia-600"></div>
+                                        </label>
+                                    </div>
+
+                                    {/* Item New: Telegram */}
+                                    <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-xl border border-white/5">
+                                        <div>
+                                            <h4 className="font-bold">Mostrar Telegram</h4>
+                                            <p className="text-xs text-muted-foreground mt-1">Muestra la pestaña de Telegram en la Home (Pública).</p>
+                                        </div>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                className="sr-only peer"
+                                                checked={settings.show_telegram}
+                                                onChange={(e) => setSettings({ ...settings, show_telegram: e.target.checked })}
+                                            />
+                                            <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sky-500"></div>
                                         </label>
                                     </div>
 
@@ -691,7 +727,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                         </main>
                     </div>
                 </div>
-            </div>
+            </div >
         </div >
     );
 }

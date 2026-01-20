@@ -236,6 +236,18 @@ def analyze():
     # GUARDADO (Redis SET sobrescribe automáticamente)
     rs.save_daily_bets(today_str, final_output)
     print(f"[SUCCESS] Nuevas predicciones guardadas en Redis para {today_str}.")
+    
+    # TELEGRAM SYNC
+    print(f"[*] Generando cola de mensajes para Telegram...")
+    try:
+        from src.services.telegram_generator import generate_messages_from_analysis
+        generate_messages_from_analysis(today_str)
+    except ImportError:
+        # Fallback if running as script directly without package context issues
+        import telegram_generator
+        telegram_generator.generate_messages_from_analysis(today_str)
+    except Exception as e:
+        print(f"[ERROR] Failed to auto-generate telegram messages: {e}")
 
 if __name__ == "__main__":
     analyze()
