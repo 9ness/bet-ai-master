@@ -50,23 +50,24 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
     // Helper: Generate TikTok Caption (Fallback)
     const generateCaption = () => {
         // ... (Keep existing logic as fallback if APi content missing)
-        const allSelections = getAllSelections(); // Use result directly
+        const allSelections = slideGroups;
         let text = `${config.introTitle} ${config.introEmoji1}\n\n`;
 
         allSelections.forEach((group: any) => {
-            const { match } = parseBetDisplay(group.matchDisplay, "");
-            const sportIcon = group.sport === 'basketball' ? '🏀' : '⚽';
-
-            text += `${sportIcon} ${match}\n`;
+            // Since icons are baked in, we strip them for the caption or keep them?
+            // User likely wants clean list or with icons. Let's keep them as is since they are in the 'matchDisplay'.
+            // But verify: group.matchDisplay now has "Real vs Barca ⚽". 
+            // The caption builder was manually adding emojis.
+            // Let's rely on the baked strings.
+            text += `${group.matchDisplay}\n`;
 
             group.picks.forEach((pick: string, i: number) => {
                 const betRef = group.originalBets[i];
-                const reason = betRef.reason || "";
                 const odd = betRef.total_odd || betRef.odd || "";
+                const reason = betRef.reason || "";
 
-                const { pick: displayPick } = parseBetDisplay(group.matchDisplay, pick);
-
-                text += `✅ ${displayPick} ${odd ? `(@${parseFloat(odd).toFixed(2)})` : ''}\n`;
+                // pick already has "Over 2.5 ✅"
+                text += `${pick} ${odd ? `(@${parseFloat(odd).toFixed(2)})` : ''}\n`;
                 if (reason) {
                     // Clean up reason: remove italics markers or markdown if any
                     const cleanReason = reason.replace(/\*/g, "").trim();
@@ -225,16 +226,20 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
 
     const [collapsed, setCollapsed] = useState({
         intro: false,
+        bets: false,
         outro: false,
         bg: true
     });
+
+    // Editable Groups State
+    const [slideGroups, setSlideGroups] = useState<any[]>([]);
     const [currentPreviewIdx, setCurrentPreviewIdx] = useState(0);
     const [availableFiles, setAvailableFiles] = useState<string[]>([]);
 
     // Auto-collapse on mobile
     useEffect(() => {
         if (window.innerWidth < 768) {
-            setCollapsed({ intro: true, outro: true, bg: true });
+            setCollapsed({ intro: true, bets: true, outro: true, bg: true });
         }
     }, []);
 
@@ -395,6 +400,26 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         groupedList.forEach(group => {
             const sport = (group.sport || 'football').toLowerCase();
             const isFeatured = hasTeamBg(group);
+            const sportIcon = sport === 'basketball' ? '🏀' : '⚽';
+
+            // BAKE ICONS INTO TEXTS FOR EDITABILITY
+            // 1. Match Title
+            group.matchDisplay = `${group.matchDisplay} ${sportIcon}`;
+
+            // 2. Picks
+            group.picks = group.picks.map((pick: string) => {
+                const { pick: displayPick } = parseBetDisplay(group.matchDisplay, pick);
+
+                // Intelligent Casing Logic (Directly here to bake it in)
+                let formattedPick = displayPick;
+                const lowerPick = displayPick.toLowerCase();
+                // We need 'teams' array here? reusing logic from render?
+                // No, let's just use the cleanMatch logic again or pass it.
+                // Actually easier to do generic casing:
+                formattedPick = lowerPick.charAt(0).toUpperCase() + lowerPick.slice(1);
+
+                return `${formattedPick} ✅`;
+            });
 
             if (sport === 'football') {
                 if (isFeatured) footballFeatured.push(group);
@@ -406,23 +431,52 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         });
 
         // Combine strictly: All Football -> All Others
+        // Note: Return clean objects but KEEP isFeatured flag for the chunker
         return [
-            ...footballFeatured,
-            ...footballRegular,
-            ...otherFeatured,
-            ...otherRegular
+            ...footballFeatured.map(g => ({ ...g, isFeatured: true })),
+            ...footballRegular.map(g => ({ ...g, isFeatured: false })),
+            ...otherFeatured.map(g => ({ ...g, isFeatured: true })),
+            ...otherRegular.map(g => ({ ...g, isFeatured: false }))
         ];
     };
 
-    const allSelections = getAllSelections();
+    // Initialize slideGroups when predictions or files change
+    useEffect(() => {
+        const groups = getAllSelections();
+        // Only update if different to avoid loop (simple check or just set)
+        setSlideGroups(groups);
+    }, [predictions, availableFiles]);
 
-    // Chunk Logic: 3 per slide
+    // Chunk Logic: Smarter Chunking
+    // Rules:
+    // 1. Featured items (with specific BG) GET THEIR OWN SLIDE (Isolation).
+    // 2. Regular items are grouped max 3 per slide.
     const slidesData: any[][] = [];
-    for (let i = 0; i < allSelections.length; i += 3) {
-        slidesData.push(allSelections.slice(i, i + 3));
-    }
+    let currentChunk: any[] = [];
 
-    // Balance Logic: Avoid 3-1 split, prefer 2-2
+    slideGroups.forEach((item: any) => {
+        if (item.isFeatured) {
+            // If we have a pending regular chunk, push it first
+            if (currentChunk.length > 0) {
+                slidesData.push(currentChunk);
+                currentChunk = [];
+            }
+            // Push the featured item as its own exclusive slide
+            slidesData.push([item]);
+        } else {
+            // Regular item logic
+            currentChunk.push(item);
+            if (currentChunk.length >= 3) {
+                slidesData.push(currentChunk);
+                currentChunk = [];
+            }
+        }
+    });
+    // Push last partial chunk
+    if (currentChunk.length > 0) slidesData.push(currentChunk);
+
+    // Balance Logic: Avoid 3-1 split for REGULAR chunks only?
+    // Actually, simple balance is safer.
     if (slidesData.length > 1) {
         const lastIdx = slidesData.length - 1;
         // If last slide has 1 item and prev has 3, move one over
@@ -573,7 +627,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         if (!containerRef.current) return;
         setGenerating(true);
         setImages([]);
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 800));
 
         const generated: string[] = [];
         const slides = containerRef.current.children;
@@ -586,10 +640,10 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                     useCORS: true,
                     allowTaint: true,
                     width: 1080,
-                    height: 1920,
+                    height: 1350,
                     windowWidth: 1080,
-                    windowHeight: 1920,
-                    backgroundColor: '#1a1a1a',
+                    windowHeight: 1350,
+                    backgroundColor: null,
                     logging: false,
                     x: 0,
                     y: 0,
@@ -756,6 +810,57 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                         )}
                     </div>
 
+                    {/* SECTION 1.5: BETS (EDIT TEXTS) */}
+                    <div className="border border-white/10 rounded-xl overflow-hidden bg-white/5">
+                        <button onClick={() => toggleSection('bets')} className="w-full flex justify-between items-center p-2 hover:bg-white/5">
+                            <span className="font-bold text-sm uppercase text-muted-foreground flex items-center gap-2">📝 Editar Apuestas</span>
+                            {collapsed.bets ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                        </button>
+                        {!collapsed.bets && (
+                            <div className="p-4 space-y-6 border-t border-white/10 max-h-[400px] overflow-y-auto">
+                                {slideGroups.map((group, i) => (
+                                    <div key={i} className="space-y-3 p-3 bg-black/30 rounded-lg border border-white/5">
+                                        {/* Match Title Input */}
+                                        <div>
+                                            <label className="text-[10px] text-white/40 uppercase font-bold mb-1 block">Partido {i + 1}</label>
+                                            <input
+                                                value={group.matchDisplay}
+                                                onChange={(e) => {
+                                                    const newGroups = [...slideGroups];
+                                                    newGroups[i] = { ...newGroups[i], matchDisplay: e.target.value };
+                                                    setSlideGroups(newGroups);
+                                                }}
+                                                className="w-full bg-black/50 border border-white/10 rounded p-2 text-white text-xs font-bold"
+                                                placeholder="Nombre del Partido"
+                                            />
+                                        </div>
+
+                                        {/* Bets Loop */}
+                                        <div className="space-y-2">
+                                            {group.picks.map((pick: string, j: number) => (
+                                                <div key={j}>
+                                                    <label className="text-[10px] text-white/30 uppercase block mb-1">Selección {j + 1}</label>
+                                                    <input
+                                                        value={pick}
+                                                        onChange={(e) => {
+                                                            const newGroups = [...slideGroups];
+                                                            const newPicks = [...newGroups[i].picks];
+                                                            newPicks[j] = e.target.value;
+                                                            newGroups[i] = { ...newGroups[i], picks: newPicks };
+                                                            setSlideGroups(newGroups);
+                                                        }}
+                                                        className="w-full bg-black/50 border border-white/10 rounded p-2 text-white text-xs"
+                                                        placeholder="Texto de la apuesta"
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
                     {/* SECTION 2: OUTRO */}
                     <div className="border border-white/10 rounded-xl overflow-hidden bg-white/5">
                         <button onClick={() => toggleSection('outro')} className="w-full flex justify-between items-center p-2 hover:bg-white/5">
@@ -862,7 +967,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                 <ChevronLeft size={32} className="text-white" />
                             </button>
 
-                            <div className="relative aspect-[9/16] h-auto max-h-[55vh] bg-transparent rounded-lg overflow-hidden border border-white/10 shadow-2xl group">
+                            <div className="relative h-auto max-h-[55vh] bg-transparent rounded-lg overflow-hidden border border-white/10 shadow-2xl group aspect-[4/5]">
                                 <img src={images[currentPreviewIdx]} alt={`Slide ${currentPreviewIdx}`} className="w-full h-full object-contain" />
 
                                 {/* Overlay Controls - Bottom Aligned */}
@@ -898,7 +1003,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                     <div className="flex-1 flex flex-col items-center justify-center text-white/30 gap-4">
                         <ImageIcon size={64} className="opacity-20" />
                         <p className="text-sm">Listo para generar</p>
-                        <p className="text-xs text-white/20">Se encontraron {allSelections.length} selecciones</p>
+                        <p className="text-xs text-white/20">Se encontraron {slideGroups.length} selecciones</p>
                     </div>
                 )}
 
@@ -914,13 +1019,20 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                 </div>
             )}
 
-            {/* HIDDEN RENDER CONTAINER (1080x1920) */}
+            {/* HIDDEN RENDER CONTAINER */}
             <div className="fixed top-0 left-0 z-[-1000] opacity-0 pointer-events-none">
-                <div ref={containerRef} style={{ width: '1080px', height: '1920px' }}>
+                <div ref={containerRef} style={{ width: 1080, height: 1350 }}>
 
-                    {/* SLIDE 1: COVER */}
-                    <div className="w-[1080px] h-[1920px] relative flex flex-col items-center justify-start pt-[200px] font-sans overflow-hidden bg-black">
-                        <img src={config.bgSelection[0]?.includes('.') ? `/backgrounds/${config.bgSelection[0]}` : `/backgrounds/${config.bgSelection[0] || 'bg-portada-1.png'}`} onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1518091043644-c1d4457512c6?q=80&w=1920&fit=crop"} crossOrigin="anonymous" className="absolute inset-0 w-full h-full min-w-full min-h-full object-cover object-center z-0 opacity-100 transform scale-[1.05]" alt="bg" />
+                    <div className="w-[1080px] relative flex flex-col items-center justify-center font-sans overflow-hidden bg-black" style={{ height: 1350 }}>
+                        <img
+                            src={config.bgSelection[0]?.includes('.') ? `/backgrounds/${config.bgSelection[0]}` : `/backgrounds/${config.bgSelection[0] || 'bg-portada-1.png'}`}
+                            onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1518091043644-c1d4457512c6?q=80&w=1920&fit=crop"}
+                            crossOrigin="anonymous"
+                            width={1080}
+                            height={1350}
+                            className="absolute inset-0 w-full h-full object-cover z-0 opacity-100"
+                            alt="bg"
+                        />
                         <div className="absolute inset-0 z-0 bg-black/5" />
 
                         <div className="relative z-10 w-full flex flex-col items-center gap-14 p-8">
@@ -934,21 +1046,21 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                     <div className="flex flex-col items-center gap-4 w-full">
                                         {/* Line 1 */}
                                         <div className="bg-white px-12 pt-2 pb-6 rounded-2xl w-fit max-w-[90%] flex items-center justify-center">
-                                            <h1 className="text-7xl font-black text-black tracking-tighter leading-tight whitespace-nowrap text-center pb-5">
+                                            <h1 className="text-6xl font-black text-black tracking-tighter leading-tight whitespace-nowrap text-center pb-5">
                                                 {line1}
                                             </h1>
                                         </div>
                                         {/* Line 2 with Icons */}
                                         <div className="bg-white px-12 pt-2 pb-4 rounded-2xl flex items-center justify-center gap-6 w-fit max-w-[95%]">
-                                            <h1 className="text-6xl font-black text-black tracking-tighter leading-tight whitespace-nowrap pb-5">
+                                            <h1 className="text-5xl font-black text-black tracking-tighter leading-tight whitespace-nowrap pb-5">
                                                 {line2}
                                             </h1>
                                             <div className="flex items-center gap-4 pb-5">
                                                 {config.introEmoji1 && (
-                                                    <span className="text-6xl filter drop-shadow hover:brightness-110">{config.introEmoji1}</span>
+                                                    <span className="text-5xl filter drop-shadow hover:brightness-110">{config.introEmoji1}</span>
                                                 )}
                                                 {config.introEmoji2 && (
-                                                    <span className="text-6xl filter drop-shadow hover:brightness-110">{config.introEmoji2}</span>
+                                                    <span className="text-5xl filter drop-shadow hover:brightness-110">{config.introEmoji2}</span>
                                                 )}
                                             </div>
                                         </div>
@@ -959,7 +1071,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                             {/* ODDS PILL: STICKER STYLE (Editable) - Hide if empty */}
                             {config.introSubtitle && config.introSubtitle.trim() !== "" && (
                                 <div className="bg-white px-14 pt-4 pb-8 rounded-2xl mt-8 flex items-center justify-center">
-                                    <span className="text-7xl font-black text-black uppercase tracking-tighter leading-none pb-5">
+                                    <span className="text-6xl font-black text-black uppercase tracking-tighter leading-none pb-5">
                                         {config.introSubtitle}
                                     </span>
                                 </div>
@@ -969,11 +1081,19 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
 
                     {/* SLIDES 2-N: BETS (3 per slide) */}
                     {slidesData.map((chunk, slideIdx) => (
-                        <div key={slideIdx} className="w-[1080px] h-[1920px] relative flex flex-col items-center justify-center font-sans overflow-hidden bg-black">
-                            <img src={config.bgSelection[slideIdx + 1]?.includes('.') ? `/backgrounds/${config.bgSelection[slideIdx + 1]}` : `/backgrounds/${config.bgSelection[slideIdx + 1] || 'bg-futbol-comodin-1.png'}`} onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?q=80&w=1920&fit=crop"} crossOrigin="anonymous" className="absolute inset-0 w-full h-full min-w-full min-h-full object-cover object-center z-0 opacity-100 transform scale-[1.05]" alt="bg" />
+                        <div key={slideIdx} className="w-[1080px] relative flex flex-col items-center justify-center font-sans overflow-hidden bg-black" style={{ height: 1350 }}>
+                            <img
+                                src={config.bgSelection[slideIdx + 1]?.includes('.') ? `/backgrounds/${config.bgSelection[slideIdx + 1]}` : `/backgrounds/${config.bgSelection[slideIdx + 1] || 'bg-futbol-comodin-1.png'}`}
+                                onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?q=80&w=1920&fit=crop"}
+                                crossOrigin="anonymous"
+                                width={1080}
+                                height={1350}
+                                className="absolute inset-0 w-full h-full object-cover z-0 opacity-100"
+                                alt="bg"
+                            />
                             <div className="absolute inset-0 z-0 bg-black/5" />
 
-                            <div className="relative z-10 w-full h-full flex flex-col items-center justify-center p-8 gap-16 pb-[150px]">
+                            <div className="relative z-10 w-full h-full flex flex-col items-center justify-center p-8 gap-16 pb-[80px]">
                                 {chunk.map((group: any, bIdx: number) => {
                                     const { match } = parseBetDisplay(group.matchDisplay, "");
                                     const sportIcon = group.sport === 'basketball' ? '🏀' : '⚽';
@@ -985,34 +1105,17 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                         <div key={bIdx} className="w-full flex flex-col items-center gap-4">
                                             {/* MATCH TITLE: Inverted Colors (Black BG, White Text) - NO BORDER */}
                                             <div className="bg-black px-8 pt-2 pb-4 rounded-xl max-w-[95%] border-2 border-black flex items-center justify-center text-center">
-                                                <h3 className="text-5xl font-black text-white uppercase tracking-tight leading-tight whitespace-pre-wrap break-words pb-5">
-                                                    {match} {sportIcon}
+                                                <h3 className="text-3xl font-black text-white uppercase tracking-tight leading-tight whitespace-pre-wrap break-words pb-5">
+                                                    {group.matchDisplay}
                                                 </h3>
                                             </div>
 
                                             {/* PICKS LOOP */}
                                             {group.picks.map((pick: string, pIdx: number) => {
-                                                const { pick: displayPick } = parseBetDisplay(group.matchDisplay, pick);
-
-                                                // Intelligent Casing Logic
-                                                let formattedPick = displayPick;
-                                                const lowerPick = displayPick.toLowerCase();
-
-                                                // Check if the pick is one of the teams
-                                                const isTeam = teams.some(t => lowerPick.includes(t) || t.includes(lowerPick));
-
-                                                if (isTeam) {
-                                                    // Title Case for Teams (e.g. "Orlando Magic")
-                                                    formattedPick = lowerPick.replace(/(?:^|\s)\S/g, a => a.toUpperCase());
-                                                } else {
-                                                    // Sentence Case for others (e.g. "Más de 1.5 goles")
-                                                    formattedPick = lowerPick.charAt(0).toUpperCase() + lowerPick.slice(1);
-                                                }
-
                                                 return (
                                                     <div key={pIdx} className="bg-white px-8 pt-2 pb-4 rounded-xl max-w-[95%] flex items-center justify-center text-center mt-[-10px]">
-                                                        <span className="text-5xl font-black text-black tracking-tight leading-tight whitespace-pre-wrap break-words pb-5">
-                                                            {formattedPick} ✅
+                                                        <span className="text-3xl font-black text-black tracking-tight leading-tight whitespace-pre-wrap break-words pb-5">
+                                                            {pick}
                                                         </span>
                                                     </div>
                                                 );
@@ -1025,22 +1128,30 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                     ))}
 
                     {/* SLIDE N: OUTRO */}
-                    <div className="w-[1080px] h-[1920px] relative flex flex-col items-center justify-start pt-[900px] gap-16 font-sans overflow-hidden bg-black">
-                        <img src={config.bgSelection[slidesData.length + 1]?.includes('.') ? `/backgrounds/${config.bgSelection[slidesData.length + 1]}` : `/backgrounds/${config.bgSelection[slidesData.length + 1] || 'bg-futbol-comodin-2.png'}`} onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1579952363873-1b9132c3f58a?q=80&w=1920&fit=crop"} crossOrigin="anonymous" className="absolute inset-0 w-full h-full min-w-full min-h-full object-cover object-center z-0 opacity-100 transform scale-[1.05]" alt="bg" />
+                    <div className="w-[1080px] relative flex flex-col items-center justify-center gap-16 font-sans overflow-hidden bg-black" style={{ height: 1350 }}>
+                        <img
+                            src={config.bgSelection[slidesData.length + 1]?.includes('.') ? `/backgrounds/${config.bgSelection[slidesData.length + 1]}` : `/backgrounds/${config.bgSelection[slidesData.length + 1] || 'bg-futbol-comodin-2.png'}`}
+                            onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1579952363873-1b9132c3f58a?q=80&w=1920&fit=crop"}
+                            crossOrigin="anonymous"
+                            width={1080}
+                            height={1350}
+                            className="absolute inset-0 w-full h-full object-cover z-0 opacity-100"
+                            alt="bg"
+                        />
                         <div className="absolute inset-0 z-0 bg-black/5" />
 
                         <div className="relative z-10 w-full flex flex-col items-center gap-16 p-12">
 
                             {/* MAIN TEXT - REMOVED SHADOW-2XL replaced with shadow-lg for flat look */}
                             <div className="bg-white px-10 py-10 rounded-2xl max-w-[95%] text-center">
-                                <h2 className="text-7xl font-black text-black uppercase tracking-tighter leading-tight whitespace-pre-line">
+                                <h2 className="text-6xl font-black text-black uppercase tracking-tighter leading-tight whitespace-pre-line">
                                     {config.outroTitle}
                                 </h2>
                             </div>
 
                             {/* SUBTEXT (White w/ shadow-lg) */}
                             <div className="bg-white px-12 py-6 rounded-2xl">
-                                <p className="text-4xl font-black text-black uppercase tracking-tight">
+                                <p className="text-3xl font-black text-black uppercase tracking-tight">
                                     {config.outroSub}
                                 </p>
                             </div>
