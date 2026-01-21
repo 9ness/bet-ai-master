@@ -16,10 +16,25 @@ from src.services.redis_service import RedisService
 
 # DICCIONARIO DE TRADUCCIÓN FORZADA
 PICK_TRANSLATIONS = {
-    "Home": "Local", "Away": "Visitante", "Win": "Gana", "Draw": "Empate",
-    "Over": "Más de", "Under": "Menos de", "Yes": "Sí", "No": "No",
-    "Goals": "Goles", "Points": "Puntos", "Handicap": "Hándicap",
-    "Shots on Goal": "Tiros a Puerta:", "BTTS": "Ambos marcan:", "Corners": "Córners"
+    "Home": "Local",
+    "Away": "Visitante",
+    "Win": "Gana",
+    "Draw": "Empate",
+    "Over": "Más de",
+    "Under": "Menos de",
+    "Yes": "Sí",
+    "No": "No",
+    "Goals": "Goles",
+    "Points": "Puntos",
+    "Handicap": "Hándicap",
+    "Shots on Goal": "Tiros a Puerta:",
+    "Gananer": "Ganador",
+    "Asian Hándicap": "Hándicap Asiático",
+    "AH": "Hándicap Asiático",
+    "Double Chance": "Doble Oportunidad",
+    "(ML)": "(Prórroga incluída)",
+    "BTTS": "Ambos marcan:",
+    "Corners": "Córners"
 }
 
 def clean_team_name(name):
@@ -95,9 +110,19 @@ def analyze():
             1. SAFE (La Segura): Cuota total 1.50 - 2.00. Probabilidad > 75%. STAKE FIJO: 6.
             2. VALUE (De Valor): Cuota total 2.50 - 3.50. STAKE FIJO: 3.
             3. FUNBET (Arriesgada): Cuota total 10.00 - 20.00. STAKE FIJO: 1. 
-            - REGLA SAFE: Céntrate en selecciones del mismo evento que no dependan de si un equipo gana o pierda. Busca encontrar el máximo valor en mercados como: tarjetas, corners, goles, tiros a puerta... Prioriza llegar a la cuota seleccionada combinando selecciones en un único evento.
-            - REGLA VALUE: Busca llegar a la cuota indicada anteriormente con pronósticos a los que les veas un alto valor o fallo de cuota. También puedes combinar mercados que estés seguro de que tienen un alto porcentaje de probabilidad para llegar a la cuota.
-            - REGLA FUNBET: Puedes combinar mercados. Para llegar a cuota 10+, usa selecciones con cuota individual entre 1.10 y 1.50 que les veas un valor muy alto. Puedes combinar diferentes selecciones del mismo evento.
+
+            REGLAS DE ORO (CRÍTICAS):
+            - **PROHIBIDO REPETIR PARTIDOS**: Un mismo partido (Fixture ID) SÓLO puede aparecer en UNA de las 3 categorías. Si usas Watford en SAFE, NO puedes usarlo en FUNBET.
+            - **ORIGINALIDAD**: Cada categoría debe tener su propia identidad.
+            - **COHERENCIA DEPORTIVA**: No mezcles contextos NBA/Fútbol.
+
+            CONSTRUCCIÓN DE APUESTAS:
+            - **SAFE**: Sigue este orden de prioridad estricto:
+                1. **OPCIÓN A (Ideal)**: "Bet Builder" de ESTADÍSTICAS en un mismo partido. Combina mercados que NO dependan de quién gana (ej: Más de X Tarjetas + Más de X Córners + Gol en 2ª mitad). Evita el 1X2 aquí.
+                2. **OPCIÓN B (Si no hay A)**: Apuesta SIMPLE muy clara de cuota 1.50 - 1.80 (ej: Un "Ambos marcan" muy claro o un Hándicap positivo).
+                3. **OPCIÓN C (Último recurso)**: Doble oportunidad combinada de 2 eventos MUY seguros para llegar a 1.50.
+            - **VALUE**: Busca fallos de cuota o "underdogs" con opciones reales.
+            - **FUNBET**: Tu objetivo es combinar muchas selecciones "muy probables" para multiplicar la cuota. Usa **selecciones de cuota baja (máximo 1.50)** que veas muy seguras y combínalas (4-6 selecciones) hasta llegar a cuota 10+. Puedes combinar diferentes selecciones del mismo evento.
             - REGLA NO REPETIR: No repitas el mismo pronóstico en diferentes apuestas. Con esto nos aseguramos de no perder varias apuestas por un único pronóstico fallido. 
             - REGLA EVENTO: Hay la posibilidad de que puedas hacer varios pronósticos diferentes para el mismo evento si te convencen mucho, siempre que no sean contradictorios (ej: victoria del local y over 2.5 goles).
 
