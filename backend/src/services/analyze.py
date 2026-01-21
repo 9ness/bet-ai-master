@@ -34,7 +34,8 @@ PICK_TRANSLATIONS = {
     "Double Chance": "Doble Oportunidad",
     "(ML)": "(Prórroga incluída)",
     "BTTS": "Ambos marcan:",
-    "Corners": "Córners"
+    "Corners": "Córners",
+    "to win": ""
 }
 
 def clean_team_name(name):
@@ -112,23 +113,27 @@ def analyze():
             3. FUNBET (Arriesgada): Cuota total 10.00 - 20.00. STAKE FIJO: 1. 
 
             REGLAS DE ORO (CRÍTICAS):
-            - **PROHIBIDO REPETIR PARTIDOS**: Un mismo partido (Fixture ID) SÓLO puede aparecer en UNA de las 3 categorías. Si usas Watford en SAFE, NO puedes usarlo en FUNBET.
+            - **PROHIBIDO REPETIR PARTIDOS**: Un mismo partido (Fixture ID) SÓLO puede aparecer en UNA de las 3 categorías.
             - **ORIGINALIDAD**: Cada categoría debe tener su propia identidad.
             - **COHERENCIA DEPORTIVA**: No mezcles contextos NBA/Fútbol.
 
-            CONSTRUCCIÓN DE APUESTAS:
-            - **SAFE**: Sigue este orden de prioridad estricto:
-                1. **OPCIÓN A (Ideal)**: "Bet Builder" de ESTADÍSTICAS en un mismo partido. Combina mercados que NO dependan de quién gana (ej: Más de X Tarjetas + Más de X Córners + Gol en 2ª mitad). Evita el 1X2 aquí.
-                2. **OPCIÓN B (Si no hay A)**: Apuesta SIMPLE muy clara de cuota 1.50 - 1.80 (ej: Un "Ambos marcan" muy claro o un Hándicap positivo).
-                3. **OPCIÓN C (Último recurso)**: Doble oportunidad combinada de 2 eventos MUY seguros para llegar a 1.50.
+            CONSTRUCCIÓN DE APUESTAS (ESTRICTO):
+            - **SAFE**:
+                *   PRIORIDAD MÁXIMA: **Bet Builder** de ESTADÍSTICAS en un mismo partido. Combina mercados que NO dependan de quién gana (ej: Más de X Tarjetas + Más de X Córners + Gol en 2ª mitad). Evita el 1X2 aquí.
+                *   PRIORIDAD SECUNDARIA: Si no ves clara la opción de estadísticas, busca una **APUESTA SIMPLE** de cuota 1.50 a 1.80 que sea muy probable (ej: Victoria local clara o Ambos Marcan).
+                *   EVITA EN LO POSIBLE: Combinar varios partidos. Solo hazlo (máximo 2 partidos) si no encuentras NADA en las opciones anteriores.
+            
             - **VALUE**: Busca fallos de cuota o "underdogs" con opciones reales.
-            - **FUNBET**: Tu objetivo es combinar muchas selecciones "muy probables" para multiplicar la cuota. Usa **selecciones de cuota baja (máximo 1.50)** que veas muy seguras y combínalas (4-6 selecciones) hasta llegar a cuota 10+. Puedes combinar diferentes selecciones del mismo evento.
-            - REGLA NO REPETIR: No repitas el mismo pronóstico en diferentes apuestas. Con esto nos aseguramos de no perder varias apuestas por un único pronóstico fallido. 
-            - REGLA EVENTO: Hay la posibilidad de que puedas hacer varios pronósticos diferentes para el mismo evento si te convencen mucho, siempre que no sean contradictorios (ej: victoria del local y over 2.5 goles).
+            
+            - **FUNBET (ACUMULADOR)**:
+                *   OBLIGATORIO: Selecciona entre 5 y 8 picks.
+                *   **RESTRICCIÓN ABSOLUTA DE CUOTA**: CADA selección individual DEBE tener una cuota **ENTRE 1.10 Y 1.50**.
+                *   **PROHIBIDO**: Incluir cualquier selección con cuota SUPERIOR A 1.50 en la Funbet. Si tiene 1.51, DESCÁRTALA.
+                *   El objetivo es sumar muchas "pequeñas certezas" para crear una cuota grande.
 
             REGLAS DE FORMATO (STRICT JSON):
             - Devuelve UNICAMENTE un ARRAY JSON `[...]`.
-            - El campo reason debe ser un informe de inteligencia técnica. Debe explicar el PORQUÉ técnico de la selección (ej: 'La baja del pívot titular reduce la protección de aro un 15%, aumentando la probabilidad de puntos en la pintura y rebotes ofensivos del rival'). (NO incluyas ningún dato de ID en el "reason").
+            - El campo `reason` debe ser TÉCNICO, ESPECÍFICO DEL DEPORTE y SIN ALUCINACIONES.
             - MUY IMPORTANTE: Aunque tú propongas la "total_odd", el sistema la recalculará matemáticamente por código basándose en tus "selections".
 
             SCHEMA OBLIGATORIO:
@@ -137,11 +142,11 @@ def analyze():
                 "type": "safe",
                 "sport": "football", // o "basketball"
                 "startTime": "YYYY-MM-DD HH:mm",
-                "match": "Título Descriptivo de la apuesta (si es una combinada debes indicar una informacion breve para saber en una linea de que trata la combinada, no pongas el nombre del primer partido de la combinada)",
+                "match": "Título Descriptivo",
                 "pick": "Resumen del Pick",
-                "stake": 6, // 6 para safe, 3 para value, 1 para funbet
-                "total_odd": 0.0, // Deja en 0.0, el código lo calculará
-                "estimated_units": 0.0, // Deja en 0.0, el código lo calculará
+                "stake": 6, 
+                "total_odd": 0.0,
+                "estimated_units": 0.0,
                 "reason": "Análisis detallado. (no incluir datos de IDs)",
                 "selections": [
                     {{
@@ -151,7 +156,7 @@ def analyze():
                         "match": "Equipo A vs Equipo B",
                         "time": "YYYY-MM-DD HH:mm",
                         "pick": "Mercado específico",
-                        "odd": 1.55
+                        "odd": 1.45
                     }}
                 ]
             }}
