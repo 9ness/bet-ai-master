@@ -5,71 +5,120 @@ import time
 import math
 from datetime import datetime, timedelta
 
-# Importamos la nueva SDK de Google (requiere: pip install google-genai)
-from google import genai
-from google.genai import types
-
-# Path setup
+# Path setup to include backend root
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 
 from src.services.redis_service import RedisService
+from src.services.gemini import GeminiService
 
-# DICCIONARIO DE TRADUCCIÓN FORZADA
+# DICCIONARIO DE TRADUCCIÓN FORZADA (Picks & Mercados)
 PICK_TRANSLATIONS = {
-    "Home": "Local", "Away": "Visitante", "Win": "Gana", "Draw": "Empate",
-    "Over": "Más de", "Under": "Menos de", "Yes": "Sí", "No": "No",
-    "Goals": "Goles", "Points": "Puntos", "Handicap": "Hándicap",
-    "Shots on Goal": "Tiros a Puerta:", "BTTS": "Ambos marcan:", "Corners": "Córners"
+    "Home": "Local",
+    "Away": "Visitante",
+    "Win": "Gana",
+    "Draw": "Empate",
+    "Over": "Más de",
+    "Under": "Menos de",
+    "Yes": "Sí",
+    "No": "No",
+    "Goals": "Goles",
+    "Points": "Puntos",
+    "Handicap": "Hándicap",
+    "Shots on Goal": "Tiros a Puerta:",
+    "Gananer": "Ganador",
+    "Asian Hándicap": "Hándicap Asiático",
+    "AH": "Hándicap Asiático",
+    "Double Chance": "Doble Oportunidad",
+    "(ML)": "(Prórroga incluída)",
+    "BTTS": "Ambos marcan:",
+    "Corners": "Córners"
 }
 
+# --- FLAG MAPPINGS REMOVED (Moved to Frontend) ---
+
 def clean_team_name(name):
+    """
+    Remove suffixes like (Home), (Away) and extra spaces.
+    """
     if not name: return "Desconocido"
-    name = str(name).replace("(Home)", "").replace("(Away)", "").replace("(Local)", "").replace("(Visitante)", "")
+    name = name.replace("(Home)", "").replace("(Away)", "")
+    name = name.replace("(Local)", "").replace("(Visitante)", "")
     if name.endswith(" Home"): name = name[:-5]
     if name.endswith(" Away"): name = name[:-5]
     return name.strip()
 
 def translate_pick(pick_text, home_team=None, away_team=None):
+    """
+    Translates betting terms to Spanish and maps 1X2 to Team Names.
+    """
     if not pick_text: return pick_text
+
+    # Exact match for 1X2 Market (String or Int)
     p = str(pick_text).strip().upper()
-    if p == "1" and home_team: return f"Gana {home_team}"
-    if p == "2" and away_team: return f"Gana {away_team}"
-    if p == "X": return "Empate"
+    if p == "1" and home_team:
+        return f"Gana {home_team}"
+    if p == "2" and away_team:
+        return f"Gana {away_team}"
+    if p == "X":
+        return "Empate"
+    
+    # Simple replacement checks
     for eng, esp in PICK_TRANSLATIONS.items():
         if eng in pick_text:
             pick_text = pick_text.replace(eng, esp)
+            
     return pick_text
+    
+# ... (inside loop) ...
+
+                    # Translate Pick
+                    home_name = clean_team_name(source.get("home", ""))
+                    away_name = clean_team_name(source.get("away", ""))
+                    sel["pick"] = translate_pick(sel.get("pick", ""), home_name, away_name)
+
+def validate_bets_pre(candidates):
+    """
+    Pre-validation of AI output structure
+    """
+    if not candidates: return False, "Empty list"
+    return True, "OK"
 
 def analyze():
-    print("--- REANALYSIS SCRIPT STARTED (ANALYZE2 - PROMPT MAESTRO + SEARCH v3) ---")
+    print("--- REANALYSIS SCRIPT STARTED (Lookup V3) ---")
     
-    # 1. Inicialización de Servicios
+    # 1. Services
     try:
         rs = RedisService()
-        api_key = os.environ.get("GEMINI_API_KEY")
-        if not api_key:
-            raise ValueError("GEMINI_API_KEY no encontrada en variables de entorno")
-            
-        client = genai.Client(api_key=api_key)
-        model_name = 'gemini-3-pro-preview'
-        
+        gs = GeminiService() 
     except Exception as e:
         print(f"[FATAL] Service Init Failed: {e}")
         return
 
-    # 2. Obtención de datos
+    # 2. Fetch Data (Full 24h Window logic handled by fetcher, we just read raw)
     today_str = datetime.now().strftime("%Y-%m-%d")
     raw_key = f"betai:raw_matches:{today_str}"
-    raw_json = rs.get(raw_key) or rs.get(f"raw_matches:{today_str}")
+    
+    print(f"[*] Fetching Raw Data: {raw_key}")
+    raw_json = rs.get(raw_key) 
+    if not raw_json: raw_json = rs.get(f"raw_matches:{today_str}")
     
     if not raw_json:
-        print(f"[ERROR] No raw matches found for {today_str}.")
+        print(f"[ERROR] No raw matches found for {today_str}. Aborting.")
         return
 
     raw_matches = json.loads(raw_json)
-    fixture_map = {str(m.get("id")): m for m in raw_matches if m.get("id")}
+    print(f"[*] Matches Loaded: {len(raw_matches)} events.")
 
-    # 3. PROMPT ORIGINAL
+    # 3. Build Lookup Map (Fixture ID -> Data)
+    fixture_map = {}
+    for m in raw_matches:
+        fid = m.get("id")
+        if fid:
+            fixture_map[fid] = m
+            
+    print(f"[*] Fixture Map Built: {len(fixture_map)} items.")
+
+    # 4. Master Prompt
     base_prompt = f"""
             Estás operando en modo Risk Manager & Pro Tipster Multi-Sport (Football & Basketball/NBA).
             Tu objetivo es analizar los datos proporcionados y generar las 3 mejores apuestas del día (SAFE, VALUE, FUNBET).
@@ -89,9 +138,6 @@ def analyze():
             3. CRITERIO DE VALOR (PROBABILIDAD VS. CUOTA):
                 - Identificación de Edge: Tu misión es encontrar la discrepancia entre la probabilidad estadística calculada y la cuota ofrecida. Selecciona únicamente eventos donde el valor matemático sea evidente tras filtrar el ruido estadístico.
                 - Análisis Multivariante: Considera el factor campo, la relevancia del encuentro para ambos equipos y las tendencias históricas head-to-head como modificadores de la probabilidad base.
-                - Antes de emitir cualquier pronóstico, utiliza GOOGLE SEARCH para verificar el Injury Report (lesiones) de hoy en NBA/NCAA y bajas críticas en Football. Esto es importante para tomar decisiones, pero lo que sigue mandando son las cuotas, la búsqueda de google search es para determinar datos clave y asegurarte de que cada pronóstico es lo más fiable posible.
-
-    
 
             REGLAS DE SELECCIÓN Y STAKE:
             1. SAFE (La Segura): Cuota total 1.50 - 2.00. Probabilidad > 75%. STAKE FIJO: 6.
@@ -135,119 +181,135 @@ def analyze():
             {json.dumps(raw_matches, indent=2)}
             """
 
+    # 5. Retry Loop
     valid_bets = None
+    max_attempts = 3
     
-    # 4. Loop de Intentos
-    for i in range(3):
-        print(f"[*] Gemini Attempt {i+1} (Research Mode)...")
+    for i in range(max_attempts):
+        print(f"[*] Gemini Attempt {i+1}...")
         try:
-            search_tool = types.Tool(google_search=types.GoogleSearch())
-            
-            resp = client.models.generate_content(
-                model=model_name,
-                contents=base_prompt,
-                config=types.GenerateContentConfig(
-                    tools=[search_tool],
-                    response_mime_type='application/json'
-                )
-            )
-
-            # --- VERIFICACIÓN DE USO DE BÚSQUEDA (MEJORADO) ---
-            try:
-                if hasattr(resp, 'candidates') and resp.candidates:
-                    cand = resp.candidates[0]
-                    if hasattr(cand, 'grounding_metadata') and cand.grounding_metadata:
-                        gm = cand.grounding_metadata
-                        
-                        # 1. ¿Qué buscó la IA? (Esto es lo que quieres ver)
-                        if hasattr(gm, 'web_search_queries') and gm.web_search_queries:
-                            print(f"\n[SEARCH LOG] 🕵️  La IA ha buscado en Google: {gm.web_search_queries}")
-                        
-                        # 2. ¿Encontró resultados?
-                        if gm.search_entry_point:
-                            print(f"[SEARCH LOG] 🌐 Google devolvió resultados visuales (HTML leído).")
-                        
-                        # 3. ¿Usó citas directas?
-                        chunks = len(gm.grounding_chunks) if gm.grounding_chunks else 0
-                        if chunks > 0:
-                            print(f"[SEARCH LOG] 📝 Se extrajeron {chunks} datos específicos.")
-                            
-                    else:
-                        print("[SEARCH WARNING] El modelo decidió NO buscar nada (confió en su memoria).")
-            except Exception as e_log:
-                print(f"[DEBUG LOG] Error imprimiendo metadatos: {e_log}")
-            # ---------------------------------------
-            
-            # Limpieza y Parsing
+            resp = gs.model.generate_content(base_prompt)
             text = resp.text.replace("```json", "").replace("```", "").strip()
             
-            start_idx = text.find("[")
-            end_idx = text.rfind("]")
+            s = text.find("[")
+            e = text.rfind("]") + 1
+            if s == -1: raise ValueError("No JSON")
             
-            if start_idx != -1 and end_idx != -1:
-                json_str = text[start_idx:end_idx+1]
-                candidates = json.loads(json_str)
-            else:
-                candidates = json.loads(text)
+            candidates = json.loads(text[s:e])
             
-            # Procesamiento
+            # --- DATA INJECTION & CLEANING ---
+            validation_error = None
+            
             for bet in candidates:
+                # Basic cleaning
+                bet["reason"] = clean_team_name(bet.get("reason", ""))
+                
                 real_selections = []
                 for sel in bet.get("selections", []):
-                    source = fixture_map.get(str(sel.get("fixture_id")))
-                    if source:
-                        h = clean_team_name(source.get("home") or source.get("home_team"))
-                        a = clean_team_name(source.get("away") or source.get("away_team"))
-                        sel.update({
-                            "match": f"{h} vs {a}",
-                            "league": source.get("league", "Desconocida"),
-                            "sport": source.get("sport", "football"),
-                            "time": source.get("startTime"),
-                            "pick": translate_pick(sel.get("pick", ""), h, a)
-                        })
-                        real_selections.append(sel)
+                    fid = sel.get("fixture_id")
+                    
+                    # Lookup Source
+                    source = fixture_map.get(fid) or fixture_map.get(str(fid))
+                    
+                    if not source:
+                        # Fallback: Try match by ID inside object? No, ID is key.
+                        # Fail logic: skipping invalid ID selection
+                        print(f"    [WARN] Fixture ID {fid} not found in Raw Data. Skipping selection.")
+                        continue
+                        
+                # INJECT REAL DATA
+                sel["match"] = f"{clean_team_name(source['home'])} vs {clean_team_name(source['away'])}"
+                
+                # Pass League Metadata for Frontend
+                sel["league"] = source.get("league", "Unknown")
+                sel["league_id"] = source.get("league_id")
+                sel["country"] = source.get("country")
+                
+                sel["sport"] = source.get("sport", "football")
+                sel["time"] = source.get("startTime") or datetime.fromtimestamp(source.get("timestamp", 0)).strftime("%Y-%m-%d %H:%M")
+                
+                # Translate Pick
+                home_name = clean_team_name(source.get("home", ""))
+                away_name = clean_team_name(source.get("away", ""))
+                sel["pick"] = translate_pick(sel.get("pick", ""), home_name, away_name)
+                    
+                    # Store
+                    real_selections.append(sel)
+                    
+                    # FUNBET Check
+                    if "funbet" in bet.get("betType", "").lower():
+                        if float(sel.get("odd", 0)) > 1.50:
+                            validation_error = f"Funbet Selection > 1.50 ({sel.get('odd')})"
+                
+                # Update selections with valid ones only
+                if not real_selections:
+                    validation_error = "Bet has no valid selections (IDs not found)."
+                
+                # Strict Sort by Time (Earliest First)
+                real_selections.sort(key=lambda x: x.get("time", "9999"))
+                
                 bet["selections"] = real_selections
+                
+                # Update top-level metadata from first selection
                 if real_selections:
                     bet["sport"] = real_selections[0]["sport"]
                     bet["startTime"] = real_selections[0]["time"]
+                    bet["match"] = real_selections[0]["match"] # Representative match
+                    bet["pick"] = "Combinada" if len(real_selections) > 1 else real_selections[0]["pick"]
 
+            if validation_error:
+                print(f"[!] Logic Rejection: {validation_error}")
+                base_prompt += f"\n\nERROR: {validation_error}. REHAZLO."
+                continue
+                
             valid_bets = candidates
             break
+            
         except Exception as e:
-            print(f"[!] Reintentando por error: {e}")
-            time.sleep(2)
+            print(f"[!] Error: {e}")
+            time.sleep(1)
 
-    if not valid_bets: 
-        print("[ERROR] No se pudieron generar apuestas válidas tras 3 intentos.")
+    if not valid_bets:
+        print("[FATAL] Could not generate valid bets.")
         return
 
+    # 6. POST-PROCESSING (MATH)
+    print("[*] Calculating Finals...")
     final_output = []
+    
     for bet in valid_bets:
-        odds = [float(s.get("odd", 1.0)) for s in bet["selections"]]
-        if not odds: continue
+        # Get Clean Odds
+        odds_values = []
+        for s in bet["selections"]:
+            try:
+                ov = float(s.get("odd", 0))
+                if ov > 1.0: odds_values.append(ov)
+            except: pass
+            
+        if not odds_values: continue
         
-        total_odd = round(math.prod(odds), 2)
-        bet.update({"total_odd": total_odd, "odd": total_odd})
+        # Total Odd
+        total_odd = math.prod(odds_values)
+        total_odd = round(total_odd, 2)
+        bet["total_odd"] = total_odd
+        bet["odd"] = total_odd # CRITICAL: RedisService reads 'odd', not 'total_odd'
+        
+        # Stake
         bt = bet.get("betType", "safe").lower()
-        bet["stake"] = 6 if "safe" in bt else (3 if "value" in bt else 1)
-        bet["estimated_units"] = round(bet["stake"] * (total_odd - 1), 2)
+        if "safe" in bt: st = 6
+        elif "value" in bt: st = 3
+        else: st = 1
+        bet["stake"] = st
+        
+        # Units
+        bet["estimated_units"] = round(st * (total_odd - 1), 2)
+        
         final_output.append(bet)
 
-    # GUARDADO (Redis SET sobrescribe automáticamente)
+    # 7. Save
+    print("[*] Saving to Redis...")
     rs.save_daily_bets(today_str, final_output)
-    print(f"[SUCCESS] Nuevas predicciones guardadas en Redis para {today_str}.")
-    
-    # TELEGRAM SYNC
-    print(f"[*] Generando cola de mensajes para Telegram...")
-    try:
-        from src.services.telegram_generator import generate_messages_from_analysis
-        generate_messages_from_analysis(today_str)
-    except ImportError:
-        # Fallback if running as script directly without package context issues
-        import telegram_generator
-        telegram_generator.generate_messages_from_analysis(today_str)
-    except Exception as e:
-        print(f"[ERROR] Failed to auto-generate telegram messages: {e}")
+    print(f"[SUCCESS] Saved {len(final_output)} bets.")
 
 if __name__ == "__main__":
     analyze()

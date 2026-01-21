@@ -20,25 +20,44 @@ type Selection = {
 
 // --- FLAG MAPPINGS (ISO Codes for FlagCDN) ---
 // Using 2-letter ISO codes or specific sub-codes (e.g. gb-eng)
-const LEAGUE_FLAGS: Record<number, string> = {
+const FOOTBALL_LEAGUE_FLAGS: Record<number, string> = {
     // Football
-    39: "gb-eng", // Premier League (England)
-    40: "gb-eng", 41: "gb-eng", 42: "gb-eng",
-    140: "es", 141: "es", // La Liga
-    135: "it", // Serie A
-    78: "de", // Bundesliga
-    61: "fr", 62: "fr", // Ligue 1
-    88: "nl", // Eredivisie
-    94: "pt", // Primeira Liga
-    144: "be", // Jupiler Pro
-    71: "br", // Brasileirao
-    128: "ar", // Argentina
-    179: "gb-sct", // Scotland
+    39: "gb-eng", 40: "gb-eng", 41: "gb-eng", 42: "gb-eng",
+    45: "gb-eng", // FA Cup
+    48: "gb-eng", // EFL Cup
+    140: "es", 141: "es", 143: "es", // La Liga + Copa del Rey
+    135: "it", 136: "it", 137: "it", // Serie A, B y Coppa Italia
+    78: "de", 79: "de", // Bundesliga 1 y 2
+    61: "fr", 62: "fr", // Ligue 1 y 2
+    88: "nl", 89: "nl", // Eredivisie y Eerste Divisie
+    94: "pt",
+    203: "tr", // Süper Lig
+    529: "sa", // Saudi Pro League
+    253: "us", // MLS
+    262: "mx", // Liga MX
+    144: "be",
+    71: "br",
+    128: "ar",
+    179: "gb-sct",
+    13: "dk", // Dinamarca
+    103: "no", // Noruega
+    113: "se", // Suecia
+    197: "gr", // Grecia
+    265: "cl", // Chile
+    292: "kr", // Corea del Sur
     2: "eu", 3: "eu", 848: "eu", // UEFA
+};
+
+const BASKETBALL_LEAGUE_FLAGS: Record<number, string> = {
     // Basketball
-    12: "us", // NBA
-    120: "es", // ACB
-    117: "gr", 194: "eu"
+    12: "us", 120: "es", 117: "gr", 194: "eu",
+    2: "fr",    // LNB Pro A
+    161: "au",  // NBL Australia
+    152: "cn",  // CBA China
+    210: "ar",  // LNB Argentina
+    167: "gb",  // BBL UK
+    195: "eu",  // VTB United League
+    411: "eu"   // BNXT League
 };
 
 const COUNTRY_FLAGS: Record<string, string> = {
@@ -46,17 +65,23 @@ const COUNTRY_FLAGS: Record<string, string> = {
     "Spain": "es", "Italy": "it", "Netherlands": "nl",
     "Portugal": "pt", "Belgium": "be", "Brazil": "br",
     "Argentina": "ar", "USA": "us", "Greece": "gr",
-    "Turkey": "tr", "Europe": "eu", "World": "un"
+    "Turkey": "tr", "Europe": "eu", "World": "un",
+    "Saudi Arabia": "sa", "Norway": "no", "Sweden": "se",
+    "Denmark": "dk", "Mexico": "mx", "Chile": "cl",
+    "South Korea": "kr", "Scotland": "gb-sct",
+    "Australia": "au", "China": "cn", "United Kingdom": "gb"
 };
 
 const LEAGUE_NAME_FLAGS: Record<string, string> = {
-    "Premier League": "gb-eng",
-    "Bundesliga": "de",
-    "Ligue 1": "fr",
-    "La Liga": "es",
-    "Serie A": "it",
-    "Eredivisie": "nl",
-    "Primeira Liga": "pt",
+    "Premier League": "gb-eng", "FA Cup": "gb-eng", "EFL Cup": "gb-eng",
+    "Bundesliga": "de", "2. Bundesliga": "de",
+    "Ligue 1": "fr", "La Liga": "es", "Copa del Rey": "es",
+    "Serie A": "it", "Serie B": "it", "Coppa Italia": "it",
+    "Eredivisie": "nl", "Eerste Divisie": "nl",
+    "Süper Lig": "tr", "Saudi Pro League": "sa",
+    "Major League Soccer": "us", "Liga MX": "mx",
+    "Allsvenskan": "se", "Eliteserien": "no", "Superliga": "dk",
+    "Super League 1": "gr", "Primera División": "cl", "K League 1": "kr",
     "NBA": "us",
     "Liga Profesional": "ar",
     "UEFA Champions League": "eu",
@@ -69,11 +94,30 @@ const LEAGUE_NAME_FLAGS: Record<string, string> = {
     "Myanmar National League": "mm",
     "Champions League": "eu",
     "Premiership": "gb-sct",
-    "Euroleague": "eu"
+    "Euroleague": "eu",
+    "LNB Pro A": "fr",
+    "Lega A": "it",
+    "Super Ligi": "tr",
+    "Basket League": "gr",
+    "ABA League": "eu",
+    "NBL": "au",
+    "CBA": "cn",
+    "NBB": "br",
+    "LNB": "ar",
+    "VTB United League": "eu",
+    "BNXT League": "eu",
 };
 
-const getLeagueFlagCode = (leagueName?: string, leagueId?: number, country?: string) => {
-    if (leagueId && LEAGUE_FLAGS[leagueId]) return LEAGUE_FLAGS[leagueId];
+const getLeagueFlagCode = (leagueName?: string, leagueId?: number, country?: string, sport?: string) => {
+    if (leagueId) {
+        const s = sport?.toLowerCase().trim();
+        // Check Basketball specific
+        if ((s === 'basketball' || s === 'basket' || s === 'baloncesto') && BASKETBALL_LEAGUE_FLAGS[leagueId]) {
+            return BASKETBALL_LEAGUE_FLAGS[leagueId];
+        }
+        // Default to Football if found
+        if (FOOTBALL_LEAGUE_FLAGS[leagueId]) return FOOTBALL_LEAGUE_FLAGS[leagueId];
+    }
     if (country && COUNTRY_FLAGS[country]) return COUNTRY_FLAGS[country];
     if (leagueName && LEAGUE_NAME_FLAGS[leagueName]) return LEAGUE_NAME_FLAGS[leagueName];
     // Fallback for known substrings
@@ -84,6 +128,13 @@ const getLeagueFlagCode = (leagueName?: string, leagueId?: number, country?: str
     if (leagueName?.includes("Myanmar")) return "mm";
     if (leagueName?.includes("Indonesia")) return "id";
     if (leagueName?.includes("Premiership")) return "gb-sct";
+    if (leagueName?.includes("Süper Lig") || leagueName?.includes("Turkey")) return "tr";
+    if (leagueName?.includes("Saudi")) return "sa";
+    if (leagueName?.includes("MLS") || leagueName?.includes("Major League")) return "us";
+    if (leagueName?.includes("Allsvenskan")) return "se";
+    if (leagueName?.includes("Eliteserien")) return "no";
+    if (leagueName?.includes("Copa del Rey")) return "es";
+    if (leagueName?.includes("FA Cup")) return "gb-eng";
     if (leagueName?.includes("Euroleague")) return "eu";
     if (leagueName?.includes("Champions League")) return "eu";
     return null;
@@ -786,7 +837,7 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
                                         <div className="flex items-center gap-1 mr-2 flex-1 flex-wrap">
                                             <span className="text-xs font-semibold text-foreground/80 leading-tight">{sel.match}</span>
                                             {sel.league && (() => {
-                                                const flagCode = getLeagueFlagCode(sel.league, sel.league_id, sel.country);
+                                                const flagCode = getLeagueFlagCode(sel.league, sel.league_id, sel.country, sel.sport);
                                                 return (
                                                     <span className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0 flex items-center">
                                                         ({sel.league}

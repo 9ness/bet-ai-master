@@ -10,6 +10,7 @@ potential_paths = [
     os.path.join(current_dir, '../../../../../.env.local'),
     os.path.join(current_dir, '../../../../.env.local'),
     os.path.join(current_dir, '../../../.env.local'), 
+    os.path.join(current_dir, '../../../frontend/.env.local'), # Support frontend .env.local
     os.path.join(current_dir, '../../../../../.env'),
     os.path.join(current_dir, '../../../.env')
 ]
@@ -31,14 +32,25 @@ class SportsDataService:
         self.configs = {
             "football": {
                 "url": "https://v3.football.api-sports.io",
-                "leagues": [39, 40, 41, 42, 140, 141, 135, 78, 61, 62, 88, 94, 144, 71, 128, 179, 2, 3, 848], # Expanded Whitelist
-                "markets": [1, 4, 5, 7, 8, 12, 45, 87], 
+                "leagues": [
+                    39, 40, 41, 42, 45, 48,          # Inglaterra: PL, Championship, FA Cup, EFL
+                    140, 141, 143,                   # España: LaLiga, Segunda, Copa del Rey
+                    135, 136, 137,                   # Italia: Serie A, B, Copa
+                    78, 79,                          # Alemania: Bundesliga 1, 2
+                    61, 62,                          # Francia: Ligue 1, 2
+                    88, 89,                          # Países Bajos: Eredivisie, Eerste
+                    94, 203, 529, 253,               # Portugal, Turquía, Arabia, MLS
+                    13, 103, 113, 144, 197,          # Dinamarca, Noruega, Suecia, Bélgica, Grecia
+                    2, 3, 848,                       # UCL, UEL, UECL
+                    71, 128, 262, 265, 292           # Brasil, Argentina, México, Chile, Corea
+                ], # Expanded Whitelist
+                "markets": [1, 4, 5, 7, 8, 12, 45, 80, 87, 173, 25, 57, 58, 153],
                 "bookmaker": 8 
             },
             "basketball": {
                 "url": "https://v1.basketball.api-sports.io",
-                "leagues": [12, 116, 120, 117, 63, 45, 39, 112, 18, 194, 202], # Updated Whitelist
-                "markets": [1, 2, 3, 4, 5, 15, 100, 101], 
+                "leagues": [12, 116, 117, 120, 194, 52, 40, 104, 45, 198, 26, 202, 2, 161, 152, 210, 167, 195, 411], # Updated Whitelist
+                "markets": [1, 2, 3, 4, 5, 7, 14, 15, 38, 39, 40, 83, 100, 101, 103, 109],
                 "bookmaker": 4
             }
         }
@@ -240,9 +252,15 @@ class SportsDataService:
         # Create empty structure with all expected keys as null
         empty = {}
         if sport == "football":
-            keys = ["1x2", "asian_handicap", "over_under", "ht_ft", "btts", "double_chance", "corners", "total_shots_on_goal"]
+            keys = ["1x2", "asian_handicap", "over_under", "ht_ft", "btts", 
+                    "double_chance", "corners", "total_shots_on_goal", 
+                    "cards", "fouls", "result_total_goals", 
+                    "home_corners", "away_corners", "yellow_cards"]
         else: # basketball
-            keys = ["home_away", "asian_handicap", "total_points", "over_under_1st_half", "ht_ft", "total_home", "total_away"]
+            keys = ["3way_result", "home_away", "asian_handicap", "over_under",
+                    "over_under_1st_half", "double_chance", "result_q1", "ht_ft", 
+                    "result_q2", "result_q3", "result_q4", "race_to_20", "total_home", 
+                    "total_away", "race_to_30", "winning_margin_3w"]
         
         for k in keys:
             empty[k] = None
@@ -257,18 +275,34 @@ class SportsDataService:
             if mid == 7: return "ht_ft" 
             if mid == 8: return "btts"
             if mid == 12: return "double_chance"
+            if mid == 25: return "result_total_goals"
             if mid == 45: return "corners"
+            if mid == 57: return "home_corners"
+            if mid == 58: return "away_corners"
+            if mid == 80: return "cards"
             if mid == 87: return "total_shots_on_goal"
+            if mid == 153: return "yellow_cards"
+            if mid == 173: return "fouls"
             
+            # BASKETBALL IDs
         # BASKETBALL IDs
         if sport == 'basketball':
-            if mid == 2: return "home_away" # Money Line
-            if mid == 3: return "asian_handicap" 
-            if mid == 4: return "total_points" # User said ID 4 is Total Points (Wait, standard API is different? User map overrides).
+            if mid == 1: return "3way_result"        # Gana Local/Empate/Visitante
+            if mid == 2: return "home_away"          # El estándar: Gana Local o Visitante (Money Line)
+            if mid == 3: return "asian_handicap"     # Hándicap principal
+            if mid == 4: return "over_under"         # PUNTOS TOTALES (Este es el que suele variar)
             if mid == 5: return "over_under_1st_half"
-            if mid == 15: return "ht_ft" 
-            if mid == 100: return "total_home"
-            if mid == 101: return "total_away"
+            if mid == 7: return "double_chance"
+            if mid == 14: return "result_q1"
+            if mid == 15: return "ht_ft"             # Descanso / Final
+            if mid == 38: return "result_q2"
+            if mid == 39: return "result_q3"
+            if mid == 40: return "result_q4"
+            if mid == 83: return "race_to_20"
+            if mid == 100: return "total_home"       # Puntos individuales Local
+            if mid == 101: return "total_away"       # Puntos individuales Visitante
+            if mid == 103: return "race_to_30"
+            if mid == 109: return "winning_margin_3w"
             
         return default_name.lower().replace(" ", "_").replace("/", "_")
 
