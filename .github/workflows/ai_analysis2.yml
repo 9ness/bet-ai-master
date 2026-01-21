@@ -36,4 +36,4 @@ jobs:
         # Agregamos PYTHONPATH para asegurar que encuentre el módulo 'src' sin problemas
         PYTHONPATH: ${{ github.workspace }}/backend
       run: |
-        python backend/src/services/analyze2.py
+        python backend/src/services/analyze.py
