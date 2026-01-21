@@ -228,10 +228,11 @@ export default function TelegramAdmin({ readOnly }: { readOnly?: boolean }) {
                         <button
                             onClick={handleSync}
                             disabled={isSyncing}
-                            className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 text-xs font-bold rounded-lg border border-sky-500/20 transition"
+                            className="flex items-center gap-2 px-3 py-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 text-xs font-bold rounded-lg border border-sky-500/20 transition"
                         >
                             {isSyncing ? <RefreshCw className="animate-spin" size={12} /> : <RefreshCw size={12} />}
-                            Sincronizar Hoy
+                            <span className="hidden sm:inline">Sincronizar Hoy</span>
+                            <span className="inline sm:hidden">Sync</span>
                         </button>
                         <button
                             onClick={fetchData}

@@ -108,14 +108,32 @@ class BetFormatter:
             
             processed_bets.append(bet)
             
-        # 3. Sort Final Bets List by Earliest Selection Time
+        # 3. Sort Final Bets List
+        # Priority: Safe > Value > Funbet > Others, then by Time
+        TYPE_PRIORITY = {
+            "safe": 1,
+            "value": 2,
+            "funbet": 3
+        }
+        
         def get_bet_sort_key(b):
+            # 1. Type Priority
+            b_type = str(b.get("betType", "other")).lower()
+            type_rank = TYPE_PRIORITY.get(b_type, 99)
+            
+            # 2. Time
             # Use 'time' field if exists at top level (unlikely for new structure but safe)
-            if "time" in b and b["time"]: return b["time"]
-            # Otherwise use first selection time (already sorted)
-            sels = b.get("selections", [])
-            if sels and "time" in sels[0]: return sels[0]["time"]
-            return "9999"
+            if "time" in b and b["time"]: 
+                time_val = b["time"]
+            else:
+                # Otherwise use first selection time (already sorted)
+                sels = b.get("selections", [])
+                if sels and "time" in sels[0]: 
+                    time_val = sels[0]["time"]
+                else:
+                    time_val = "9999"
+            
+            return (type_rank, time_val)
 
         processed_bets.sort(key=get_bet_sort_key)
             
