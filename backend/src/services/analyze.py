@@ -13,48 +13,8 @@ from google.genai import types
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 
 from src.services.redis_service import RedisService
+from src.services.bet_formatter import BetFormatter
 
-# DICCIONARIO DE TRADUCCIÓN FORZADA
-PICK_TRANSLATIONS = {
-    "Home": "Local",
-    "Away": "Visitante",
-    "Win": "Gana",
-    "Draw": "Empate",
-    "Over": "Más de",
-    "Under": "Menos de",
-    "Yes": "Sí",
-    "No": "No",
-    "Goals": "Goles",
-    "Points": "Puntos",
-    "Handicap": "Hándicap",
-    "Shots on Goal": "Tiros a Puerta:",
-    "Gananer": "Ganador",
-    "Asian Hándicap": "Hándicap Asiático",
-    "AH": "Hándicap Asiático",
-    "Double Chance": "Doble Oportunidad",
-    "(ML)": "(Prórroga incluída)",
-    "BTTS": "Ambos marcan:",
-    "Corners": "Córners",
-    "to win": ""
-}
-
-def clean_team_name(name):
-    if not name: return "Desconocido"
-    name = str(name).replace("(Home)", "").replace("(Away)", "").replace("(Local)", "").replace("(Visitante)", "")
-    if name.endswith(" Home"): name = name[:-5]
-    if name.endswith(" Away"): name = name[:-5]
-    return name.strip()
-
-def translate_pick(pick_text, home_team=None, away_team=None):
-    if not pick_text: return pick_text
-    p = str(pick_text).strip().upper()
-    if p == "1" and home_team: return f"Gana {home_team}"
-    if p == "2" and away_team: return f"Gana {away_team}"
-    if p == "X": return "Empate"
-    for eng, esp in PICK_TRANSLATIONS.items():
-        if eng in pick_text:
-            pick_text = pick_text.replace(eng, esp)
-    return pick_text
 
 def analyze():
     print("--- REANALYSIS SCRIPT STARTED (ANALYZE2 - PROMPT MAESTRO + SEARCH v3) ---")
@@ -75,8 +35,14 @@ def analyze():
 
     # 2. Obtención de datos
     today_str = datetime.now().strftime("%Y-%m-%d")
-    raw_key = f"betai:raw_matches:{today_str}"
-    raw_json = rs.get(raw_key) or rs.get(f"raw_matches:{today_str}")
+    
+    # NEW: Fetch from Monthly Hash via RedisService
+    raw_json = rs.get_raw_matches(today_str)
+    
+    # Fallback to old keys just in case (Migration Safety, though user said data is migrated)
+    if not raw_json:
+        raw_key = f"betai:raw_matches:{today_str}"
+        raw_json = rs.get(raw_key) or rs.get(f"raw_matches:{today_str}")
     
     if not raw_json:
         print(f"[ERROR] No raw matches found for {today_str}.")
@@ -135,6 +101,13 @@ def analyze():
             - Devuelve UNICAMENTE un ARRAY JSON `[...]`.
             - El campo `reason` debe ser TÉCNICO, ESPECÍFICO DEL DEPORTE y SIN ALUCINACIONES.
             - MUY IMPORTANTE: Aunque tú propongas la "total_odd", el sistema la recalculará matemáticamente por código basándose en tus "selections".
+            
+            **REGLA DE DESGLOSE (CRÍTICA):**
+            - Si propones una apuesta combinada ("Bet Builder", ej: Gana Barcelona y Más de 2.5 Goles), **NO** la pongas en una sola selección como "Gana Barcelona & Más de 2.5".
+            - **DEBES** separarla en 2 (o más) objetos dentro del array `selections`:
+                1. Selección 1: "Gana Barcelona" (Cuota X)
+                2. Selección 2: "Más de 2.5 Goles" (Cuota Y)
+            - El sistema multiplicará X * Y para obtener la cuota total.
 
             SCHEMA OBLIGATORIO:
             {{
@@ -155,8 +128,17 @@ def analyze():
                         "league": "Nombre Liga",
                         "match": "Equipo A vs Equipo B",
                         "time": "YYYY-MM-DD HH:mm",
-                        "pick": "Mercado específico",
+                        "pick": "Gana Barcelona",
                         "odd": 1.45
+                    }},
+                    {{
+                        "fixture_id": 123456,
+                        "sport": "football",
+                        "league": "Nombre Liga",
+                        "match": "Equipo A vs Equipo B",
+                        "time": "YYYY-MM-DD HH:mm",
+                        "pick": "Más de 2.5 Goles",
+                        "odd": 1.60
                     }}
                 ]
             }}
@@ -226,14 +208,18 @@ def analyze():
                 for sel in bet.get("selections", []):
                     source = fixture_map.get(str(sel.get("fixture_id")))
                     if source:
-                        h = clean_team_name(source.get("home") or source.get("home_team"))
-                        a = clean_team_name(source.get("away") or source.get("away_team"))
+                        h = source.get("home") or source.get("home_team") # kept raw for formatter
+                        a = source.get("away") or source.get("away_team")
+                        league = source.get("league", "Desconocida")
+                        
+                        # Update with API data (Time, Sport, League)
+                        # We do NOT translate here anymore, Formatter does it.
                         sel.update({
                             "match": f"{h} vs {a}",
-                            "league": source.get("league", "Desconocida"),
+                            "league": league,
                             "sport": source.get("sport", "football"),
                             "time": source.get("startTime"),
-                            "pick": translate_pick(sel.get("pick", ""), h, a)
+                            # "pick": val  <-- Left as Gemini output, cleaned later
                         })
                         real_selections.append(sel)
                 bet["selections"] = real_selections
@@ -251,17 +237,24 @@ def analyze():
         print("[ERROR] No se pudieron generar apuestas válidas tras 3 intentos.")
         return
 
-    final_output = []
-    for bet in valid_bets:
+    # FORMATTER INTEGRATION
+    try:
+        formatter = BetFormatter()
+        print("[*] Running BetFormatter Service...")
+        final_output = formatter.process_bets(valid_bets)
+    except Exception as e:
+        print(f"[ERROR] Formatter Failed: {e}. Saving raw.")
+        final_output = valid_bets
+
+    # Final Calculation Update (Safety check)
+    for bet in final_output:
         odds = [float(s.get("odd", 1.0)) for s in bet["selections"]]
         if not odds: continue
-        
         total_odd = round(math.prod(odds), 2)
-        bet.update({"total_odd": total_odd, "odd": total_odd})
+        bet["total_odd"] = total_odd
         bt = bet.get("betType", "safe").lower()
         bet["stake"] = 6 if "safe" in bt else (3 if "value" in bt else 1)
         bet["estimated_units"] = round(bet["stake"] * (total_odd - 1), 2)
-        final_output.append(bet)
 
     # GUARDADO (Redis SET sobrescribe automáticamente)
     rs.save_daily_bets(today_str, final_output)

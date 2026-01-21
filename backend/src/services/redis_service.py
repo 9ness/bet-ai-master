@@ -124,14 +124,16 @@ class RedisService:
             }
             full_day_data["bets"].append(bet_entry)
 
-        # --- 2. SAVE FULL DATA (Dated Key) ---
-        # "Guarda el JSON completo en daily_bets:YYYY-MM-DD"
-        full_date_key = self._get_key(f"daily_bets:{date_str}")
-        self._send_command("SET", full_date_key, json.dumps(full_day_data))
-        print(f"[Redis] Guardado FULL OK: {full_date_key}")
+        # --- 2. SAVE FULL DATA (Monthly Hash) ---
+        # "Guarda el JSON completo en betai:daily_bets:YYYY-MM -> field YYYY-MM-DD"
+        year_month = date_str[:7] # YYYY-MM
+        hash_key = self._get_key(f"daily_bets:{year_month}")
+        
+        self._send_command("HSET", hash_key, date_str, json.dumps(full_day_data))
+        print(f"[Redis] Guardado FULL MENSUAL OK: {hash_key} -> {date_str}")
 
         # --- 3. SMART MIRROR LOGIC (Master Key) ---
-        # "Crea una copia en daily_bets pero establece como null o vacío los campos: day_profit, status, profit y result."
+        # "Crea una copia en daily_bets (Legacy View) pero establece como null campos dinámicos"
         
         import copy
         mirror_data = copy.deepcopy(full_day_data)
@@ -152,7 +154,37 @@ class RedisService:
         self._send_command("SET", master_key, json.dumps(mirror_data))
         print(f"[Redis] Espejo Inteligente (Nullified) Guardado OK: {master_key}")
 
-    # Helper for Check Results
+    # --- SPECIFIC ACCESSORS FOR HASH STRUCT ---
+    def get_daily_bets(self, date_str):
+        """ Retrieves bets for a specific date from the Monthly Hash """
+        if not self.is_active: return None
+        year_month = date_str[:7]
+        hash_key = self._get_key(f"daily_bets:{year_month}")
+        # HGET key field
+        return self._send_command("HGET", hash_key, date_str)
+
+    def save_raw_matches(self, date_str, matches_data):
+        """ Save raw matches to Monthly Hash """
+        if not self.is_active: return
+        year_month = date_str[:7]
+        hash_key = self._get_key(f"raw_matches:{year_month}")
+        self._send_command("HSET", hash_key, date_str, json.dumps(matches_data))
+        print(f"[Redis] Raw Matches Saved to {hash_key} -> {date_str}")
+
+    def get_raw_matches(self, date_str):
+        """ Get raw matches from Monthly Hash """
+        if not self.is_active: return None
+        year_month = date_str[:7]
+        hash_key = self._get_key(f"raw_matches:{year_month}")
+        return self._send_command("HGET", hash_key, date_str)
+
+    def get_month_bets(self, year_month):
+        """ Get ALL bets for a month (HGETALL) """
+        if not self.is_active: return None
+        hash_key = self._get_key(f"daily_bets:{year_month}")
+        return self._send_command("HGETALL", hash_key)
+
+    # Helper for Check Results (Generic)
     def get(self, key):
         # Ensure key is prefixed
         full_key = self._get_key(key)

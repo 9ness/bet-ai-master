@@ -26,11 +26,11 @@ def main():
         
         print("Step 1: Fetching Live Data from API...")
         
-        # Check Redis Cache first
-        cached_matches = rs.get(raw_matches_key) if rs.is_active else None
+        # Check Redis Cache first (Monthly Hash Aware)
+        cached_matches = rs.get_raw_matches(today_str) if rs.is_active else None
         
         if cached_matches:
-            print(f"[CACHE] Match data found in Redis ({raw_matches_key}). Using cached data.")
+            print(f"[CACHE] Match data found in Redis (Hash). Using cached data.")
             matches = json.loads(cached_matches)
             # Ensure data is on disk for Analyzer (compat)
             with open(service.output_file, 'w', encoding='utf-8') as f:
@@ -39,8 +39,8 @@ def main():
             print("[API] Fetching fresh data from API-Sports...")
             matches = service.fetch_matches()
             if matches and rs.is_active:
-                rs.set_data(raw_matches_key, matches)
-                print(f"[CACHE] Saved raw matches to Redis: {raw_matches_key}")
+                rs.save_raw_matches(today_str, matches)
+                print(f"[CACHE] Saved raw matches to Redis Hash for {today_str}")
 
         if not matches and args.mode == 'fetch':
             print("No matches found.")

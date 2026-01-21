@@ -19,33 +19,36 @@ def generate_messages_from_analysis(date_str):
         return False
 
     # 1. Fetch Daily Analysis
-    daily_key = f"daily_bets:{date_str}"
+    # Use get_daily_bets to support Hash Storage
+    # rs.get_daily_bets returns dict/list/None
+    raw_bets_data = rs.get_daily_bets(date_str)
     
-    # Try getting from Redis directly via service wrapper (which prefixes)
-    # The redundant check is because sometimes keys are stored with prefix included or not in older logic
-    raw_data = rs.get(daily_key)
-    
-    if not raw_data:
-        # Fallback try without prefix if the service adds it automatically
-        # But rs.get adds prefix. Let's try raw command if needed or assume standard key
-        print(f"[ERROR] No analysis found for key: {daily_key}")
-        # Try finding it in the full list of keys? No, strict key requirement.
+    if not raw_bets_data:
+        print(f"[ERROR] No analysis found for date: {date_str}")
         return False
 
-    try:
-        data = json.loads(raw_data)
-    except Exception as e:
-        print(f"[ERROR] Failed to parse JSON for {daily_key}: {e}")
-        return False
+    # Extract Bets List
+    bets = []
+    if isinstance(raw_bets_data, dict):
+        # Could be full day object or just dict wrapper
+        bets = raw_bets_data.get("bets", [])
+    elif isinstance(raw_bets_data, list):
+        bets = raw_bets_data
+    elif isinstance(raw_bets_data, str):
+         try:
+             parsed = json.loads(raw_bets_data)
+             if isinstance(parsed, dict): bets = parsed.get("bets", [])
+             elif isinstance(parsed, list): bets = parsed
+         except: pass
 
-    bets = data.get("bets", [])
     if not bets:
         print(f"[WARNING] No bets found in analysis for {date_str}.")
-        # We proceed to save empty list or handle it? Better to return False to avoid wiping store if it's an error.
-        # But if it's genuinely empty, we might want to update.
-        # Let's assume strict validation -> No bets = No telegram messages.
         return False
+        
+    # Proceed (we have bets list)
+    # 2. Logic from old redis_service (Message Formatting)
 
+    # Proceed (we have bets list)
     # 2. Logic from old redis_service (Message Formatting)
     telegram_items = []
     
@@ -59,14 +62,33 @@ def generate_messages_from_analysis(date_str):
         b_type = bet.get("betType", "safe").lower()
         info = type_map.get(b_type, type_map["safe"])
         
+        # New Formatting Logic
+        # 1. League Header
+        # If single selection, use its league. If multiple, try to find common or list "Multiple"
+        leagues = list(set([s.get('league', 'Desconocida') for s in selections]))
+        if len(leagues) == 1:
+            league_text = f"🏆 {leagues[0]}"
+        else:
+            league_text = "🏆 Varios Torneos"
+
+        # 2. Selections Block
         matches_lines = []
-        selections = bet.get("selections", [])
+        sport_icons = {"football": "⚽", "basketball": "🏀", "tennis": "🎾", "default": "🏅"}
         
-        # Format selections
         for sel in selections:
-            match_line = f"⚽ {sel.get('match', 'Unknown')}\n🎯 {sel.get('pick', 'Pick')} @ {sel.get('odd', 1.0)}"
-            matches_lines.append(match_line)
+            sport = sel.get('sport', 'football').lower()
+            icon = sport_icons.get(sport, sport_icons["default"])
+            match_name = sel.get('match', 'Unknown')
+            pick = sel.get('pick', 'Pick')
+            
+            # Format: 
+            # (Sport Icon) (Match)
+            # 👉🏼 Selection
+            
+            block = f"{icon} {match_name}\n👉🏼 {pick}"
+            matches_lines.append(block)
         
+        # Join multiple selections with a newline gap
         matches_block = "\n\n".join(matches_lines)
         
         if not matches_block:
@@ -76,25 +98,23 @@ def generate_messages_from_analysis(date_str):
         raw_reason = bet.get('reason', 'Sin análisis')
         formatted_reason = raw_reason
 
-        # Only format if it's a long block of text
+        # Only format if it's a long block of text and likely needs bullet points
         if len(raw_reason) > 30 and '.' in raw_reason:
-            # Split by ". " to identify sentences, filtering empty strings
-            # Utilizing a simple split strategy.
             segments = [s.strip() for s in raw_reason.split('.') if len(s.strip()) > 3]
-            
             if len(segments) > 0:
                 bullet_lines = []
                 for seg in segments:
-                    # Add period back if missing
                     line = seg if seg.endswith('.') else f"{seg}."
                     bullet_lines.append(f"🟢 {line}")
-                
                 formatted_reason = "\n\n".join(bullet_lines)
 
+        # 3. Construct Final Message
         msg = (
+            f"{league_text}\n\n"
             f"{matches_block}\n\n"
-            f"📊 *Cuota Total:* {bet.get('total_odd', 1.0)}\n"
-            f"💰 *Stake:* {bet.get('stake', 1)}/10\n\n"
+            f"📊 Cuota {bet.get('total_odd', 1.0)}   | 📈 STAKE {bet.get('stake', 1)}\n"
+            f"🏠 Apuesta realizada en Bet365\n"
+            f"🔞 Apuesta con responsabilidad.\n\n"
             f"🧠 *Análisis de BetAiMaster:*\n"
             f"{formatted_reason}"
         )
@@ -108,6 +128,47 @@ def generate_messages_from_analysis(date_str):
             "timestamp": datetime.now().isoformat()
         }
         telegram_items.append(item)
+
+    # --- NEW: MONTHLY STATS REPORT ---
+    # Generates a card for the current month's stats (up to today)
+    try:
+        month_str = date_str[:7] # YYYY-MM
+        stats_key = f"stats:{month_str}"
+        stats_raw = rs.get(stats_key)
+        
+        if stats_raw:
+            stats = json.loads(stats_raw)
+            total_profit = stats.get("total_profit", 0)
+            yield_val = stats.get("yield", 0)
+            win_rate = stats.get("win_rate", 0) # or win_rate_days
+            days = stats.get("days_operated", 0)
+            
+            # Format
+            icon_profit = "✅" if total_profit >= 0 else "🔻"
+            month_name = datetime.strptime(month_str, "%Y-%m").strftime("%B %Y").upper() # locale warning, English default maybe
+            
+            msg = (
+                f"📊 *REPORTE MENSUAL - {month_str}* 📊\n\n"
+                f"{icon_profit} *Profit:* {total_profit} u\n"
+                f"📈 *Yield:* {yield_val}%\n"
+                f"🎯 *Win Rate:* {win_rate}%\n"
+                f"📅 *Días Operados:* {days}\n\n"
+                f"🧠 *BetAiMaster Analytics*"
+            )
+            
+            stats_item = {
+                "id": str(uuid.uuid4()),
+                "tipo": "REPORTE MENSUAL",
+                "bet_type_key": "monthly_report", # Special key for coloring
+                "enviado": False,
+                "mensaje": msg,
+                "timestamp": datetime.now().isoformat()
+            }
+            telegram_items.append(stats_item)
+            print(f"[Telegram] Monthly Report generated for {month_str}")
+            
+    except Exception as e:
+        print(f"[WARN] Failed to generate monthly report: {e}")
 
     # 3. Store in Telegram Queue (Managing Retention)
     store_key = "telegram_store" # Service adds prefix

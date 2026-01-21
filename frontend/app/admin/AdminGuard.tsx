@@ -473,7 +473,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                         className={`btn-active-effect flex-1 md:flex-none py-3 md:py-4 text-xs md:text-sm font-bold border-b-2 transition-transform flex justify-center md:justify-start items-center gap-1.5 md:gap-2
                         ${activeTab === 'telegram' ? 'border-sky-500 text-sky-400' : 'border-transparent text-gray-400 hover:text-white'}`}
                     >
-                        <span className="md:hidden">✈️</span>
+                        <span className="md:hidden">✈️ Telegram</span>
                         <span className="hidden md:block">✈️ Telegram</span>
                     </button>
                     <button
@@ -482,7 +482,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                         className={`btn-active-effect flex-1 md:flex-none py-3 md:py-4 text-xs md:text-sm font-bold border-b-2 transition-transform flex justify-center md:justify-start items-center gap-1.5 md:gap-2
                         ${activeTab === 'tiktok' ? 'border-fuchsia-500 text-fuchsia-400' : 'border-transparent text-gray-400 hover:text-white'}`}
                     >
-                        <span className="md:hidden">🏭 Factory</span>
+                        <span className="md:hidden">🏭 Tiktok</span>
                         <span className="hidden md:block">🏭 TikTok Factory</span>
                     </button>
                     <button

@@ -18,10 +18,17 @@ export async function POST(request: Request) {
         console.log(`\n[UPDATE-BET] --- STARTED ---`);
         console.log(`[UPDATE-BET] Target: ${date} | Type: ${betType} | Status: ${newStatus}`);
 
-        // 1. PRIMARY KEY: betai:daily_bets:YYYY-MM-DD
-        const redisKey = `betai:daily_bets:${date}`;
+        // 1. PRIMARY KEY: betai:daily_bets:YYYY-MM (Hash) -> Field YYYY-MM-DD
+        const yearMonth = date.substring(0, 7);
+        const hashKey = `betai:daily_bets:${yearMonth}`;
 
-        let data = await redis.get(redisKey);
+        // HGET from Hash
+        let data: any = await redis.hget(hashKey, date);
+
+        // Legacy Fallback (Should not trigger if migrated)
+        if (!data) {
+            data = await redis.get(`betai:daily_bets:${date}`);
+        }
 
         // Fallback checks if primary key empty (Migration support)
         if (!data) {
@@ -194,12 +201,13 @@ export async function POST(request: Request) {
         console.log(`[UPDATE-BET] Saving to Keys (Day Profit: ${totalDayProfit})...`);
 
         try {
-            const pKey = `betai:daily_bets:${date}`;
+            const yearMonth = date.substring(0, 7);
+            const hashKey = `betai:daily_bets:${yearMonth}`;
 
-            // Single save to source of truth
-            await redis.set(pKey, historyData);
+            // Single save to source of truth (HASH)
+            await redis.hset(hashKey, { [date]: typeof historyData === 'string' ? historyData : JSON.stringify(historyData) });
 
-            console.log(`[UPDATE-BET] Saved to ${pKey}`);
+            console.log(`[UPDATE-BET] Saved to HASH ${hashKey} -> ${date}`);
 
 
 
@@ -227,12 +235,13 @@ export async function POST(request: Request) {
 async function updateMonthStats(dateStr: string) {
     const [year, month] = dateStr.split('-');
     const statsKey = `betai:stats:${year}-${month}`;
-    const pattern = `betai:daily_bets:${year}-${month}-*`;
+    const hashKey = `betai:daily_bets:${year}-${month}`;
 
-    console.log(`[UPDATE-BET] Recalculating Stats for ${year}-${month} using pattern ${pattern}...`);
+    console.log(`[UPDATE-BET] Recalculating Stats for ${year}-${month} using HASH ${hashKey}...`);
 
-    // 1. Get all keys for the month
-    const keys = await redis.keys(pattern);
+    // 1. Get all daily bets for this month (HGETALL)
+    const monthData: Record<string, any> | null = await redis.hgetall(hashKey);
+
     let totalProfit = 0;
     let totalStaked = 0;
     let wonBets = 0;
@@ -241,33 +250,31 @@ async function updateMonthStats(dateStr: string) {
     // Default Stakes (Safety Net)
     const DEFAULT_STAKES: Record<string, number> = { safe: 6, value: 3, funbet: 1 };
 
-    for (const key of keys) {
-        const dayData = await redis.get(key);
-        if (!dayData) continue;
+    if (monthData) {
+        Object.values(monthData).forEach((dayDataRaw: any) => {
+            if (!dayDataRaw) return;
+            const data = typeof dayDataRaw === 'string' ? JSON.parse(dayDataRaw) : dayDataRaw;
+            const bets = Array.isArray(data.bets) ? data.bets : Object.values(data.bets || {});
 
-        const data = typeof dayData === 'string' ? JSON.parse(dayData) : dayData;
-        const bets = Array.isArray(data.bets) ? data.bets : Object.values(data.bets || {});
+            bets.forEach((bet: any) => {
+                const status = (bet.status || 'PENDING').toUpperCase();
 
-        bets.forEach((bet: any) => {
-            const status = (bet.status || 'PENDING').toUpperCase();
+                // Normalize
+                let norm = status;
+                if (norm === 'GANADA') norm = 'WON';
+                if (norm === 'PERDIDA') norm = 'LOST';
 
-            // Normalize
-            let norm = status;
-            if (norm === 'GANADA') norm = 'WON';
-            if (norm === 'PERDIDA') norm = 'LOST';
+                // SOLO sumamos si la apuesta no está PENDING (Target: WON/LOST)
+                if (norm === 'WON' || norm === 'LOST') {
+                    const betType = (bet.type || '').toLowerCase();
+                    const stake = Number(bet.stake) || DEFAULT_STAKES[betType] || 0;
 
-            // SOLO sumamos si la apuesta no está PENDING (Target: WON/LOST)
-            if (norm === 'WON' || norm === 'LOST') {
-                const betType = (bet.type || '').toLowerCase();
-                // User said "totalStaked += Number(bet.stake || 0)" but complained about "only detecting 20u".
-                // I will add the safety net DEFAULT_STAKES because that WAS the root cause.
-                const stake = Number(bet.stake) || DEFAULT_STAKES[betType] || 0;
-
-                totalStaked += stake;
-                totalProfit += Number(bet.profit || 0);
-                totalBets++;
-                if (norm === 'WON') wonBets++;
-            }
+                    totalStaked += stake;
+                    totalProfit += Number(bet.profit || 0);
+                    totalBets++;
+                    if (norm === 'WON') wonBets++;
+                }
+            });
         });
     }
 
@@ -279,7 +286,7 @@ async function updateMonthStats(dateStr: string) {
         total_stake: Number(totalStaked.toFixed(2)), // Added for visibility
         yield: Number(yieldReal.toFixed(2)),
         win_rate: Number(winRate.toFixed(2)),
-        days_operated: keys.length,
+        days_operated: monthData ? Object.keys(monthData).length : 0,
         last_updated: new Date().toISOString()
     };
 

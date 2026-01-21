@@ -74,6 +74,7 @@ const COUNTRY_FLAGS: Record<string, string> = {
 
 const LEAGUE_NAME_FLAGS: Record<string, string> = {
     "Premier League": "gb-eng", "FA Cup": "gb-eng", "EFL Cup": "gb-eng",
+    "Championship": "gb-eng", "EFL Championship": "gb-eng",
     "Bundesliga": "de", "2. Bundesliga": "de",
     "Ligue 1": "fr", "La Liga": "es", "Copa del Rey": "es",
     "Serie A": "it", "Serie B": "it", "Coppa Italia": "it",

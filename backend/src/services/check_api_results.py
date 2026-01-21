@@ -164,8 +164,12 @@ def check_bets():
     for date_str in dates_to_check:
         print(f"[*] Checking bets for date: {date_str}")
         
-        # Get raw data
-        raw_data = rs.get(f"daily_bets:{date_str}")
+        # Get raw data (Monthly Hash Aware)
+        raw_data = rs.get_daily_bets(date_str)
+        if not raw_data:
+            # Fallback legacy check
+            raw_data = rs.get(f"daily_bets:{date_str}")
+            
         if not raw_data:
             print(f"   - No data found for {date_str}")
             continue
@@ -470,13 +474,16 @@ def update_monthly_stats(rs, month_str):
         rs.client._send_command("DEL", stats_key)
     except: pass
     
-    # 1. Get all daily keys for this month
-    pattern = f"daily_bets:{month_str}-*"
-    keys = rs.keys(pattern)
+    # 1. Get all daily bets for this month (HGETALL)
+    # Returns dict: { 'YYYY-MM-DD': 'JSON_STRING', ... }
+    month_data_map = rs.get_month_bets(month_str)
     
-    # Sort keys to ensure chronological order for Evolution & Drawdown
-    keys.sort()
-    
+    if not month_data_map:
+        keys = []
+    else:
+        # Convert map keys to sorted list for processing
+        keys = sorted(month_data_map.keys())
+        
     # --- INIT AGGREGATORS ---
     summary = {
         "total_profit": 0.0,
@@ -509,8 +516,17 @@ def update_monthly_stats(rs, month_str):
     found_day_11 = False
     
     # --- PROCESSING ---
-    for k in keys:
-        raw = rs.client._send_command("GET", k)
+    for date_key in keys:
+        # If keys came from local map, value is there. 
+        # CAUTION: If we fallback to 'keys' logic above failed, this might break. 
+        # But here we assume we are iterating dates.
+        
+        if isinstance(month_data_map, dict):
+            raw = month_data_map.get(date_key)
+        else:
+            # Fallback (Should not verify, but safety)
+            raw = rs.get(date_key)
+            
         if not raw: continue
         
         try:

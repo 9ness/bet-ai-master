@@ -21,13 +21,21 @@ export async function getRecommendations() {
 
         console.log(`[Admin/Utils] Fetching for Date: ${today}`);
 
-        // Try Today first
-        let data: any = await redis.get(`betai:daily_bets:${today}`);
+        // 1. Try Today (Hash)
+        const monthToday = today.substring(0, 7);
+        let data: any = await redis.hget(`betai:daily_bets:${monthToday}`, today);
 
-        // Try Yesterday if Today not found
+        // 2. Try Yesterday (Hash)
         if (!data) {
             console.log(`[Admin/Utils] No data for ${today}, trying ${yesterday}`);
-            data = await redis.get(`betai:daily_bets:${yesterday}`);
+            const monthYesterday = yesterday.substring(0, 7);
+            data = await redis.hget(`betai:daily_bets:${monthYesterday}`, yesterday);
+        }
+
+        // 3. Last Resort: Master Key (Legacy/Mirror)
+        if (!data) {
+            console.log(`[Admin/Utils] No hash data, checking Master Key...`);
+            data = await redis.get('betai:daily_bets');
         }
 
         if (data) {

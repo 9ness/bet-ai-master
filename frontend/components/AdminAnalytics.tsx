@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
-import { Loader2, TrendingUp, TrendingDown, DollarSign, Info, ChevronLeft, ChevronRight, Activity, Trophy, ChevronDown } from 'lucide-react';
+import { Loader2, TrendingUp, TrendingDown, DollarSign, Info, ChevronLeft, ChevronRight, Activity, Trophy, ChevronDown, RefreshCw } from 'lucide-react';
 
 export default function AdminAnalytics() {
     const [data, setData] = useState<any[]>([]);
@@ -10,63 +10,65 @@ export default function AdminAnalytics() {
     const [loading, setLoading] = useState(true);
     // Month Selection State
     const [currentDate, setCurrentDate] = useState(new Date());
+    const [isUpdating, setIsUpdating] = useState(false);
 
     // ACCORDION STATES (Strict Independence)
     const [isResumenOpen, setIsResumenOpen] = useState(true);
     const [isEvolucionOpen, setIsEvolucionOpen] = useState(false);
     const [isDesgloseOpen, setIsDesgloseOpen] = useState(false);
 
-    useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true); // Reset loading
-            try {
-                // Use selected date instead of always 'now'
-                const year = currentDate.getFullYear();
-                const month = currentDate.getMonth();
-                const monthStr = `${year}-${(month + 1).toString().padStart(2, '0')}`;
+    const fetchData = async () => {
+        setLoading(true); // Reset loading
+        try {
+            // Use selected date instead of always 'now'
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            const monthStr = `${year}-${(month + 1).toString().padStart(2, '0')}`;
 
-                const res = await fetch(`/api/admin/history?month=${monthStr}`);
-                const json = await res.json();
+            const res = await fetch(`/api/admin/history?month=${monthStr}`);
+            const json = await res.json();
 
-                if (json.stats) {
-                    setStats(json.stats);
+            if (json.stats) {
+                setStats(json.stats);
 
-                    // Use Backend Chart Data if available (New System)
-                    if (json.stats.chart_evolution) {
-                        const chartData = json.stats.chart_evolution.map((d: any) => ({
-                            date: d.date.split('-')[2], // Day only
-                            daily: d.daily_profit,
-                            total: d.accumulated_profit
-                        }));
-                        setData(chartData);
-                    }
-                    // Fallback to legacy client-side calc if simple 'days' provided
-                    else if (json.days) {
-                        const days = Object.keys(json.days).sort();
-                        let cumulative = 0;
-                        const chartData = days.map(date => {
-                            const dayP = json.days[date].day_profit;
-                            cumulative += dayP;
-                            return {
-                                date: date.split('-')[2],
-                                daily: dayP,
-                                total: Number(cumulative.toFixed(2))
-                            };
-                        });
-                        setData(chartData);
-                    } else {
-                        setData([]);
-                    }
+                // Use Backend Chart Data if available (New System)
+                if (json.stats.chart_evolution) {
+                    const chartData = json.stats.chart_evolution.map((d: any) => ({
+                        date: d.date.split('-')[2], // Day only
+                        daily: d.daily_profit,
+                        total: d.accumulated_profit
+                    }));
+                    setData(chartData);
+                }
+                // Fallback to legacy client-side calc if simple 'days' provided
+                else if (json.days) {
+                    const days = Object.keys(json.days).sort();
+                    let cumulative = 0;
+                    const chartData = days.map(date => {
+                        const dayP = json.days[date].day_profit;
+                        cumulative += dayP;
+                        return {
+                            date: date.split('-')[2],
+                            daily: dayP,
+                            total: Number(cumulative.toFixed(2))
+                        };
+                    });
+                    setData(chartData);
                 } else {
-                    setStats(null);
                     setData([]);
                 }
-            } catch (e) {
-                console.error(e);
-            } finally {
-                setLoading(false);
+            } else {
+                setStats(null);
+                setData([]);
             }
-        };
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
         fetchData();
     }, [currentDate]);
 
@@ -76,6 +78,41 @@ export default function AdminAnalytics() {
 
     const monthName = currentDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' });
     const formattedMonth = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+
+    const handleUpdateStats = async () => {
+        if (confirm("¿Forzar recálculo de estadísticas para este mes?")) {
+            setIsUpdating(true);
+            try {
+                const year = currentDate.getFullYear();
+                const month = currentDate.getMonth();
+                const monthStr = `${year}-${(month + 1).toString().padStart(2, '0')}`;
+
+                const res = await fetch('/api/admin/recalculate-stats', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ month: monthStr })
+                });
+
+                if (res.ok) {
+                    await fetchData(); // Helper needed? currently useEffect triggers data load. 
+                    // To force reload, we can toggle something or just manually call the logic extracted?
+                    // fetchData is inside useEffect scope. We should extract it or just toggle date ref/reload page.
+                    // Easiest here: window.location.reload() or extract fetchData.
+                    // Given the structure, extracting fetchData is better but it's inside useEffect. 
+                    // Let's toggle a 'refreshKey' or similar. 
+                    // Hack: Toggle date back and forth? No.
+                    // Let's just create a refresh trigger state.
+                    window.location.reload(); // Simplest admin update feedback
+                } else {
+                    alert("Error al actualizar");
+                }
+            } catch (e) {
+                alert("Error de red");
+            } finally {
+                setIsUpdating(false);
+            }
+        }
+    };
 
     if (loading) return <div className="flex justify-center p-12"><Loader2 className="animate-spin text-fuchsia-500" size={48} /></div>;
 
@@ -152,6 +189,14 @@ export default function AdminAnalytics() {
                 <p className="text-muted-foreground/80 font-medium max-w-xl mx-auto text-sm md:text-base leading-relaxed">
                     Visualiza tus métricas clave. Detecta tendencias, optimiza tu estrategia y maximiza tus beneficios.
                 </p>
+                <button
+                    onClick={handleUpdateStats}
+                    disabled={isUpdating}
+                    className="mt-4 px-4 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-xs font-bold text-white/60 transition flex items-center gap-2 mx-auto"
+                >
+                    <RefreshCw size={12} className={isUpdating ? "animate-spin" : ""} />
+                    {isUpdating ? "Actualizando..." : "Actualizar Estadísticas"}
+                </button>
             </div>
 
             <div className="flex flex-col md:flex-row justify-center items-center gap-4 relative mb-6">

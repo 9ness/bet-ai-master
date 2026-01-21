@@ -19,27 +19,29 @@ export async function GET(req: NextRequest) {
         }
 
         const prefix = "betai:";
-        // 2. Fetch Daily History (Pipeline)
-        // Generate all possible date keys for this month
+        // 2. Fetch Daily History (HGETALL Monthly Hash)
+        // Optimized: Single Fetch instead of 30+ Pipeline calls
         const [year, monthStr] = month.split('-');
+        const hashKey = `${prefix}daily_bets:${month}`;
+
+        // Parallel Fetch: Stats + Monthly Hash
+        const [statsRaw, monthDataRaw] = await Promise.all([
+            redis.get(`${prefix}stats:${month}`),
+            redis.hgetall(hashKey)
+        ]);
+
         const daysInMonth = new Date(parseInt(year), parseInt(monthStr), 0).getDate();
-
-        const pipeline = redis.pipeline();
         const dates: string[] = [];
-
         for (let d = 1; d <= daysInMonth; d++) {
-            const dayStr = d.toString().padStart(2, '0');
-            const date = `${month}-${dayStr}`;
-            dates.push(date);
-            pipeline.get(`${prefix}history:${date}`);
-            pipeline.get(`${prefix}daily_bets:${date}`);
+            dates.push(`${month}-${d.toString().padStart(2, '0')}`);
         }
 
-        // Parallel Fetch: Stats + Daily Pipeline
-        const [statsRaw, results] = await Promise.all([
-            redis.get(`${prefix}stats:${month}`),
-            pipeline.exec<(string | null)[]>()
-        ]);
+        // Normalize for processing loop below
+        // monthDataRaw is Record<string, string> or null
+        const monthMap = monthDataRaw || {};
+
+        // Mocking results array to compatible with existing lower logic or refactoring loop?
+        // Let's refactor the loop slightly to read from Map instead of Array index.
 
         // Process Results
         const daysMap: Record<string, any> = {};
@@ -49,13 +51,11 @@ export async function GET(req: NextRequest) {
         let wonDays = 0;
 
         dates.forEach((date, idx) => {
-            const historyData = results[idx * 2];
-            const dailyDataRaw = results[idx * 2 + 1];
+            // New Logic: Get from Hash Map
+            const dailyDataRaw = (monthMap as any)[date];
 
-            // PRIORIDAD CRÍTICA: DAILY BETS
-            // El usuario edita 'daily_bets' directamente. Esa es la fuente de verdad.
-            // 'history' es secundario/backup.
-            const sourceRaw = dailyDataRaw || historyData;
+            // Note: We ignored 'history' legacy key here as per user instruction to use Hash.
+            const sourceRaw = dailyDataRaw;
 
             if (sourceRaw) {
                 let dailyCtx: any;
@@ -165,8 +165,19 @@ export async function GET(req: NextRequest) {
 
         if (storedStatsRaw) {
             const parsed = typeof storedStatsRaw === 'string' ? JSON.parse(storedStatsRaw) : storedStatsRaw;
+
+            // FORCE RECALC: Override cached stats with LIVE aggregations from the Hash
+            // This ensures "Balance Mensual" matches the sum of the days shown in Calendar.
+            const liveYield = totalMonthlyStake > 0 ? (totalMonthlyProfit / totalMonthlyStake) * 100 : 0;
+            const liveWinRate = totalSettledDays > 0 ? (wonDays / totalSettledDays) * 100 : 0;
+
             finalStats = {
                 ...parsed,
+                total_profit: Number(totalMonthlyProfit.toFixed(2)),
+                total_stake: Number(totalMonthlyStake.toFixed(2)),
+                yield: Number(liveYield.toFixed(2)),
+                win_rate_days: Number(liveWinRate.toFixed(2)),
+
                 yesterday_profit: parsed.yesterday_profit ?? 0
             };
         } else {
