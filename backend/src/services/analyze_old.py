@@ -44,7 +44,7 @@ def analyze():
 
     # 2. Obtención de datos
     today_str = datetime.now().strftime("%Y-%m-%d")
-    raw_json = rs.get_raw_matches(today_str) or rs.get(f"betai:raw_matches:{today_str}")
+    raw_json = rs.get_raw_matches(today_str)
     
     if not raw_json:
         print(f"[ERROR] No hay datos para {today_str}.")
