@@ -40,7 +40,7 @@ SCHEMA OBLIGATORIO:
     "stake": 6,
     "total_odd": 0.0,
     "estimated_units": 0.0,
-    "reason": "Análisis detallado. (no incluir datos de IDs)",
+    "reason": "Análisis detallado en español. (no incluir datos de IDs)",
     "selections": [
       {
         "fixture_id": 123456,

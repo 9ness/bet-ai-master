@@ -832,67 +832,77 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
                 <div className="bg-secondary/50 p-3 rounded-xl border border-secondary">
                     {showSelections ? (
                         <div className="space-y-3">
-                            {data.selections?.map((sel, idx) => (
-                                <div key={idx} className="flex flex-col border-b border-border/50 last:border-0 pb-2 last:pb-0">
-                                    <div className="flex justify-between items-center mb-1">
-                                        <div className="flex items-center gap-1 mr-2 flex-1 flex-wrap">
-                                            <span className="text-xs font-semibold text-foreground/80 leading-tight">{sel.match}</span>
-                                            {sel.league && (() => {
-                                                const flagCode = getLeagueFlagCode(sel.league, sel.league_id, sel.country, sel.sport);
-                                                return (
-                                                    <span className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0 flex items-center">
-                                                        ({sel.league}
-                                                        {flagCode && (
-                                                            <img
-                                                                src={`https://flagcdn.com/20x15/${flagCode}.png`}
-                                                                alt={flagCode}
-                                                                className="w-3 h-2.5 object-cover inline-block rounded-[1px] opacity-80 ml-1"
-                                                            />
-                                                        )}
-                                                        )
-                                                    </span>
-                                                );
-                                            })()}
-                                        </div>
-                                        {sel.odd && <span className="text-[10px] bg-secondary px-1 rounded text-muted-foreground whitespace-nowrap">{sel.odd}</span>}
-                                    </div>
-                                    <div className="flex justify-between items-start pl-2 border-l-2 border-primary/20">
-                                        <div className="flex flex-col">
-                                            <div className="flex items-center gap-1.5">
-                                                {/* Status Icon (Left side) */}
-                                                {(sel.status === 'WON' || sel.status === 'GANADA') && <Check size={14} className="text-emerald-500 shrink-0" />}
-                                                {(sel.status === 'LOST' || sel.status === 'PERDIDA') && <XIcon size={14} className="text-rose-500 shrink-0" />}
+                            {(() => {
+                                const grouped = data.selections?.reduce((acc, sel) => {
+                                    const key = sel.match;
+                                    if (!acc[key]) acc[key] = [];
+                                    acc[key].push(sel);
+                                    return acc;
+                                }, {} as Record<string, typeof data.selections>);
 
-                                                {/* In Play Component */}
-                                                <InPlayIndicator
-                                                    time={sel.time}
-                                                    startTime={data.startTime || data.time}
-                                                    dataTime={undefined}
-                                                    status={sel.status}
-                                                    checkTimePassedFn={checkTimePassed}
-                                                />
-
-                                                <span className={`text-sm font-bold ${config.textColor}`}>{replaceTeamNames(sel.pick, sel.match)}</span>
+                                return Object.entries(grouped || {}).map(([matchName, selections], groupIdx) => (
+                                    <div key={groupIdx} className="flex flex-col border-b border-border/50 last:border-0 pb-2 last:pb-0">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <div className="flex items-center gap-1 mr-2 flex-1 flex-wrap">
+                                                <span className="text-xs font-semibold text-foreground/80 leading-tight">{matchName}</span>
+                                                {selections[0].league && (() => {
+                                                    const sel = selections[0];
+                                                    const flagCode = getLeagueFlagCode(sel.league, sel.league_id, sel.country, sel.sport);
+                                                    return (
+                                                        <span className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0 flex items-center">
+                                                            ({sel.league}
+                                                            {flagCode && (
+                                                                <img
+                                                                    src={`https://flagcdn.com/20x15/${flagCode}.png`}
+                                                                    alt={flagCode}
+                                                                    className="w-3 h-2.5 object-cover inline-block rounded-[1px] opacity-80 ml-1"
+                                                                />
+                                                            )}
+                                                            )
+                                                        </span>
+                                                    );
+                                                })()}
                                             </div>
-
-                                            {/* Result Text (Below Name) */}
-                                            {sel.result && sel.result !== '?' && (
-                                                <div className="text-[10px] text-muted-foreground ml-5 font-mono">
-                                                    {sel.result}
-                                                </div>
-                                            )}
                                         </div>
-
-                                        {/* Right Side: Always Time + SportIcon */}
-                                        <div className="flex items-center gap-1">
-                                            <span className="text-[10px] font-mono text-muted-foreground mr-1.5 font-bold opacity-80 decoration-0 align-middle">
-                                                {extractTime(sel.time || data.startTime || data.time)}
-                                            </span>
-                                            <SportIcon sport={sel.sport || data.sport} className="text-base" />
+                                        <div className="flex flex-col pl-2 border-l-2 border-primary/20 gap-2">
+                                            {selections.map((sel, idx) => (
+                                                <div key={idx} className="flex justify-between items-start">
+                                                    <div className="flex flex-col">
+                                                        <div className="flex items-center gap-1.5">
+                                                            {(sel.status === 'WON' || sel.status === 'GANADA') && <Check size={14} className="text-emerald-500 shrink-0" />}
+                                                            {(sel.status === 'LOST' || sel.status === 'PERDIDA') && <XIcon size={14} className="text-rose-500 shrink-0" />}
+                                                            <InPlayIndicator
+                                                                time={sel.time}
+                                                                startTime={data.startTime || data.time}
+                                                                dataTime={undefined}
+                                                                status={sel.status}
+                                                                checkTimePassedFn={checkTimePassed}
+                                                            />
+                                                            <span className={`text-sm font-bold ${config.textColor}`}>{replaceTeamNames(sel.pick, sel.match)}</span>
+                                                        </div>
+                                                        {sel.result && sel.result !== '?' && (
+                                                            <div className="text-[10px] text-muted-foreground ml-5 font-mono">
+                                                                {sel.result}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-1">
+                                                        {sel.odd && (
+                                                            <span className="text-[10px] font-mono font-bold text-muted-foreground bg-secondary/80 px-1.5 py-0.5 rounded border border-border/50 whitespace-nowrap mr-1">
+                                                                {sel.odd}
+                                                            </span>
+                                                        )}
+                                                        <span className="text-[10px] font-mono text-muted-foreground mr-1.5 font-bold opacity-80 decoration-0 align-middle">
+                                                            {extractTime(sel.time || data.startTime || data.time)}
+                                                        </span>
+                                                        <SportIcon sport={sel.sport || data.sport} className="text-base" />
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
-                                </div>
-                            ))}
+                                ));
+                            })()}
                         </div>
                     ) : isListLayout && componentsToRender ? (
                         <>

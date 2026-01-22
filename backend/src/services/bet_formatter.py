@@ -11,6 +11,9 @@ from src.services.redis_service import RedisService
 class BetFormatter:
     def __init__(self):
         self.PICK_TRANSLATIONS = {
+            "Player Total Shots": "Remates Totales:",
+            "Player Shots on Goal": "Tiros a Puerta:",
+            "Player Assist": "Asistencia:",  "Player Goals": "Goles:",
             "Home": "Local", "Away": "Visitante", "Win": "Gana", "Draw": "Empate",
             "Over": "Más de", "Under": "Menos de", "Yes": "Sí", "No": "No",
             "Goals": "Goles", "Points": "Puntos", "Handicap": "Hándicap",
