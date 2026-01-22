@@ -44,7 +44,7 @@ class SportsDataService:
                     2, 3, 848,                       # UCL, UEL, UECL
                     71, 128, 262, 265, 292           # Brasil, Argentina, México, Chile, Corea
                 ], # Expanded Whitelist
-                "markets": [1, 4, 5, 7, 8, 12, 45, 80, 87, 173, 25, 57, 58, 153],
+                "markets": [1, 4, 5, 6, 7, 8, 10, 12, 16, 17, 25, 27, 28, 45, 50, 57, 58, 59, 80, 82, 83, 87, 92, 173, 212, 215],
                 "bookmaker": 8 
             },
             "basketball": {
@@ -253,14 +253,13 @@ class SportsDataService:
         empty = {}
         if sport == "football":
             keys = [
-                    "1x2", "asian_handicap", "over_under", "ht_ft", "btts", 
-                    "double_chance", "corners", "total_shots_on_goal", 
-                    "cards", "fouls", "result_total_goals", 
-                    "home_corners", "away_corners", "yellow_cards",
-                    "home_total_goals", "away_total_goals", "asian_goal_line", 
-                    "goals_over_under_h1", "home_cards", "away_cards", 
-                    "player_total_shots", "player_anytime_scorer", "player_assist", 
-                    "exact_score", "own_goal"]
+                    "1x2", "asian_handicap", "over_under", "goals_over_under_h1", "ht_ft", "btts", 
+                    "exact_score", "double_chance", "home_total_goals", "away_total_goals", 
+                    "result_total_goals", "home_clean_sheet", "away_clean_sheet", "corners", 
+                    "asian_goal_line", "home_corners", "away_corners", "own_goal", "cards", 
+                    "home_cards", "away_cards", "total_shots_on_goal", "player_anytime_scorer", 
+                    "fouls", "player_assist", "player_total_shots"
+                    ]
         else: # basketball
             keys = ["3way_result", "home_away", "asian_handicap", "over_under",
                     "over_under_1st_half", "double_chance", "result_q1", "ht_ft", 
@@ -277,29 +276,30 @@ class SportsDataService:
             if mid == 1: return "1x2"
             if mid == 4: return "asian_handicap"
             if mid == 5: return "over_under"
+            if mid == 6: return "goals_over_under_h1"
             if mid == 7: return "ht_ft" 
             if mid == 8: return "btts"
+            if mid == 10: return "exact_score"
             if mid == 12: return "double_chance"
-            if mid == 25: return "result_total_goals"
-            if mid == 45: return "corners"
-            if mid == 57: return "home_corners"
-            if mid == 58: return "away_corners"
-            if mid == 80: return "cards"
-            if mid == 87: return "total_shots_on_goal"
-            if mid == 153: return "yellow_cards"
-            if mid == 173: return "fouls"
             if mid == 16: return "home_total_goals"
             if mid == 17: return "away_total_goals"
+            if mid == 25: return "result_total_goals"
+            if mid == 27: return "home_clean_sheet"
+            if mid == 28: return "away_clean_sheet"
+            if mid == 45: return "corners"
             if mid == 50: return "asian_goal_line"
-            if mid == 6: return "goals_over_under_h1"
+            if mid == 57: return "home_corners"
+            if mid == 58: return "away_corners"
+            if mid == 59: return "own_goal"
+            if mid == 80: return "cards"
             if mid == 82: return "home_cards"
             if mid == 83: return "away_cards"
-            if mid == 215: return "player_total_shots"
+            if mid == 87: return "total_shots_on_goal"
             if mid == 92: return "player_anytime_scorer"
-            if mid == 212: return "player_assist"
-            if mid == 10: return "exact_score"
-            if mid == 59: return "own_goal"
-            
+            if mid == 173: return "fouls"
+            if mid == 212: return "player_assist"           
+            if mid == 215: return "player_total_shots"
+             
         # BASKETBALL IDs
         if sport == 'basketball':
             if mid == 1: return "3way_result"        # Gana Local/Empate/Visitante
