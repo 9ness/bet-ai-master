@@ -6,8 +6,9 @@ import math
 from datetime import datetime
 
 # Importamos la SDK para especificar el modelo y bloquear herramientas
-from google import genai
-from google.genai import types
+# Imports de Google eliminados
+# from google import genai
+# from google.genai import types
 
 # Path setup
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
@@ -29,14 +30,12 @@ def load_system_prompt(filename="system_prompt_analizador.txt"):
 def analyze():
     print("--- REANALYSIS SCRIPT STARTED (GEMINI 3 PRO - MODO ACTUARIAL) ---")
     
-    # 1. Inicialización de Servicios y Modelo Específico
+    # 1. Inicialización de Servicios
     try:
         rs = RedisService()
-        api_key = os.environ.get("GEMINI_API_KEY")
-        client = genai.Client(api_key=api_key)
-        
-        # AQUÍ ESPECIFICAS EL MODELO QUE QUIERES
-        model_name = 'gemini-3-pro-preview' 
+        # [MODIFIED] Se ha eliminado la dependencia de Google GenAI por solicitud del usuario.
+        # Este archivo ya no realiza llamadas al motor de Google.
+        model_name = 'DISABLED-MANUAL-MODE'
         
     except Exception as e:
         print(f"[FATAL] Service Init Failed: {e}")
@@ -53,54 +52,18 @@ def analyze():
     raw_matches = json.loads(raw_json)
     fixture_map = {str(m.get("id")): m for m in raw_matches if m.get("id")}
 
-    # 3. Carga de Prompt y Preparación
-    system_prompt = load_system_prompt()
-    full_prompt = f"{system_prompt}\n\nINPUT DATA JSON:\n{json.dumps(raw_matches, indent=2)}"
+    # 3. [DISABLED] Carga de Prompt y Preparación AI
+    # system_prompt = load_system_prompt()
+    # full_prompt = f"{system_prompt}\n\nINPUT DATA JSON:\n{json.dumps(raw_matches, indent=2)}"
 
-    valid_bets = None
+    valid_bets = []
     
-    # 4. Loop de Intentos
-    for i in range(3):
-        print(f"[*] Gemini Attempt {i+1} (Using {model_name})...")
-        try:
-            # Forzamos tools=[] para que NO use Google Search bajo ningún concepto
-            resp = client.models.generate_content(
-                model=model_name,
-                contents=full_prompt,
-                config=types.GenerateContentConfig(
-                    tools=[], 
-                    response_mime_type='application/json',
-                    temperature=0.1 # Para máxima precisión numérica
-                )
-            )
-
-            text = resp.text.strip()
-            if text.startswith("```json"): text = text[7:-3]
-            
-            start_idx = text.find("[")
-            end_idx = text.rfind("]")
-            candidates = json.loads(text[start_idx:end_idx+1])
-            
-            # 5. Inyección mínima de IDs para Formatter
-            for bet in candidates:
-                real_selections = []
-                for sel in bet.get("selections", []):
-                    source = fixture_map.get(str(sel.get("fixture_id")))
-                    if source:
-                        sel.update({
-                            "match": f"{source.get('home')} vs {source.get('away')}",
-                            "league": source.get("league", "Desconocida"),
-                            "sport": source.get("sport", "football"),
-                            "time": source.get("startTime")
-                        })
-                        real_selections.append(sel)
-                bet["selections"] = real_selections
-
-            valid_bets = candidates
-            break
-        except Exception as e:
-            print(f"[!] Error: {e}")
-            time.sleep(2)
+    # 4. [DISABLED] Loop de Intentos (AI Gen)
+    print("[-] AI Analysis logic has been disabled in analyze_old.py by user request.")
+    print("[-] To use AI analysis, please use main.py with the GeminiService.")
+    
+    # Si se quisiera inyectar lógica manual, iría aquí.
+    # Por ahora, valid_bets queda vacío para evitar errores.
 
     if not valid_bets: return
 
