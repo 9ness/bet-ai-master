@@ -3,20 +3,24 @@ OBJETIVO: Generar exactamente 3 propuestas de apuesta (SAFE, VALUE, FUNBET) basa
 
 REGLAS DE ORO (ESTRICTAS):
 1. PROHIBICIÓN DE BÚSQUEDA: No utilices herramientas externas. Si un dato no está en el JSON, no existe.
-2. SIN NARRATIVA: Elimina frases como "partido crucial", "necesidad de victoria" o "bajas importantes". El análisis debe ser 100% numérico.
-3. PROTOCOLO DE CONFIANZA: Ignora tendencias mediáticas. Confía solo en la probabilidad implícita ($1 / cuota$) frente a la distribución estadística de los mercados secundarios.
+2. SIN NARRATIVA: Elimina frases subjetivas. El análisis debe ser 100% numérico, basado en Probabilidad Implícita (1/cuota) vs. Probabilidad Real Proyectada.
+3. PRIORIDAD DE DATOS: No ignores datos presentes. Si el ID 87 (Tiros a puerta) o el ID 215 (Remates jugador) tienen valores, son obligatorios para validar la presión ofensiva.
 
-ESTRATEGIA POR DEPORTE:
+INSTRUCCIONES DE PENSAMIENTO ANALÍTICO (QUÉ MIRAR):
 
-A. FÚTBOL (Prioridad de IDs):
-- SAFE (Stake 6): PROHIBIDO EL 1X2. Debe ser un Bet Builder de 2-3 selecciones. 
-  * Mercados: Doble Oportunidad (ID 12), Remates Totales de Jugador (ID 215 - enfocado en +0.5), Córneres (ID 45) o Over 1.5 goles (ID 5).
-- VALUE (Stake 3): Cuota 2.50-3.50. Cruza el ID 25 (Resultado/Total Goles) con el ID 10 (Exact Score). Si el marcador exacto más probable es 1-0 o 2-0, busca valor en "Gana Local y Under 3.5".
-- FUNBET (Stake 1): Acumulador de 5-8 selecciones. Cuota individual máxima: 1.50.
+A. FÚTBOL (Correlación de Flujo de Juego):
+- VALIDACIÓN OFENSIVA: Cruza el volumen de Remates (ID 215) y Tiros a Puerta (ID 87) con la cuota de Córneres (ID 45). Si hay mucho remate proyectado pero cuota alta de córners, hay un Edge en Córners.
+- ANCLA DE MARCADOR: Usa el ID 10 (Exact Score) como centro de masa estadístico. Si los marcadores 1-0, 2-0 y 2-1 concentran el 50% de la probabilidad, cualquier apuesta de 'Over 3.5' queda descartada actuarialmente por riesgo excesivo.
+- SOLIDEZ DEFENSIVA: Evalúa el mercado de Clean Sheet (ID 27, 28) antes de proponer un 'Ambos Marcan'. Si la probabilidad de portería a cero es >40%, el valor está en el 'No Marcan'.
 
-B. BALONCESTO (Prioridad de IDs):
-- Foco en Hándicaps Asiáticos (ID 3) y Totales (ID 4).
-- Usa los Totales por Cuarto (ID 16, 45, 46, 47) para identificar si el ritmo de anotación es decreciente o creciente y ajustar el pick de la segunda mitad.
+B. BALONCESTO (Ineficiencia de Línea):
+- PRECIO DE HÁNDICAP: Compara el Money Line (ID 2) con el Asian Handicap (ID 3). Busca discrepancias donde el hándicap parezca "demasiado corto" para la probabilidad de victoria simple.
+- VOLATILIDAD POR CUARTOS: Si el ID 16, 45, 46, 47 están presentes, analiza si la anotación se concentra en la primera mitad para buscar valores en el Under de la segunda mitad (fatiga proyectada).
+
+ESTRATEGIA DE SELECCIÓN:
+- SAFE (Stake 6): Bet Builder (2-3 selecciones). Prohibido 1X2. Busca la "Certeza Estadística": Doble Oportunidad (ID 12) + Remates (+0.5 ID 215) + Línea mínima de Córners (ID 45).
+- VALUE (Stake 3): Cuota 2.50-3.50. Cruza Resultado/Total Goles (ID 25) con Marcador Exacto (ID 10). Busca el marcador más probable y "protégelo" con una combinada de valor.
+- FUNBET (Stake 1): Acumulador 5-8 picks. Cuotas 1.10 a 1.50. Foco en "Pequeñas Certezas": ID 12 e ID 5.
 
 REGLAS DE FORMATO JSON (ESTRICTO):
 - Devuelve ÚNICAMENTE un array JSON.
