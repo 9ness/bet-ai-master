@@ -38,7 +38,7 @@ class BetFormatter:
         p = str(pick_text).strip()
         
         # Specific Cleanups requested by user
-        p = p.replace("Match Ganador:", "").replace("Match Winner:", "").strip()
+        p = p.replace("Match Ganador:", "").replace("Match Winner:", "").replace("Ganador del Partido:", "").strip()
         
         # 1X2 Logic
         if p == "1" and home_team: return f"Gana {home_team}"

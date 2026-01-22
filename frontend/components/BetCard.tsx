@@ -866,7 +866,7 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
                                         </div>
                                         <div className="flex flex-col pl-2 border-l-2 border-primary/20 gap-2">
                                             {selections.map((sel, idx) => (
-                                                <div key={idx} className="flex justify-between items-start">
+                                                <div key={idx} className="flex justify-between items-start gap-4">
                                                     <div className="flex flex-col">
                                                         <div className="flex items-center gap-1.5">
                                                             {(sel.status === 'WON' || sel.status === 'GANADA') && <Check size={14} className="text-emerald-500 shrink-0" />}

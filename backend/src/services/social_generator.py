@@ -17,12 +17,8 @@ def generate_viral_caption():
     gemini = GeminiService()
     
     today_str = datetime.now().strftime("%Y-%m-%d")
-    bets_key = f"betai:daily_bets:{today_str}"
-    
-    console_log(f"📅 Obteniendo apuestas para: {today_str}")
-    data = None
-    # Force Git Update: Ensure we use .get() not .get_data()
-    raw_data = redis.get(bets_key)
+    # Use the specific accessor for Hash structure
+    raw_data = redis.get_daily_bets(today_str)
     if raw_data:
         try:
              data = json.loads(raw_data)
