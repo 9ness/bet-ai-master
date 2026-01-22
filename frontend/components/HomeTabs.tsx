@@ -252,7 +252,7 @@ export default function HomeTabs({ settings, predictions, formattedDate, isMock 
             {/* HORIZONTAL SCROLL SNAP CONTAINER */}
             <div
                 ref={scrollRef}
-                className="flex-1 w-full flex overflow-x-auto snap-x snap-mandatory scrollbar-hide"
+                className="flex-1 w-full flex overflow-x-auto snap-x snap-mandatory scrollbar-hide items-start"
                 style={{ scrollBehavior: 'smooth' }}
                 onScroll={handleScroll}
             >
@@ -262,7 +262,7 @@ export default function HomeTabs({ settings, predictions, formattedDate, isMock 
                         className="min-w-full w-full snap-start flex-shrink-0"
                         style={{ willChange: 'transform' }}
                     >
-                        <div className="w-full max-w-7xl mx-auto px-2 md:px-4 pt-4 pb-4 md:pb-8 min-h-[50vh]">
+                        <div className="w-full max-w-7xl mx-auto px-2 md:px-4 pt-4 pb-0">
                             {tab.id === 'daily_bets' && (
                                 <div className="animate-in fade-in duration-500">
                                     <DailyPredictions predictions={predictions} isAdmin={false} />

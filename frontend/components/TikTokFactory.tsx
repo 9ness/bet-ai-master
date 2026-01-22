@@ -735,44 +735,54 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                     </h3>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+
                     {/* SECTION 1: INTRO */}
-                    <div className="border border-white/10 rounded-xl overflow-hidden bg-white/5">
-                        <button onClick={() => toggleSection('intro')} className="w-full flex justify-between items-center p-2 hover:bg-white/5">
-                            <span className="font-bold text-sm uppercase text-muted-foreground flex items-center gap-2">👋 Portada</span>
-                            {collapsed.intro ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                    <div className="group border border-white/5 rounded-2xl overflow-hidden bg-black/20 transition-all hover:border-white/10 hover:shadow-lg hover:shadow-emerald-900/10">
+                        <button
+                            onClick={() => toggleSection('intro')}
+                            className={`w-full flex justify-between items-center p-4 transition-colors ${!collapsed.intro ? 'bg-white/5' : 'hover:bg-white/5'}`}
+                        >
+                            <span className="font-black text-sm uppercase text-emerald-400 flex items-center gap-2 tracking-wider">
+                                👋 Portada
+                            </span>
+                            {collapsed.intro ? <ChevronRight size={18} className="text-white/30" /> : <ChevronDown size={18} className="text-white/30" />}
                         </button>
                         {!collapsed.intro && (
-                            <div className="p-4 space-y-3 border-t border-white/10">
+                            <div className="p-4 space-y-4 border-t border-white/5 animation-slider">
                                 <div>
-                                    <label className="text-xs text-white/50 block mb-1">Título Principal</label>
-                                    <textarea value={config.introTitle} onChange={e => setConfig({ ...config, introTitle: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded p-2 text-white text-sm h-16" />
-                                    <div className="mt-2 flex items-center gap-2">
+                                    <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block mb-2">Título Principal</label>
+                                    <textarea
+                                        value={config.introTitle}
+                                        onChange={e => setConfig({ ...config, introTitle: e.target.value })}
+                                        className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-sm font-bold min-h-[80px] focus:outline-none focus:border-emerald-500/50 transition-colors resize-none"
+                                    />
+                                    <div className="mt-3 flex items-center gap-2 bg-white/5 p-2 rounded-lg border border-white/5">
                                         <input
                                             type="checkbox"
                                             id="useFullDate"
                                             checked={config.useFullDate}
                                             onChange={(e) => setConfig({ ...config, useFullDate: e.target.checked })}
-                                            className="accent-emerald-500 w-4 h-4"
+                                            className="accent-emerald-500 w-4 h-4 cursor-pointer"
                                         />
-                                        <label htmlFor="useFullDate" className="text-xs text-emerald-400 cursor-pointer select-none">
+                                        <label htmlFor="useFullDate" className="text-xs font-bold text-emerald-400 cursor-pointer select-none">
                                             Usar Fecha Larga + Iconos
                                         </label>
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-2">
+                                <div className="grid grid-cols-2 gap-3">
                                     <div>
-                                        <label className="text-xs text-white/50 block mb-1">Emoji 1</label>
-                                        <input value={config.introEmoji1} onChange={e => setConfig({ ...config, introEmoji1: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded p-2 text-white text-sm text-center" />
+                                        <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block mb-2">Emoji 1</label>
+                                        <input value={config.introEmoji1} onChange={e => setConfig({ ...config, introEmoji1: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded-xl p-2 text-white text-lg text-center focus:outline-none focus:border-emerald-500/50 transition-colors" />
                                     </div>
                                     <div>
-                                        <label className="text-xs text-white/50 block mb-1">Emoji 2</label>
-                                        <input value={config.introEmoji2} onChange={e => setConfig({ ...config, introEmoji2: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded p-2 text-white text-sm text-center" />
+                                        <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block mb-2">Emoji 2</label>
+                                        <input value={config.introEmoji2} onChange={e => setConfig({ ...config, introEmoji2: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded-xl p-2 text-white text-lg text-center focus:outline-none focus:border-emerald-500/50 transition-colors" />
                                     </div>
                                 </div>
                                 <div>
-                                    <div className="flex justify-between items-center mb-1">
-                                        <label className="text-xs text-white/50">Cuota (Texto Editable)</label>
+                                    <div className="flex justify-between items-center mb-2">
+                                        <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Cuota (Texto)</label>
                                         <div className="flex items-center gap-2">
                                             <input
                                                 type="checkbox"
@@ -780,8 +790,6 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                                 checked={config.addHundred}
                                                 onChange={(e) => {
                                                     const isChecked = e.target.checked;
-
-                                                    // Logic to update text dynamically
                                                     let current = config.introSubtitle.replace(' 📈', '').replace('+', '');
                                                     let num = parseInt(current);
 
@@ -795,120 +803,170 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                                             introSubtitle: `+${num} 📈`
                                                         });
                                                     } else {
-                                                        // Fallback if text is not number
                                                         setConfig({ ...config, addHundred: isChecked });
                                                     }
                                                 }}
-                                                className="accent-emerald-500 w-3 h-3"
+                                                className="accent-emerald-500 w-3 h-3 cursor-pointer"
                                             />
-                                            <label htmlFor="addHundred" className="text-[10px] text-emerald-400 cursor-pointer select-none">Añadir Centena</label>
+                                            <label htmlFor="addHundred" className="text-[9px] font-bold text-white/50 cursor-pointer select-none">
+                                                x10
+                                            </label>
                                         </div>
                                     </div>
-                                    <input value={config.introSubtitle} onChange={e => setConfig({ ...config, introSubtitle: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded p-2 text-white text-sm font-bold" />
+                                    <input
+                                        value={config.introSubtitle}
+                                        onChange={e => setConfig({ ...config, introSubtitle: e.target.value })}
+                                        className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-sm font-bold focus:outline-none focus:border-emerald-500/50 transition-colors"
+                                    />
                                 </div>
                             </div>
                         )}
                     </div>
 
-                    {/* SECTION 1.5: BETS (EDIT TEXTS) */}
-                    <div className="border border-white/10 rounded-xl overflow-hidden bg-white/5">
-                        <button onClick={() => toggleSection('bets')} className="w-full flex justify-between items-center p-2 hover:bg-white/5">
-                            <span className="font-bold text-sm uppercase text-muted-foreground flex items-center gap-2">📝 Editar Apuestas</span>
-                            {collapsed.bets ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                    {/* SECTION 2: BETS */}
+                    <div className="group border border-white/5 rounded-2xl overflow-hidden bg-black/20 transition-all hover:border-white/10 hover:shadow-lg hover:shadow-sky-900/10">
+                        <button
+                            onClick={() => toggleSection('bets')}
+                            className={`w-full flex justify-between items-center p-4 transition-colors ${!collapsed.bets ? 'bg-white/5' : 'hover:bg-white/5'}`}
+                        >
+                            <span className="font-black text-sm uppercase text-sky-400 flex items-center gap-2 tracking-wider">
+                                📝 Editar Apuestas
+                            </span>
+                            {collapsed.bets ? <ChevronRight size={18} className="text-white/30" /> : <ChevronDown size={18} className="text-white/30" />}
                         </button>
                         {!collapsed.bets && (
-                            <div className="p-4 space-y-6 border-t border-white/10 max-h-[400px] overflow-y-auto">
-                                {slideGroups.map((group, i) => (
-                                    <div key={i} className="space-y-3 p-3 bg-black/30 rounded-lg border border-white/5">
-                                        {/* Match Title Input */}
-                                        <div>
-                                            <label className="text-[10px] text-white/40 uppercase font-bold mb-1 block">Partido {i + 1}</label>
+                            <div className="p-4 space-y-4 border-t border-white/5 animation-slider">
+                                {slideGroups.map((group: any, gIdx: number) => (
+                                    <div key={gIdx} className="bg-black/40 rounded-xl p-3 border border-white/5 relative group/item">
+                                        <div className="flex items-center gap-2 mb-2">
                                             <input
                                                 value={group.matchDisplay}
                                                 onChange={(e) => {
                                                     const newGroups = [...slideGroups];
-                                                    newGroups[i] = { ...newGroups[i], matchDisplay: e.target.value };
+                                                    newGroups[gIdx].matchDisplay = e.target.value;
                                                     setSlideGroups(newGroups);
                                                 }}
-                                                className="w-full bg-black/50 border border-white/10 rounded p-2 text-white text-xs font-bold"
-                                                placeholder="Nombre del Partido"
+                                                className="bg-transparent border-b border-white/10 w-full text-xs font-bold text-sky-300 focus:outline-none focus:border-sky-500 transition-colors"
                                             />
+                                            {/* Feature Toggle */}
+                                            <button
+                                                onClick={() => {
+                                                    const newGroups = [...slideGroups];
+                                                    newGroups[gIdx].isFeatured = !newGroups[gIdx].isFeatured;
+                                                    setSlideGroups(newGroups);
+                                                }}
+                                                className={`p-1.5 rounded-lg border transition-all ${group.isFeatured ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-black/30 text-white/20 border-white/5 hover:text-white/50'}`}
+                                                title={group.isFeatured ? "Destacado (Slide Propia)" : "Estándar (Agrupado)"}
+                                            >
+                                                <ScanEye size={12} />
+                                            </button>
                                         </div>
-
-                                        {/* Bets Loop */}
-                                        <div className="space-y-2">
-                                            {group.picks.map((pick: string, j: number) => (
-                                                <div key={j}>
-                                                    <label className="text-[10px] text-white/30 uppercase block mb-1">Selección {j + 1}</label>
-                                                    <input
-                                                        value={pick}
-                                                        onChange={(e) => {
-                                                            const newGroups = [...slideGroups];
-                                                            const newPicks = [...newGroups[i].picks];
-                                                            newPicks[j] = e.target.value;
-                                                            newGroups[i] = { ...newGroups[i], picks: newPicks };
-                                                            setSlideGroups(newGroups);
-                                                        }}
-                                                        className="w-full bg-black/50 border border-white/10 rounded p-2 text-white text-xs"
-                                                        placeholder="Texto de la apuesta"
-                                                    />
-                                                </div>
+                                        <div className="space-y-2 pl-2 border-l-2 border-white/5">
+                                            {group.picks.map((pick: string, pIdx: number) => (
+                                                <input
+                                                    key={pIdx}
+                                                    value={pick}
+                                                    onChange={(e) => {
+                                                        const newGroups = [...slideGroups];
+                                                        newGroups[gIdx].picks[pIdx] = e.target.value;
+                                                        setSlideGroups(newGroups);
+                                                    }}
+                                                    className="bg-transparent w-full text-[10px] text-white/70 focus:text-white focus:outline-none"
+                                                />
                                             ))}
                                         </div>
                                     </div>
                                 ))}
+                                {slideGroups.length === 0 && (
+                                    <p className="text-center text-xs text-white/30 italic py-4">No hay apuestas cargadas</p>
+                                )}
                             </div>
                         )}
                     </div>
 
-                    {/* SECTION 2: OUTRO */}
-                    <div className="border border-white/10 rounded-xl overflow-hidden bg-white/5">
-                        <button onClick={() => toggleSection('outro')} className="w-full flex justify-between items-center p-2 hover:bg-white/5">
-                            <span className="font-bold text-sm uppercase text-muted-foreground flex items-center gap-2">🔚 Cierre</span>
-                            {collapsed.outro ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                    {/* SECTION 3: OUTRO */}
+                    <div className="group border border-white/5 rounded-2xl overflow-hidden bg-black/20 transition-all hover:border-white/10 hover:shadow-lg hover:shadow-purple-900/10">
+                        <button
+                            onClick={() => toggleSection('outro')}
+                            className={`w-full flex justify-between items-center p-4 transition-colors ${!collapsed.outro ? 'bg-white/5' : 'hover:bg-white/5'}`}
+                        >
+                            <span className="font-black text-sm uppercase text-purple-400 flex items-center gap-2 tracking-wider">
+                                🔚 Cierre
+                            </span>
+                            {collapsed.outro ? <ChevronRight size={18} className="text-white/30" /> : <ChevronDown size={18} className="text-white/30" />}
                         </button>
                         {!collapsed.outro && (
-                            <div className="p-4 space-y-3 border-t border-white/10">
+                            <div className="p-4 space-y-4 border-t border-white/5 animation-slider">
                                 <div>
-                                    <label className="text-xs text-white/50 block mb-1">Mensaje Final</label>
-                                    <textarea value={config.outroTitle} onChange={e => setConfig({ ...config, outroTitle: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded p-2 text-white text-sm h-16" />
+                                    <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block mb-2">Texto Cierre</label>
+                                    <textarea
+                                        value={config.outroTitle}
+                                        onChange={e => setConfig({ ...config, outroTitle: e.target.value })}
+                                        className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-sm font-bold min-h-[60px] focus:outline-none focus:border-purple-500/50 transition-colors resize-none"
+                                    />
                                 </div>
                                 <div>
-                                    <label className="text-xs text-white/50 block mb-1">Call to Action</label>
-                                    <input value={config.outroSub} onChange={e => setConfig({ ...config, outroSub: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded p-2 text-white text-sm" />
+                                    <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block mb-2">Subtítulo</label>
+                                    <textarea
+                                        value={config.outroSub}
+                                        onChange={e => setConfig({ ...config, outroSub: e.target.value })}
+                                        className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-sm font-bold min-h-[50px] focus:outline-none focus:border-purple-500/50 transition-colors resize-none"
+                                    />
                                 </div>
                             </div>
                         )}
                     </div>
 
-                    {/* SECTION 3: BACKGROUNDS */}
-                    <div className="hidden border border-white/10 rounded-xl overflow-hidden bg-white/5">
-                        <button onClick={() => toggleSection('bg')} className="w-full flex justify-between items-center p-4 hover:bg-white/5">
-                            <span className="font-bold text-sm uppercase text-muted-foreground flex items-center gap-2">🎨 Fondos</span>
-                            {collapsed.bg ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                    {/* SECTION 4: BACKGROUNDS */}
+                    <div className="group border border-white/5 rounded-2xl overflow-hidden bg-black/20 transition-all hover:border-white/10 hover:shadow-lg hover:shadow-amber-900/10">
+                        <button
+                            onClick={() => toggleSection('bg')}
+                            className={`w-full flex justify-between items-center p-4 transition-colors ${!collapsed.bg ? 'bg-white/5' : 'hover:bg-white/5'}`}
+                        >
+                            <span className="font-black text-sm uppercase text-amber-500 flex items-center gap-2 tracking-wider">
+                                🖼️ Fondos
+                            </span>
+                            {collapsed.bg ? <ChevronRight size={18} className="text-white/30" /> : <ChevronDown size={18} className="text-white/30" />}
                         </button>
                         {!collapsed.bg && (
-                            <div className="p-4 space-y-4 border-t border-white/10">
-
-                                {Array.from({ length: slidesData.length + 2 }).map((_, idx) => (
-                                    <div key={idx} className="flex items-center justify-between">
-                                        <span className="text-xs text-white/50">Slide {idx + 1}</span>
-                                        <select
-                                            value={config.bgSelection[idx] || '1'}
-                                            onChange={(e) => handleBgChange(idx, e.target.value)}
-                                            className="bg-black/50 border border-white/10 rounded text-xs p-1 text-white w-32 truncate"
-                                        >
-                                            {availableFiles.length > 0 ? (
-                                                availableFiles.map(f => <option key={f} value={f}>{f}</option>)
-                                            ) : (
-                                                [1, 2, 3, 4, 5, 6, 7, 8].map(n => <option key={n} value={String(n)}>Fondo {n}</option>)
-                                            )}
-                                        </select>
-                                    </div>
-                                ))}
+                            <div className="p-4 border-t border-white/5 animation-slider">
+                                <div className="grid grid-cols-2 gap-3 max-h-[300px] overflow-y-auto custom-scrollbar p-1">
+                                    {config.bgSelection.map((bg, slideIdx) => (
+                                        <div key={slideIdx} className="space-y-1">
+                                            <span className="text-[9px] font-bold text-white/30 block">Slide {slideIdx + 1}</span>
+                                            <div className="relative aspect-[9/16] rounded-lg overflow-hidden border border-white/10 group/bg hover:border-amber-500/50 transition">
+                                                <img
+                                                    src={`/backgrounds/${bg}`}
+                                                    className="w-full h-full object-cover"
+                                                    alt={`BG ${slideIdx}`}
+                                                />
+                                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/bg:opacity-100 flex items-center justify-center transition-opacity">
+                                                    <button
+                                                        onClick={() => {
+                                                            const newBg = availableFiles[Math.floor(Math.random() * availableFiles.length)];
+                                                            handleBgChange(slideIdx, newBg);
+                                                        }}
+                                                        className="p-2 bg-amber-500 rounded-full text-black hover:scale-110 transition"
+                                                        title="Cambiar Aleatorio"
+                                                    >
+                                                        <RefreshCw size={14} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div className="text-[8px] text-white/20 truncate px-1">{bg}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <button
+                                    onClick={() => smartSelectBackgrounds()}
+                                    className="w-full mt-4 py-2 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-xl text-xs font-bold hover:bg-amber-500/20 transition flex items-center justify-center gap-2"
+                                >
+                                    <RefreshCw size={12} /> Regenerar Todo
+                                </button>
                             </div>
                         )}
                     </div>
+
                 </div>
 
                 <div className="p-4 border-t border-white/10 bg-black/20">

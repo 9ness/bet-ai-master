@@ -44,7 +44,23 @@ export async function POST(request: Request) {
             return NextResponse.json({ message: 'Message already sent', success: true });
         }
 
-        // 3. Send to Telegram API
+        // 3. Prepare Message Content
+        let messageText = item.mensaje;
+
+        // Handle "includeAnalysis" flag (default true if undefined, but frontend sends false)
+        // Check body.includeAnalysis
+        const includeAnalysis = body.includeAnalysis !== false; // Default true
+
+        if (!includeAnalysis) {
+            // Strip analysis part. It usually starts with "🧠 <b>Análisis de BetAiMaster:</b>"
+            // We splits by the brain emoji if present.
+            const parts = messageText.split('🧠');
+            if (parts.length > 1) {
+                messageText = parts[0].trim();
+            }
+        }
+
+        // 4. Send to Telegram API
         const botToken = process.env.TELEGRAM_BOT_TOKEN;
         const chatId = process.env.TELEGRAM_CHAT_ID;
 
@@ -59,8 +75,8 @@ export async function POST(request: Request) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     chat_id: chatId,
-                    text: item.mensaje,
-                    parse_mode: 'Markdown'
+                    text: messageText,
+                    parse_mode: 'HTML'
                 })
             });
 

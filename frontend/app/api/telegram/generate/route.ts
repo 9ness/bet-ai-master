@@ -80,28 +80,70 @@ export async function POST(request: Request) {
             const uniqueLeagues = Array.from(new Set(selections.map((s: any) => s.league || 'Desconocida')));
             let leagueText = uniqueLeagues.length === 1 ? `🏆 ${uniqueLeagues[0]}` : "🏆 Varios Torneos";
 
-            // 2. Selections Block
-            const matchesLines = selections.map((sel: any) => {
-                const sport = (sel.sport || 'football').toLowerCase();
-                const icon = sportIcons[sport] || sportIcons["default"];
-                const matchName = sel.match || 'Unknown';
-                const pick = sel.pick || 'Pick';
+            // 2. Selections Block (Grouped by Match)
+            const groupedSelections: Record<string, any[]> = {};
+            const matchOrder: string[] = [];
 
-                return `${icon} ${matchName}\n👉🏼 ${pick}`;
+            selections.forEach((sel: any) => {
+                const matchName = sel.match || 'Evento Desconocido';
+                if (!groupedSelections[matchName]) {
+                    groupedSelections[matchName] = [];
+                    matchOrder.push(matchName);
+                }
+                groupedSelections[matchName].push(sel);
             });
 
-            let matchesBlock = matchesLines.join("\n\n");
+            const matchesLines: string[] = [];
+
+            matchOrder.forEach(mName => {
+                const groupedSels = groupedSelections[mName];
+                const sport = (groupedSels[0].sport || 'football').toLowerCase();
+                const icon = sportIcons[sport] || sportIcons["default"];
+
+                // Add Header (Match Name)
+                matchesLines.push(`${icon} ${mName}`);
+
+                // Add Picks
+                groupedSels.forEach(s => {
+                    matchesLines.push(`👉🏼 ${s.pick || 'Pick'}`);
+                });
+
+                // Add spacer if not last
+                // matchesLines.push(""); 
+            });
+
+            // Join with single newlines, but we want gaps between matches?
+            // actually above push logic adds lines sequentially. 
+            // Let's join with "\n" but insert an empty line between groups in the loop?
+            // Simpler: Map each group to a block, then join blocks.
+
+            const matchBlocks = matchOrder.map(mName => {
+                const groupedSels = groupedSelections[mName];
+                const sport = (groupedSels[0].sport || 'football').toLowerCase();
+                const icon = sportIcons[sport] || sportIcons["default"];
+
+                const picksLines = groupedSels.map(s => `👉🏼 ${s.pick}`);
+                return `${icon} ${mName}\n${picksLines.join('\n')}`;
+            });
+
+            let matchesBlock = matchBlocks.join("\n\n");
             if (!matchesBlock) matchesBlock = "No picks data.";
 
             // Format Analysis Text
             const rawReason = bet.reason || bet.analysis || 'Sin análisis';
             let formattedReason = rawReason;
 
-            if (rawReason.length > 30 && rawReason.includes('.')) {
-                const segments = rawReason.split('.').map((s: string) => s.trim()).filter((s: string) => s.length > 3);
+            // Smart Split: Split by dot followed by space and Uppercase letter (heuristic for sentence start)
+            // This avoids breaking decimals like "1.5" or "1.25"
+            if (rawReason.length > 30) {
+                // Split by ". " that is followed by an uppercase letter
+                const segments = rawReason.split(/\.(?=\s+[A-ZÁÉÍÓÚÑ])/).map((s: string) => s.trim()).filter((s: string) => s.length > 5);
+
                 if (segments.length > 0) {
                     formattedReason = segments.map((seg: string) => {
-                        return seg.endsWith('.') ? `🟢 ${seg}` : `🟢 ${seg}.`;
+                        // Ensure it ends with dot if it's a sentence
+                        const cleanSeg = seg.replace(/^\.+/, '').trim(); // Remove leading dots
+                        return cleanSeg.endsWith('.') ? `🟢 ${cleanSeg}` : `🟢 ${cleanSeg}.`;
                     }).join("\n\n");
                 }
             }
@@ -111,8 +153,8 @@ export async function POST(request: Request) {
                 `${matchesBlock}\n\n` +
                 `📊 Cuota ${bet.total_odd || 1.0}   | 📈 STAKE ${bet.stake || 1}\n` +
                 `🏠 Apuesta realizada en Bet365\n` +
-                `🔞 Apuesta con responsabilidad.\n\n` +
-                `🧠 *Análisis de BetAiMaster:*\n` +
+                `<u>🔞 Apuesta con responsabilidad.</u>\n\n` +
+                `🧠 <b>Análisis de BetAiMaster:</b>\n` +
                 `${formattedReason}`;
 
             const item = {
@@ -141,12 +183,12 @@ export async function POST(request: Request) {
                 // We can't rely on server locale to be Spanish, so we might map manually or try 'es-ES'
                 const monthName = new Date(targetDate).toLocaleString('es-ES', { month: 'long', year: 'numeric' }).toUpperCase();
 
-                const msg = `📊 *REPORTE MENSUAL - ${monthStr}* 📊\n\n` +
-                    `${iconProfit} *Profit:* ${totalProfit} u\n` +
-                    `📈 *Yield:* ${stats.yield || 0}%\n` +
-                    `🎯 *Win Rate:* ${stats.win_rate || 0}%\n` +
-                    `📅 *Días Operados:* ${stats.days_operated || 0}\n\n` +
-                    `🧠 *BetAiMaster Analytics*`;
+                const msg = `📊 <b>REPORTE MENSUAL - ${monthStr}</b> 📊\n\n` +
+                    `${iconProfit} <b>Profit:</b> ${totalProfit} u\n` +
+                    `📈 <b>Yield:</b> ${stats.yield || 0}%\n` +
+                    `🎯 <b>Win Rate:</b> ${stats.win_rate || 0}%\n` +
+                    `📅 <b>Días Operados:</b> ${stats.days_operated || 0}\n\n` +
+                    `🧠 <b>BetAiMaster Analytics</b>`;
 
                 const statsItem = {
                     id: crypto.randomUUID(),

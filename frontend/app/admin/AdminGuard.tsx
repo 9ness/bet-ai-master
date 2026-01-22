@@ -502,7 +502,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                 <div
                     ref={scrollContainerRef}
                     onScroll={handleScroll}
-                    className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide h-full"
+                    className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide h-full items-start"
                     style={{ scrollBehavior: 'smooth' }}
                 >
                     {/* Tab 1: Analysis */}
@@ -515,8 +515,8 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                     </div>
 
                     {/* Tab 2: Calendar */}
-                    <div className="w-full shrink-0 snap-start active:cursor-grabbing h-full">
-                        <main className="max-w-7xl mx-auto px-4 py-8">
+                    <div className="w-full shrink-0 snap-start active:cursor-grabbing">
+                        <main className="max-w-7xl mx-auto px-4 pt-8 pb-0">
                             <ResultsCalendar />
                         </main>
                     </div>

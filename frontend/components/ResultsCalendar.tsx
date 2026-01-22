@@ -675,30 +675,29 @@ export default function ResultsCalendar() {
     const displayData = localDayData && (localDayData.date === selectedDate) ? localDayData : (selectedDate ? history[selectedDate] : null);
 
     return (
-        <div className="w-full max-w-7xl mx-auto px-4 pb-4 pt-0 md:px-8 md:pb-8 md:pt-0 space-y-8">
+        <div className="w-full max-w-7xl mx-auto px-4 pt-0 md:px-8 space-y-4 mb-4">
             {/* Header */}
-            {/* Header */}
-            {/* Header */}
-            <div className="text-center mb-8 relative z-10">
+            <div className="text-center mb-6 relative z-10">
                 <h2 className="text-3xl md:text-4xl font-black mb-3 tracking-tighter">
                     <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400">Resultados</span> <span className="text-white drop-shadow-[0_2px_10px_rgba(255,255,255,0.2)]">Históricos</span>
                 </h2>
-                <div className="w-24 h-1.5 bg-gradient-to-r from-violet-500 to-fuchsia-500 rounded-full mx-auto mb-4 animate-pulse" />
+                <div className="w-24 h-1.5 bg-gradient-to-r from-violet-500 to-fuchsia-500 rounded-full mx-auto mb-2 animate-pulse" />
                 <p className="text-muted-foreground/80 font-medium max-w-xl mx-auto text-sm md:text-base leading-relaxed">
-                    Transparencia total. Revisa cada día, cada apuesta y cada resultado. Sin filtros.
+                    Transparencia total. Sin filtros.
                 </p>
             </div>
 
-            <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+            {/* COMPACT ROW: Month Selector + Balance */}
+            <div className="flex flex-col md:flex-row justify-between items-center gap-3">
                 {/* MONTH SELECTOR */}
-                <div className="flex items-center gap-4 bg-secondary/20 p-1.5 rounded-full border border-white/5 relative z-10">
+                <div className="flex-1 w-full md:w-auto flex items-center justify-between md:justify-center gap-4 bg-secondary/20 p-1.5 rounded-full border border-white/5 relative z-10 h-14">
                     <button
                         onClick={prevMonth}
                         className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/70 hover:text-white"
                     >
                         <ChevronLeft size={20} />
                     </button>
-                    <span className="text-sm font-bold w-40 text-center uppercase tracking-wider">
+                    <span className="text-sm font-bold text-center uppercase tracking-wider flex-1">
                         {currentDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
                     </span>
                     <button
@@ -709,17 +708,16 @@ export default function ResultsCalendar() {
                     </button>
                 </div>
 
-                <div className="flex items-center gap-4 px-8 py-4 bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 border border-violet-500/20 rounded-2xl md:ml-auto shadow-lg shadow-violet-900/10 w-full md:w-auto justify-between md:justify-start">
-                    <div className="flex items-center gap-4">
-                        <div className="p-3 bg-violet-500/20 rounded-xl text-violet-400 border border-violet-500/30">
-                            <TrendingUp size={28} />
-                        </div>
-                        <div>
-                            <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest mb-0.5">Balance Mensual</p>
-                            <p className={`text-3xl font-black tracking-tight ${stats && (Number(stats.total_profit) >= 0) ? 'text-emerald-400 drop-shadow-[0_0_15px_rgba(52,211,153,0.3)]' : 'text-rose-400 drop-shadow-[0_0_15px_rgba(251,113,133,0.3)]'}`}>
-                                {stats ? (Number(stats.total_profit) > 0 ? '+' : '') + Number(stats.total_profit).toFixed(2) : '0.00'} u
-                            </p>
-                        </div>
+                {/* BALANCE CARD (Compact) */}
+                <div className="flex-1 w-full md:w-auto flex items-center justify-center gap-4 px-6 py-1.5 bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 border border-violet-500/20 rounded-2xl shadow-lg shadow-violet-900/10 h-14">
+                    <div className="p-2 bg-violet-500/20 rounded-lg text-violet-400 border border-violet-500/30">
+                        <TrendingUp size={20} />
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                        <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Balance:</span>
+                        <p className={`text-2xl font-black tracking-tight ${stats && (Number(stats.total_profit) >= 0) ? 'text-emerald-400 drop-shadow-[0_0_15px_rgba(52,211,153,0.3)]' : 'text-rose-400 drop-shadow-[0_0_15px_rgba(251,113,133,0.3)]'}`}>
+                            {stats ? (Number(stats.total_profit) > 0 ? '+' : '') + Number(stats.total_profit).toFixed(2) : '0.00'} u
+                        </p>
                     </div>
                 </div>
             </div>

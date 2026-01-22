@@ -1,39 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Send, CheckCircle2, Clock, CalendarDays, ExternalLink, RefreshCw, Save, Edit3, X, ChevronDown } from 'lucide-react';
-
-// Collapsible Section Helper
-const CollapsibleSection = ({ title, children, isOpen, onToggle, defaultOpen = false }: { title: string, children: React.ReactNode, isOpen: boolean, onToggle: () => void, defaultOpen?: boolean }) => {
-    return (
-        <div className="border border-white/10 rounded-xl overflow-hidden bg-white/5 my-2 relative z-30 transition-all duration-300">
-            <button
-                onClick={(e) => {
-                    e.stopPropagation();
-                    onToggle();
-                }}
-                className="w-full flex items-center justify-between p-3 cursor-pointer hover:bg-white/5 transition-colors select-none"
-                type="button"
-            >
-                <div className="flex items-center gap-2">
-                    <div className="h-4 w-1 bg-sky-500 rounded-full" />
-                    <span className="text-xs font-bold uppercase tracking-widest text-white/70">
-                        {title}
-                    </span>
-                </div>
-                <div className="text-muted-foreground/70">
-                    <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
-                </div>
-            </button>
-
-            {isOpen && (
-                <div className="p-3 border-t border-white/10 animate-in slide-in-from-top-1 duration-200">
-                    {children}
-                </div>
-            )}
-        </div>
-    );
-};
+import { Send, CheckCircle2, Clock, CalendarDays, ExternalLink, RefreshCw, Save, Edit3, X, ChevronDown, BarChart3, AlertCircle } from 'lucide-react';
 
 type TelegramMsg = {
     id: string;
@@ -58,6 +26,42 @@ export default function TelegramAdmin({ readOnly }: { readOnly?: boolean }) {
 
     // Logic for Syncing
     const [isSyncing, setIsSyncing] = useState(false);
+    const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+
+
+    // Confirm Modal State
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        description: string;
+        onConfirm: () => void;
+        isDestructive?: boolean;
+        confirmText?: string;
+    }>({
+        isOpen: false,
+        title: "",
+        description: "",
+        onConfirm: () => { },
+        isDestructive: false,
+        confirmText: "Continuar"
+    });
+
+    const closeConfirm = () => setConfirmModal(prev => ({ ...prev, isOpen: false }));
+
+    const confirmAction = (title: string, description: string, action: () => void, isDestructive = false) => {
+        setConfirmModal({
+            isOpen: true,
+            title,
+            description,
+            onConfirm: () => {
+                closeConfirm();
+                action();
+            },
+            isDestructive,
+            confirmText: "Continuar"
+        });
+    };
+
 
     const fetchData = async () => {
         setLoading(true);
@@ -74,9 +78,7 @@ export default function TelegramAdmin({ readOnly }: { readOnly?: boolean }) {
         }
     };
 
-    const handleSync = async () => {
-        if (!confirm("Esto regenerará los mensajes a partir del análisis actual, sobrescribiendo cambios no guardados en el día de hoy. ¿Continuar?")) return;
-
+    const handleSyncLogic = async () => {
         setIsSyncing(true);
         try {
             const today = new Date().toISOString().split('T')[0];
@@ -97,6 +99,37 @@ export default function TelegramAdmin({ readOnly }: { readOnly?: boolean }) {
             setIsSyncing(false);
         }
     }
+
+    const handleSync = () => {
+        confirmAction(
+            "¿Sincronizar Análisis?",
+            "Esto regenerará los mensajes a partir del análisis actual, sobrescribiendo cambios no guardados en el día de hoy.",
+            handleSyncLogic,
+            true // Destructive
+        );
+    };
+
+    const handleGenerateReport = async () => {
+        setIsGeneratingReport(true);
+        try {
+            const today = new Date().toISOString().split('T')[0];
+            const res = await fetch('/api/telegram/add-monthly-report', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ date: today })
+            });
+            const json = await res.json();
+            if (res.ok && json.success) {
+                await fetchData();
+            } else {
+                alert("Error: " + (json.error || "Desconocido"));
+            }
+        } catch (e) {
+            alert("Error de red");
+        } finally {
+            setIsGeneratingReport(false);
+        }
+    };
 
     useEffect(() => {
         fetchData();
@@ -126,10 +159,20 @@ export default function TelegramAdmin({ readOnly }: { readOnly?: boolean }) {
                 // Optimistic Update
                 if (data) {
                     const newData = { ...data };
-                    const idx = newData[date].findIndex(x => x.id === item.id);
-                    if (idx !== -1) {
-                        newData[date][idx].mensaje = editValue;
-                        setData(newData);
+                    // If date is 'REPORT', we need to check where it came from. 
+                    // Reports are in the data object under their real date.
+                    // But our 'update' api expects the 'key' in Redis which is usually the date.
+                    // If 'REPORT' is passed as date key, it's virtual. We must find real date.
+                    // Wait, the API needs the date KEY in `telegram_store`.
+                    // The 'item' knows its parent date in our loop? No.
+                    const realDate = date === 'REPORT' ? Object.keys(data).find(d => data[d].some(i => i.id === item.id)) : date;
+
+                    if (realDate) {
+                        const idx = newData[realDate].findIndex(x => x.id === item.id);
+                        if (idx !== -1) {
+                            newData[realDate][idx].mensaje = editValue;
+                            setData(newData);
+                        }
                     }
                 }
                 setEditingId(null);
@@ -143,25 +186,28 @@ export default function TelegramAdmin({ readOnly }: { readOnly?: boolean }) {
         }
     };
 
-    const handleSend = async (date: string, item: TelegramMsg) => {
-        if (!confirm("¿Enviar este mensaje al Canal de Telegram?")) return;
-
+    const handleSendLogic = async (date: string, item: TelegramMsg, includeAnalysis: boolean) => {
         setSendingId(item.id);
         try {
+            // Find real date if coming from REPORT view
+            const realDate = date === 'REPORT' && data
+                ? Object.keys(data).find(d => data[d].some(i => i.id === item.id)) || date
+                : date;
+
             const res = await fetch('/api/telegram/send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ date, id: item.id })
+                body: JSON.stringify({ date: realDate, id: item.id, includeAnalysis })
             });
             const answer = await res.json();
 
             if (res.ok && answer.success) {
                 // Optimistic Update
-                if (data) {
+                if (data && realDate) {
                     const newData = { ...data };
-                    const idx = newData[date].findIndex(x => x.id === item.id);
+                    const idx = newData[realDate].findIndex(x => x.id === item.id);
                     if (idx !== -1) {
-                        newData[date][idx].enviado = true;
+                        newData[realDate][idx].enviado = true;
                         setData(newData);
                     }
                 }
@@ -174,6 +220,15 @@ export default function TelegramAdmin({ readOnly }: { readOnly?: boolean }) {
             setSendingId(null);
         }
     };
+
+    const handleSend = (date: string, item: TelegramMsg, includeAnalysis: boolean) => {
+        confirmAction(
+            "¿Enviar a Telegram?",
+            "Esta acción publicará el mensaje inmediatamente en el canal oficial. ¿Estás seguro de que quieres enviarlo?",
+            () => handleSendLogic(date, item, includeAnalysis),
+            false
+        );
+    }
 
     // Color Helpers
     const getCardColor = (type: string) => {
@@ -212,19 +267,126 @@ export default function TelegramAdmin({ readOnly }: { readOnly?: boolean }) {
                         </button>
                     </div>
                 )}
+                {/* Modal Render just in case */}
+                <ConfirmationModal
+                    isOpen={confirmModal.isOpen}
+                    title={confirmModal.title}
+                    description={confirmModal.description}
+                    onConfirm={confirmModal.onConfirm}
+                    onCancel={closeConfirm}
+                    isDestructive={confirmModal.isDestructive}
+                    confirmText={confirmModal.confirmText}
+                />
             </div>
         );
     }
 
+    // Extract Monthly Reports
+    const allReports: { date: string, item: TelegramMsg }[] = [];
+    let availableDates: string[] = [];
+
+    // Parse Data Logic
+    Object.entries(data).forEach(([date, items]) => {
+        items.forEach(item => {
+            if (item.bet_type_key === 'monthly_report') {
+                allReports.push({ date, item });
+            }
+        });
+        if (items.some(i => i.bet_type_key !== 'monthly_report')) {
+            availableDates.push(date);
+        }
+    });
+
+    // Sort
+    allReports.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    availableDates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+
+    // Get Only Latest Report
+    const latestReport = allReports.length > 0 ? allReports[0] : null;
+
+    // Build Tab List: [REPORT?] + [Dates]
+    // If there is ANY report, we show the REPORT tab. But user said "only the last one".
+    // We already found 'latestReport'.
+    const hasReport = !!latestReport;
+
     return (
-        <div className="max-w-3xl mx-auto space-y-8 pb-10">
+        <DateSelectorWrapper
+            data={data}
+            latestReport={latestReport}
+            availableDates={availableDates}
+            readOnly={readOnly}
+            loading={loading}
+            // Pass logic functions
+            fetchData={fetchData}
+            handleSync={handleSync}
+            handleSend={handleSend}
+            handleGenerateReport={handleGenerateReport}
+            isSyncing={isSyncing}
+            isGeneratingReport={isGeneratingReport}
+            // Edit logic
+            editingId={editingId}
+            editValue={editValue}
+            setEditValue={setEditValue}
+            handleEditStart={handleEditStart}
+            handleEditCancel={handleEditCancel}
+            handleEditSave={handleEditSave}
+            sendingId={sendingId}
+            isSaving={isSaving}
+            getCardColor={getCardColor}
+            confirmModal={confirmModal}
+            closeConfirm={closeConfirm}
+            hasReport={hasReport}
+        />
+    );
+}
+
+// Wrapper to manage date state cleanly without conditional hook errors
+function DateSelectorWrapper({
+    data, latestReport, availableDates, readOnly, loading,
+    fetchData, handleSync, handleSend, handleGenerateReport,
+    isSyncing, isGeneratingReport,
+    editingId, editValue, setEditValue, handleEditStart, handleEditCancel, handleEditSave,
+    sendingId, isSaving, getCardColor,
+    confirmModal, closeConfirm, hasReport
+}: any) {
+    const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+    // Initial Selection
+    useEffect(() => {
+        if (!selectedDate) {
+            const today = new Date().toISOString().split('T')[0];
+            if (availableDates.includes(today)) {
+                setSelectedDate(today);
+            } else if (availableDates.length > 0) {
+                setSelectedDate(availableDates[0]);
+            } else if (hasReport) {
+                setSelectedDate('REPORT');
+            }
+        }
+    }, [availableDates, selectedDate, hasReport]);
+
+    return (
+        <div className="max-w-6xl mx-auto space-y-6 pb-10">
             {!readOnly && (
-                <div className="flex items-center justify-between bg-black/20 p-4 rounded-2xl border border-white/5 backdrop-blur-sm sticky top-0 z-10">
+                <div className="flex items-center justify-between bg-black/20 p-4 rounded-2xl border border-white/5 backdrop-blur-sm sticky top-0 z-10 w-full shadow-xl shadow-black/20">
                     <h3 className="text-xl font-bold text-white flex items-center gap-2">
                         <Send className="text-sky-400" />
                         Gestor Telegram
                     </h3>
                     <div className="flex items-center gap-2">
+                        {/* Report Generator is now accessible mainly if no report? or explicitly? */}
+                        {/* We can keep it here for manual generation/update */}
+                        <button
+                            onClick={handleGenerateReport}
+                            disabled={isGeneratingReport}
+                            className="p-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-lg border border-indigo-500/20 transition"
+                            title="Generar/Actualizar Reporte Mensual"
+                        >
+                            {isGeneratingReport ? <RefreshCw className="animate-spin" size={18} /> : <BarChart3 size={18} />}
+                        </button>
+
+                        <div className="h-6 w-px bg-white/10 mx-1" />
+
                         <button
                             onClick={handleSync}
                             disabled={isSyncing}
@@ -244,140 +406,89 @@ export default function TelegramAdmin({ readOnly }: { readOnly?: boolean }) {
                 </div>
             )}
 
-            {Object.entries(data).map(([date, items]) => {
-                const reportItems = items.filter(i => i.bet_type_key === 'monthly_report');
-                const betItems = items.filter(i => i.bet_type_key !== 'monthly_report');
+            {/* MAIN SELECTOR TABS (Dates + Report) */}
+            <div className="space-y-4">
+                <div className="flex items-center gap-2 px-2">
+                    <Clock className="text-emerald-400" size={18} />
+                    <h4 className="text-sm font-bold text-white/70 uppercase tracking-widest">
+                        Gestor de Contenido
+                    </h4>
+                </div>
 
-                return (
-                    <DailyGroup
-                        key={date}
-                        date={date}
-                        reportItems={reportItems}
-                        betItems={betItems}
-                        readOnly={readOnly}
-                        editingId={editingId}
-                        editValue={editValue}
-                        setEditValue={setEditValue}
-                        handleEditStart={handleEditStart}
-                        handleEditCancel={handleEditCancel}
-                        handleEditSave={handleEditSave}
-                        handleSend={handleSend}
-                        sendingId={sendingId}
-                        isSaving={isSaving}
-                        getCardColor={getCardColor}
-                    />
-                );
-            })}
-        </div>
-    );
-}
-
-// Extracted Component for Per-Day State
-function DailyGroup({
-    date, reportItems, betItems, readOnly,
-    editingId, editValue, setEditValue,
-    handleEditStart, handleEditCancel, handleEditSave, handleSend,
-    sendingId, isSaving, getCardColor
-}: any) {
-    const [isBetsOpen, setIsBetsOpen] = useState(true);
-    const [isReportsOpen, setIsReportsOpen] = useState(true);
-    const [isGeneratingReport, setIsGeneratingReport] = useState(false);
-    const isToday = date === new Date().toISOString().split('T')[0];
-
-    const handleGenerateReport = async () => {
-        setIsGeneratingReport(true);
-        try {
-            const res = await fetch('/api/telegram/add-monthly-report', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ date })
-            });
-            const json = await res.json();
-            if (res.ok && json.success) {
-                window.location.reload();
-            } else {
-                alert("Error: " + (json.error || "Desconocido"));
-            }
-        } catch (e) {
-            alert("Error de red");
-        } finally {
-            setIsGeneratingReport(false);
-        }
-    };
-
-    return (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 mb-8">
-            <div className="flex items-center gap-2 mb-4 px-2">
-                <CalendarDays className="text-sky-400" size={18} />
-                <h4 className="text-lg font-bold text-white/90 capitalize">
-                    {new Date(date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
-                </h4>
-                {isToday && (
-                    <span className="bg-sky-500/20 text-sky-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-sky-500/30">
-                        HOY
-                    </span>
-                )}
-            </div>
-
-            {/* SECTION: MONTHLY REPORTS */}
-            {(isToday || reportItems.length > 0) && (
-                <CollapsibleSection
-                    title="Estadísticas Mensuales"
-                    isOpen={isReportsOpen}
-                    onToggle={() => setIsReportsOpen(!isReportsOpen)}
-                >
-                    {reportItems.length > 0 ? (
-                        <div className="grid grid-cols-1 gap-4">
-                            {reportItems.map((item: any) => (
-                                <TelegramCard
-                                    key={item.id}
-                                    item={item}
-                                    date={date}
-                                    readOnly={readOnly}
-                                    editingId={editingId}
-                                    editValue={editValue}
-                                    setEditValue={setEditValue}
-                                    handleEditStart={handleEditStart}
-                                    handleEditCancel={handleEditCancel}
-                                    handleEditSave={handleEditSave}
-                                    handleSend={handleSend}
-                                    sendingId={sendingId}
-                                    isSaving={isSaving}
-                                    getCardColor={getCardColor}
-                                />
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center py-6 gap-3 bg-white/5 rounded-lg border border-white/5 border-dashed">
-                            <p className="text-xs text-white/40 italic">No hay reporte generado aún.</p>
-                            {!readOnly && (
-                                <button
-                                    onClick={handleGenerateReport}
-                                    disabled={isGeneratingReport}
-                                    className="px-3 py-1.5 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-400 border border-indigo-500/30 rounded-lg text-xs font-bold transition flex items-center gap-2"
-                                >
-                                    {isGeneratingReport ? <RefreshCw className="animate-spin" size={12} /> : <RefreshCw size={12} />}
-                                    Generar Reporte Mensual
-                                </button>
+                <div className="flex items-center gap-2 overflow-x-auto pb-4 scrollbar-hide pt-2 px-1">
+                    {/* REPORT TAB */}
+                    {hasReport && (
+                        <button
+                            onClick={() => setSelectedDate('REPORT')}
+                            className={`
+                                flex flex-col items-center justify-center px-4 py-2 rounded-xl border transition-all min-w-[80px] hover:scale-105 active:scale-95 duration-200
+                                ${selectedDate === 'REPORT'
+                                    ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-400 shadow-[0_0_15px_-3px_rgba(99,102,241,0.3)]'
+                                    : 'bg-white/5 border-white/5 text-white/50 hover:bg-white/10 hover:text-white/80'
+                                }
+                            `}
+                        >
+                            <span className="text-[9px] font-bold uppercase tracking-wider mb-1">
+                                REPORTE
+                            </span>
+                            <BarChart3 size={20} />
+                            {latestReport.item.enviado && (
+                                <div className="absolute top-1 right-1 w-1.5 h-1.5 bg-emerald-500 rounded-full" />
                             )}
-                        </div>
+                        </button>
                     )}
-                </CollapsibleSection>
-            )}
 
-            {/* SECTION: DAILY BETS */}
-            {betItems.length > 0 && (
-                <CollapsibleSection
-                    title="Apuestas del Día"
-                    isOpen={isBetsOpen}
-                    onToggle={() => setIsBetsOpen(!isBetsOpen)}
-                >
-                    <div className="grid grid-cols-1 gap-4">
-                        {betItems.map((item: any) => (
+                    {/* DATE TABS */}
+                    {availableDates.map((date: string) => {
+                        const isSelected = selectedDate === date;
+                        const isToday = date === new Date().toISOString().split('T')[0];
+                        const dateObj = new Date(date);
+
+                        return (
+                            <button
+                                key={date}
+                                onClick={() => setSelectedDate(date)}
+                                className={`
+                                    flex flex-col items-center justify-center px-4 py-2 rounded-xl border transition-all min-w-[80px] hover:scale-105 active:scale-95 duration-200 relative
+                                    ${isSelected
+                                        ? 'bg-sky-500/20 border-sky-500/50 text-sky-400 shadow-[0_0_15px_-3px_rgba(14,165,233,0.3)]'
+                                        : 'bg-white/5 border-white/5 text-white/50 hover:bg-white/10 hover:text-white/80'
+                                    }
+                                 `}
+                            >
+                                <span className="text-[10px] font-bold uppercase">
+                                    {dateObj.toLocaleDateString('es-ES', { weekday: 'short' })}
+                                </span>
+                                <span className="text-lg font-bold leading-none">
+                                    {dateObj.getDate()}
+                                </span>
+                                {isToday && (
+                                    <span className="absolute -top-2 bg-sky-500 text-white text-[8px] px-1.5 py-0.5 rounded-full font-bold shadow-lg shadow-sky-500/20">
+                                        HOY
+                                    </span>
+                                )}
+                            </button>
+                        );
+                    })}
+
+                    {availableDates.length === 0 && !hasReport && (
+                        <div className="text-xs text-white/30 px-4">No hay contenido disponible</div>
+                    )}
+                </div>
+
+                {/* CONTENT AREA */}
+                <div className="animate-in fade-in slide-in-from-right-4 duration-300 min-h-[300px]">
+
+                    {/* CASE 1: SHOW REPORT */}
+                    {selectedDate === 'REPORT' && latestReport && (
+                        <div className="max-w-xl mx-auto mt-8">
+                            <div className="flex items-center justify-center gap-2 mb-4 text-indigo-400 opacity-80">
+                                <BarChart3 size={16} />
+                                <span className="text-xs font-bold uppercase tracking-widest">Vista Previa del Reporte Mensual</span>
+                            </div>
                             <TelegramCard
-                                key={item.id}
-                                item={item}
-                                date={date}
+                                item={latestReport.item}
+                                date={latestReport.date}
                                 readOnly={readOnly}
                                 editingId={editingId}
                                 editValue={editValue}
@@ -385,18 +496,105 @@ function DailyGroup({
                                 handleEditStart={handleEditStart}
                                 handleEditCancel={handleEditCancel}
                                 handleEditSave={handleEditSave}
-                                handleSend={handleSend}
+                                handleSendClick={handleSend}
                                 sendingId={sendingId}
                                 isSaving={isSaving}
                                 getCardColor={getCardColor}
                             />
-                        ))}
-                    </div>
-                </CollapsibleSection>
-            )}
+                            <p className="text-center text-white/20 text-[10px] mt-4 max-w-sm mx-auto">
+                                Este es el reporte más reciente generado. Puedes editarlo o enviarlo desde aquí.
+                            </p>
+                        </div>
+                    )}
 
-            {(betItems.length === 0 && reportItems.length === 0 && !isToday) && (
-                <div className="text-center p-4 text-white/20 italic text-xs">Sin mensajes generados</div>
+                    {/* CASE 2: SHOW DAY */}
+                    {selectedDate && selectedDate !== 'REPORT' && data[selectedDate] && (
+                        <DailyGroup
+                            date={selectedDate}
+                            betItems={data[selectedDate].filter((i: any) => i.bet_type_key !== 'monthly_report')}
+                            readOnly={readOnly}
+                            editingId={editingId}
+                            editValue={editValue}
+                            setEditValue={setEditValue}
+                            handleEditStart={handleEditStart}
+                            handleEditCancel={handleEditCancel}
+                            handleEditSave={handleEditSave}
+                            handleSendClick={handleSend}
+                            sendingId={sendingId}
+                            isSaving={isSaving}
+                            getCardColor={getCardColor}
+                        />
+                    )}
+                </div>
+            </div>
+
+            <ConfirmationModal
+                isOpen={confirmModal.isOpen}
+                title={confirmModal.title}
+                description={confirmModal.description}
+                onConfirm={confirmModal.onConfirm}
+                onCancel={closeConfirm}
+                isDestructive={confirmModal.isDestructive}
+                confirmText={confirmModal.confirmText}
+            />
+        </div>
+    );
+}
+
+// SIMPLIFIED COMPONENT FOR PER-DAY STATE (Only Bets)
+function DailyGroup({
+    date, betItems, readOnly,
+    editingId, editValue, setEditValue,
+    handleEditStart, handleEditCancel, handleEditSave, handleSendClick,
+    sendingId, isSaving, getCardColor
+}: any) {
+    const isToday = date === new Date().toISOString().split('T')[0];
+
+    return (
+        <div className="bg-white/5 rounded-2xl border border-white/5 p-4 min-h-[200px]">
+            <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-2">
+                <div className="flex items-center gap-3">
+                    <CalendarDays className="text-sky-400" size={20} />
+                    <h4 className="text-lg font-bold text-white/90 capitalize">
+                        {new Date(date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
+                    </h4>
+                </div>
+                {isToday && (
+                    <span className="bg-sky-500/20 text-sky-400 text-[10px] font-bold px-3 py-1 rounded-full border border-sky-500/30">
+                        VISTA DE HOY
+                    </span>
+                )}
+            </div>
+
+            {/* ONLY BETS - NO COLUMNS, JUST GRID OF CARDS */}
+            {betItems.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {betItems.map((item: any) => (
+                        <TelegramCard
+                            key={item.id}
+                            item={item}
+                            date={date}
+                            readOnly={readOnly}
+                            editingId={editingId}
+                            editValue={editValue}
+                            setEditValue={setEditValue}
+                            handleEditStart={handleEditStart}
+                            handleEditCancel={handleEditCancel}
+                            handleEditSave={handleEditSave}
+                            handleSendClick={handleSendClick}
+                            sendingId={sendingId}
+                            isSaving={isSaving}
+                            getCardColor={getCardColor}
+                        />
+                    ))}
+                </div>
+            ) : (
+                <div className="flex flex-col items-center justify-center h-[150px] text-white/30 gap-2">
+                    <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center">
+                        <Clock size={18} />
+                    </div>
+                    <span className="text-xs uppercase font-bold tracking-wider">Sin Apuestas para este día</span>
+                </div>
             )}
         </div>
     );
@@ -406,28 +604,42 @@ function DailyGroup({
 function TelegramCard({
     item, date, readOnly,
     editingId, editValue, setEditValue,
-    handleEditStart, handleEditCancel, handleEditSave, handleSend,
+    handleEditStart, handleEditCancel, handleEditSave, handleSendClick,
     sendingId, isSaving, getCardColor
 }: any) {
     const isEditing = editingId === item.id;
+    const [showAnalysis, setShowAnalysis] = useState(false); // Default unchecked
+
+    const displayMessage = showAnalysis
+        ? item.mensaje
+        : (item.mensaje.includes('🧠') ? item.mensaje.split('🧠')[0].trim() : item.mensaje);
 
     return (
-        <div className={`relative group p-3 md:p-4 rounded-xl border bg-gradient-to-br transition-all hover:border-opacity-50 ${getCardColor(item.bet_type_key)}`}>
-            {/* Header */}
+        <div className={`relative group p-3 md:p-3 rounded-xl border bg-gradient-to-br transition-all hover:border-opacity-50 ${getCardColor(item.bet_type_key)}`}>
+            {/* Header Compact - Now includes Edit Button */}
             <div className="flex items-center justify-between mb-2">
-                <h5 className="font-bold text-white/90 tracking-tight text-sm flex items-center gap-2">
-                    {item.tipo}
-                </h5>
+                <div className="flex items-center gap-2">
+                    <div className={`w-1.5 h-1.5 rounded-full ${item.enviado ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                    <h5 className="font-bold text-white/90 tracking-tight text-xs truncate max-w-[150px]">
+                        {item.tipo}
+                    </h5>
+
+                    {/* Move Edit Button Here (Top Leftish next to title) */}
+                    {!readOnly && !item.enviado && !isEditing && (
+                        <button
+                            onClick={() => handleEditStart(item)}
+                            className="p-1 text-white/30 hover:text-white transition opacity-0 group-hover:opacity-100"
+                            title="Editar mensaje"
+                        >
+                            <Edit3 size={12} />
+                        </button>
+                    )}
+                </div>
+
                 {item.enviado ? (
-                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold">
-                        <CheckCircle2 size={12} />
-                        ENVIADO
-                    </div>
+                    <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider opacity-60">Enviado</span>
                 ) : (
-                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-500/70 text-[10px] font-bold">
-                        <Clock size={12} />
-                        PENDIENTE
-                    </div>
+                    <span className="text-[9px] font-bold text-amber-500 uppercase tracking-wider opacity-60">Pendiente</span>
                 )}
             </div>
 
@@ -437,7 +649,7 @@ function TelegramCard({
                     <textarea
                         value={editValue}
                         onChange={(e) => setEditValue(e.target.value)}
-                        className="w-full h-[200px] bg-black/40 border border-white/10 rounded-lg p-3 text-xs font-mono text-white focus:outline-none focus:border-white/20 resize-y"
+                        className="w-full h-[120px] bg-black/40 border border-white/10 rounded-lg p-2 text-[11px] font-mono text-white focus:outline-none focus:border-white/20 resize-y custom-scrollbar"
                     />
                     <div className="flex justify-end gap-2 mt-2">
                         <button
@@ -458,52 +670,53 @@ function TelegramCard({
                 </div>
             ) : (
                 <div className="relative group/text">
-                    <div className="bg-transparent rounded-lg p-0 font-mono text-xs text-gray-300 whitespace-pre-wrap leading-relaxed mb-3">
-                        {item.mensaje}
+                    <div className="bg-black/20 rounded-lg p-2 font-mono text-[11px] text-gray-300 w-full mb-2 max-h-[140px] overflow-y-auto custom-scrollbar leading-relaxed">
+                        <div className="whitespace-pre-wrap">{displayMessage}</div>
                     </div>
-                    {!readOnly && !item.enviado && (
-                        <button
-                            onClick={() => handleEditStart(item)}
-                            className="absolute -top-1 -right-1 p-1.5 text-white/40 hover:text-white transition"
-                        >
-                            <Edit3 size={12} />
-                        </button>
-                    )}
                 </div>
             )}
 
-            {/* Actions */}
-            {!readOnly && (
-                <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/5">
-                    <button
-                        disabled={true}
-                        className="hidden md:flex items-center gap-1.5 text-[10px] font-bold text-white/30 px-2 py-1.5"
-                    >
-                        <ExternalLink size={12} /> Vista Previa
-                    </button>
+            {/* Show Analysis Checkbox - Condition: NOT monthly report (it always shows full) */}
+            {!readOnly && item.bet_type_key !== 'monthly_report' && (
+                <div className="flex items-center gap-2 mb-2 px-1">
+                    <input
+                        type="checkbox"
+                        id={`check-${item.id}`}
+                        checked={showAnalysis}
+                        onChange={(e) => setShowAnalysis(e.target.checked)}
+                        className="w-3 h-3 rounded border-white/20 bg-white/5 text-sky-500 focus:ring-sky-500/20 cursor-pointer"
+                    />
+                    <label htmlFor={`check-${item.id}`} className="text-[10px] font-bold text-white/50 cursor-pointer select-none">
+                        Mostrar análisis
+                    </label>
+                </div>
+            )}
 
+            {/* Compact Actions */}
+            {!readOnly && (
+                <div className="flex items-center justify-end gap-2">
                     <button
-                        onClick={() => handleSend(date, item)}
+                        onClick={() => handleSendClick(date, item, showAnalysis)} // Pass checkbox state
                         disabled={item.enviado || (sendingId !== null && sendingId !== item.id) || (editingId !== null && editingId !== item.id)}
                         className={`
-                            flex items-center gap-1.5 px-4 py-1.5 rounded-lg font-bold text-xs transition-all
+                            flex items-center gap-1.5 px-3 py-1 rounded-md font-bold text-[10px] transition-all w-full justify-center
                             ${item.enviado
-                                ? 'bg-emerald-500/10 text-emerald-500/50 cursor-not-allowed'
-                                : 'bg-white/10 hover:bg-white/20 text-white'
+                                ? 'bg-emerald-500/5 text-emerald-500/30 cursor-not-allowed border border-emerald-500/10'
+                                : 'bg-white/5 hover:bg-white/10 text-white border border-white/10 hover:border-white/20'
                             }
                         `}
                     >
                         {sendingId === item.id ? (
                             <>
-                                <RefreshCw className="animate-spin" size={12} /> Enviando...
+                                <RefreshCw className="animate-spin" size={10} /> Enviando...
                             </>
                         ) : item.enviado ? (
                             <>
-                                Enviado <CheckCircle2 size={12} />
+                                <CheckCircle2 size={10} /> Enviado
                             </>
                         ) : (
                             <>
-                                <Send size={12} /> Enviar a BetAiMaster
+                                <Send size={10} /> Enviar Telegram
                             </>
                         )}
                     </button>
@@ -512,3 +725,36 @@ function TelegramCard({
         </div>
     );
 }
+
+// Custom Confirmation Modal
+const ConfirmationModal = ({ isOpen, title, description, onConfirm, onCancel, confirmText = "Continuar", cancelText = "Cancelar", isDestructive = false }: any) => {
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl max-w-sm w-full p-6 shadow-2xl scale-100 animate-in zoom-in-95 duration-200 ring-1 ring-white/5">
+                <h3 className="text-lg font-bold text-white mb-2">{title}</h3>
+                <p className="text-sm text-zinc-400 mb-6 leading-relaxed">
+                    {description}
+                </p>
+                <div className="flex justify-end gap-3">
+                    <button
+                        onClick={onCancel}
+                        className="px-4 py-2 text-xs font-bold text-white/60 hover:text-white transition hover:bg-white/5 rounded-lg"
+                    >
+                        {cancelText}
+                    </button>
+                    <button
+                        onClick={onConfirm}
+                        className={`px-4 py-2 text-xs font-bold rounded-lg transition shadow-lg ${isDestructive
+                            ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-rose-500/20'
+                            : 'bg-sky-500 hover:bg-sky-600 text-white shadow-sky-500/20'
+                            }`}
+                    >
+                        {confirmText}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
