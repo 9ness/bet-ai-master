@@ -252,10 +252,15 @@ class SportsDataService:
         # Create empty structure with all expected keys as null
         empty = {}
         if sport == "football":
-            keys = ["1x2", "asian_handicap", "over_under", "ht_ft", "btts", 
+            keys = [
+                    "1x2", "asian_handicap", "over_under", "ht_ft", "btts", 
                     "double_chance", "corners", "total_shots_on_goal", 
                     "cards", "fouls", "result_total_goals", 
-                    "home_corners", "away_corners", "yellow_cards"]
+                    "home_corners", "away_corners", "yellow_cards",
+                    "home_total_goals", "away_total_goals", "asian_goal_line", 
+                    "goals_over_under_h1", "home_cards", "away_cards", 
+                    "player_total_shots", "player_anytime_scorer", "player_assist", 
+                    "exact_score", "own_goal"]
         else: # basketball
             keys = ["3way_result", "home_away", "asian_handicap", "over_under",
                     "over_under_1st_half", "double_chance", "result_q1", "ht_ft", 
@@ -283,8 +288,18 @@ class SportsDataService:
             if mid == 87: return "total_shots_on_goal"
             if mid == 153: return "yellow_cards"
             if mid == 173: return "fouls"
+            if mid == 16: return "home_total_goals"
+            if mid == 17: return "away_total_goals"
+            if mid == 50: return "asian_goal_line"
+            if mid == 6: return "goals_over_under_h1"
+            if mid == 82: return "home_cards"
+            if mid == 83: return "away_cards"
+            if mid == 215: return "player_total_shots"
+            if mid == 92: return "player_anytime_scorer"
+            if mid == 212: return "player_assist"
+            if mid == 10: return "exact_score"
+            if mid == 59: return "own_goal"
             
-            # BASKETBALL IDs
         # BASKETBALL IDs
         if sport == 'basketball':
             if mid == 1: return "3way_result"        # Gana Local/Empate/Visitante
