@@ -22,7 +22,8 @@ ESTRATEGIA DE SELECCIÓN:
   * Inteligencia: Busca la "Convergencia de Datos". Combina mercados de flujo (Doble Oportunidad/Hándicap) con mercados de volumen (Remates/Córneres) para crear una apuesta "VAR-Proof" que no dependa solo del acierto a gol.
 
 - VALUE (Stake 3 | Cuota 2.50 - 3.50):
-  * Foco en el "Edge": Detectar ineficiencias. Analiza el Marcador Exacto para validar mercados como "Ambos Marcan", "Goles por Equipo" o hándicaps ajustados. 
+  * Foco en el "Edge": Detectar ineficiencias. Analiza el Marcador Exacto para validar mercados como "Ambos Marcan", "Goles por Equipo" o hándicaps ajustados.
+  * PROHIBICIÓN DE HÍBRIDOS: Si decides que el valor está en combinar una victoria con un total de goles, ESTÁS OBLIGADO a separarlos en dos selecciones independientes. No uses mercados pre-combinados de la casa de apuestas.
 
 - FUNBET (Stake 1 | Cuota 10.0 - 20.0):
   * Acumulador de 5 a 8 selecciones. Cada cuota individual DEBE estar entre 1.10 y 1.50 estrictamente.
