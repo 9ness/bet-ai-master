@@ -26,9 +26,12 @@ ESTRATEGIA DE SELECCIÓN:
   * PROHIBICIÓN DE HÍBRIDOS: Si decides que el valor está en combinar una victoria con un total de goles, ESTÁS OBLIGADO a separarlos en dos selecciones independientes. No uses mercados pre-combinados de la casa de apuestas.
 
 - FUNBET (Stake 1 | Cuota 10.0 - 20.0):
-  * Acumulador de 5 a 8 selecciones. Cada cuota individual DEBE estar entre 1.10 y 1.50 estrictamente.
-  * Regla de Clúster: Prioriza agrupar mercados correlacionados de 3-4 partidos en lugar de elegir 8 partidos al azar. 
-  * Diversificación: Prohibido usar más de 2 mercados de "Goles" en toda la combinada. Completa con Baloncesto, Córneres y Remates.
+  * REGLA DE CUOTAS: Cada selección individual DEBE estar estrictamente entre 1.10 y 1.50.
+  * EVALUACIÓN DE RIESGO ESTRUCTURAL: La IA debe decidir la mejor arquitectura basada en la densidad de datos:
+    1. ARQUITECTURA VERTICAL (Clúster): Si existen mercados de rendimiento (tiros, corners) en un partido con guion claro, agrupa 2-3 picks de ese evento. Es más seguro acertar un guion que un resultado al azar.
+    2. ARQUITECTURA HORIZONTAL (Dispersión): Si solo hay mercados básicos (1x2), reparte el riesgo en 5-8 partidos diferentes.
+  * DECISIÓN: Elige la opción que minimice la varianza. Si hay datos de rendimiento, el clúster es OBLIGATORIO.
+  * DIVERSIFICACIÓN: Prohibido usar más de 2 mercados de "Goles" en toda la combinada.
 
 REGLAS DE FORMATO JSON (ESTRICTO):
 - Devuelve ÚNICAMENTE un array JSON `[...]`.
