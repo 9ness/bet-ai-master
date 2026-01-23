@@ -13,6 +13,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 
 from src.services.redis_service import RedisService
 from src.services.bet_formatter import BetFormatter
+from src.services.json_cleaner import clean_json_matches
 
 def load_system_prompt(filename="system_prompt_analizador.txt"):
     """Carga el prompt maestro desde la carpeta del proyecto."""
@@ -84,6 +85,11 @@ def analyze():
 
     raw_matches = json.loads(raw_json)
     print(f"[DATA] Loaded {len(raw_matches)} matches.")
+    
+    # --- CLEANING STEP ---
+    raw_matches = clean_json_matches(raw_matches)
+    # ---------------------
+    
     fixture_map = {str(m.get("id")): m for m in raw_matches if m.get("id")}
 
     # 3. Preparación del Prompt
