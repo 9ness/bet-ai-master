@@ -60,11 +60,18 @@ class BetFormatter:
         
         # Dictionary Translation
         for eng, esp in self.PICK_TRANSLATIONS.items():
-            if eng in p: # Case sensitive matching for simple map
-                p = p.replace(eng, esp)
-            elif eng.lower() in p.lower(): # Case insensitive check
-                pattern = re.compile(re.escape(eng), re.IGNORECASE)
-                p = pattern.sub(esp, p)
+            # Always use word boundaries to avoid corruption (e.g. "Hannover" -> "HannMás de")
+            # Escape the key safely
+            pattern_str = r'\b' + re.escape(eng) + r'\b'
+            
+            # Use appropriate case sensitivity based on whether the key was capitalized in the manual check
+            # Though realistically, IGNORECASE is usually safer for all these betting terms as long as we have boundaries.
+            # Let's stick to the previous logic's intent but robust:
+            
+            if eng in p:
+                 p = re.sub(pattern_str, esp, p)
+            elif eng.lower() in p.lower():
+                 p = re.sub(pattern_str, esp, p, flags=re.IGNORECASE)
                 
         # Final cleanup for " or " -> " o " in general if skipped
         p = p.replace(" or ", " o ")

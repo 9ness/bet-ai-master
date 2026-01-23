@@ -132,8 +132,11 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         else if (displayPick.startsWith("2 ") || displayPick === "2") displayPick = teams[1] || "Visitante";
         else if (displayPick.startsWith("x ") || displayPick === "x") displayPick = "Empate";
         else {
-            displayPick = displayPick.replace(/Apuesta/gi, "").replace(/Gana/gi, "").replace(/\(.*\)/g, "").replace(/AH/g, "Hándicap").trim();
+            displayPick = displayPick.replace(/Apuesta/gi, "").replace(/Gana/gi, "").replace(/\(.*\)/g, "").replace(/\bAH\b/gi, "Hándicap").trim();
             displayPick = displayPick.replace(/\blocal\b/gi, teams[0] || "Local").replace(/\bvisitante\b/gi, teams[1] || "Visitante");
+
+            // Capitalize first letter
+            displayPick = displayPick.charAt(0).toUpperCase() + displayPick.slice(1);
         }
         return { match: displayMatch, pick: displayPick };
     };

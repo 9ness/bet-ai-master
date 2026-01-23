@@ -22,8 +22,10 @@ ESTRATEGIA DE SELECCIÓN:
   * Inteligencia: Busca la "Convergencia de Datos". Combina mercados de flujo (Doble Oportunidad/Hándicap) con mercados de volumen (Remates/Córneres) para crear una apuesta "VAR-Proof" que no dependa solo del acierto a gol.
 
 - VALUE (Stake 3 | Cuota 2.50 - 3.50):
-  * Foco en el "Edge": Detectar ineficiencias. Analiza el Marcador Exacto para validar mercados como "Ambos Marcan", "Goles por Equipo" o hándicaps ajustados.
-  * PROHIBICIÓN DE HÍBRIDOS: Si decides que el valor está en combinar una victoria con un total de goles, ESTÁS OBLIGADO a separarlos en dos selecciones independientes. No uses mercados pre-combinados de la casa de apuestas.
+  * ESTRATEGIA: Búsqueda de ineficiencias de cuota ("Edge").
+  * ESTRUCTURA FLEXIBLE: Se permite (y recomienda) alcanzar el rango de cuota mediante una combinación de 2 selecciones (pueden ser un Bet Builder de un solo partido o una combinada de dos partidos distintos).
+  * PRIORIDAD DE ESTABILIDAD: Si un pick único de cuota >2.50 es considerado de alta volatilidad (ej. un equipo anotando 3 goles solo), la IA DEBE preferir combinar dos mercados de mayor probabilidad (ej. Gana Favorito + Over 1.5 Goles totales) para llegar a la cuota objetivo.
+  * PROHIBICIÓN DE HÍBRIDOS: Cada selección debe aparecer como un objeto independiente en el array 'selections'.
 
 - FUNBET (Stake 1 | Cuota 10.0 - 20.0):
   * REGLA DE CUOTAS: Cada selección individual DEBE estar estrictamente entre 1.10 y 1.50.
