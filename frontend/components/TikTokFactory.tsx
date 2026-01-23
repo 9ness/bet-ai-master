@@ -348,9 +348,9 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
             </div>
 
             {/* === DESKTOP LAYOUT (SPLIT PANE) === */}
-            <div className="hidden md:flex w-full h-[85vh] gap-6 p-6 bg-[#0a0a0a] rounded-3xl border border-white/10 overflow-hidden shadow-2xl">
-                {/* LEFT: SETTINGS (Scrollable) */}
-                <div className="w-1/3 flex flex-col gap-6 overflow-y-auto pr-2 custom-scrollbar">
+            <div className="hidden md:flex w-full max-w-full min-h-[85vh] gap-6 p-6 bg-[#0a0a0a] rounded-3xl border border-white/10 shadow-2xl items-start overflow-visible">
+                {/* LEFT: SETTINGS (Full Height, No Scroll) */}
+                <div className="w-[35%] shrink-0 flex flex-col gap-6">
                     <div className="flex items-center gap-2 text-white/50 border-b border-white/10 pb-4"><Settings2 size={20} /><h2 className="text-xl font-bold text-white">Configuración</h2></div>
 
                     {/* GROUP 1: PORTADA */}
@@ -392,7 +392,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                     {/* GROUP 4: FONDOS */}
                     <div className="bg-[#121212] border border-white/5 rounded-2xl p-5 space-y-4">
                         <div className="flex justify-between items-center"><h3 className="text-sm font-bold text-amber-400 uppercase tracking-widest flex items-center gap-2"><Palette size={16} /> Fondos</h3><button onClick={() => smartSelectBackgrounds()} className="text-[10px] font-bold text-amber-500 hover:underline">Regenerar</button></div>
-                        <div className="grid grid-cols-4 gap-2">
+                        <div className="grid grid-cols-4 gap-2 p-1">
                             {config.bgSelection.map((bg, i) => (
                                 <div key={i} className="group relative aspect-[9/16] rounded overflow-hidden border border-white/10 cursor-pointer" onClick={() => handleBgChange(i, availableFiles[Math.floor(Math.random() * availableFiles.length)])}>
                                     <img src={`/backgrounds/${bg}`} className="w-full h-full object-cover" />
@@ -403,8 +403,8 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                     </div>
                 </div>
 
-                {/* RIGHT: PREVIEW (Fixed) */}
-                <div className="flex-1 bg-[#121212] rounded-2xl border border-white/5 flex flex-col relative overflow-hidden">
+                {/* RIGHT: PREVIEW (Sticky) */}
+                <div className="flex-1 min-w-0 bg-[#121212] rounded-2xl border border-white/5 flex flex-col relative overflow-hidden sticky top-6 h-[85vh]">
                     <div className="absolute top-0 inset-x-0 h-16 bg-gradient-to-b from-black/50 to-transparent z-10 pointer-events-none" />
 
                     {/* PREVIEW IMAGE AREA */}

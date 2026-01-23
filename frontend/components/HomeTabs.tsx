@@ -252,14 +252,14 @@ export default function HomeTabs({ settings, predictions, formattedDate, isMock 
             {/* HORIZONTAL SCROLL SNAP CONTAINER */}
             <div
                 ref={scrollRef}
-                className="flex-1 w-full flex overflow-x-auto snap-x snap-mandatory scrollbar-hide items-start"
+                className="flex-1 w-full flex md:block overflow-x-auto md:overflow-visible snap-x md:snap-none snap-mandatory scrollbar-hide items-start"
                 style={{ scrollBehavior: 'smooth' }}
                 onScroll={handleScroll}
             >
                 {visibleTabs.map(tab => (
                     <div
                         key={tab.id}
-                        className="min-w-full w-full snap-start flex-shrink-0"
+                        className={`min-w-full w-full snap-start flex-shrink-0 md:flex-shrink ${activeTab === tab.id ? 'md:block' : 'md:hidden'}`}
                         style={{ willChange: 'transform' }}
                     >
                         <div className="w-full max-w-7xl mx-auto px-2 md:px-4 pt-4 pb-0">

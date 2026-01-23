@@ -47,6 +47,7 @@ class BetFormatter:
         
         # Specific Cleanups for Double Chance
         # "Doble Oportunidad: X2 (Empate or Team)" -> "Empate o Team"
+        # Dictionary Translation
         if "Doble Oportunidad" in p and "(" in p and ")" in p:
             # Extract content inside parens
             start = p.find("(")
@@ -57,6 +58,17 @@ class BetFormatter:
                 content = content.replace(" or ", " o ")
                 # If content is just "Local/Empate" style, keep it. 
                 return content
+        
+        # Cleanup "Ganador Team (Team/Team)" or "Ganador Team (1X2)"
+        # This removes any parentheses at the end that look like duplicates or market labels
+        # Regex: Remove anything in parens if pick starts with "Ganador" or "Gana"
+        if p.startswith("Ganador ") or p.startswith("Gana "):
+            # Remove (Team A/Team B) style: \(.+?\/+?\)
+            p = re.sub(r'\s*\(.+\/.+\)', '', p)
+            # Remove (1X2) style
+            p = re.sub(r'\s*\(1X2\)', '', p)
+            # Remove redundant (TeamName) if it matches the start
+            # Harder to do generically, but the above covers the user screenshot cases.
         
         # Dictionary Translation
         for eng, esp in self.PICK_TRANSLATIONS.items():

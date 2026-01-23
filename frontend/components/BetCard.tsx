@@ -197,36 +197,39 @@ const groupComponents = (components: BetComponent[]) => {
 };
 
 // Helper: Get earliest time
+// Helper: Get earliest time
 const getEarliestTime = (data: BetData): string | null => {
-    let times: string[] = [];
-    if (data.startTime) times.push(data.startTime);
-    if (data.time) times.push(data.time);
+    // Priority 1: Check Specific Match Times (Selections/Components)
+    let matchTimes: string[] = [];
 
     // Check components
     if (data.components) {
         data.components.forEach(c => {
-            if (c.time) times.push(c.time);
+            if (c.time && c.time !== "00:00") matchTimes.push(c.time);
         });
     }
 
-    // Check selections (New Format)
+    // Check selections
     if (data.selections) {
         data.selections.forEach(s => {
-            // Selection might have 'time' property? Use 'any' cast if generic or check type
-            // The type Selection has 'fixture_id', 'match', 'pick', 'odd', 'status', 'result', 'sport'.
-            // It does NOT have 'time' in the type definition I wrote earlier!
-            // BUT the JSON has 'time'. 
-            // I should Update Selection type too? Or just cast to any here to be safe.
-            // Let's assume the JSON has it. I will add it to the type in a separate move or here if I can.
-            // I can't edit the type definition block (lines 6-13) in this replace block easily without overwriting logic.
-            // I'll cast to any for now to be safe.
             const sAny = s as any;
-            if (sAny.time) times.push(sAny.time);
+            if (sAny.time && sAny.time !== "00:00") matchTimes.push(sAny.time);
         });
     }
 
-    if (times.length === 0) return null;
-    return times.sort()[0];
+    // If we have specific match times, sort and use the earliest
+    if (matchTimes.length > 0) {
+        return matchTimes.sort()[0];
+    }
+
+    // Priority 2: Fallback to Top Level Metadata if no specific times found
+    let fallbackTimes: string[] = [];
+    if (data.startTime) fallbackTimes.push(data.startTime);
+    if (data.time) fallbackTimes.push(data.time);
+
+    if (fallbackTimes.length > 0) return fallbackTimes.sort()[0];
+
+    return null;
 };
 
 // Helper: Extract odd from text if not provided
