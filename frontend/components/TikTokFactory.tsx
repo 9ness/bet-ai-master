@@ -2,14 +2,13 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import html2canvas from 'html2canvas';
-import { Download, Loader2, Settings2, Image as ImageIcon, ChevronDown, ChevronRight, ChevronLeft, RefreshCw, Save, ScanEye, Link as LinkIcon, X, Copy, Check } from 'lucide-react';
+import { Download, Loader2, Settings2, Image as ImageIcon, ChevronRight, ChevronLeft, RefreshCw, Save, ScanEye, X, Copy, Check, LayoutTemplate, Type, Megaphone, Palette, MonitorPlay } from 'lucide-react';
 import { triggerTouchFeedback } from '@/utils/haptics';
 
 /* 
- * TIKTOK FACTORY v6.0 - SMART BACKGROUND ENGINE
- * - Backgrounds fetched from API
- * - Smart selection based on Team/Sport/Slide Type
- * - Intro: "Portada" | Outro: "Futbol" + "Comodin"
+ * TIKTOK FACTORY v9.0 - RESPONSIVE BIFURCATION
+ * - Mobile: Tabbed Navigation (v8)
+ * - Desktop: Split Pane (Settings Left, Preview Right) (Restored v6 style)
  */
 
 type TikTokFactoryProps = {
@@ -18,1207 +17,487 @@ type TikTokFactoryProps = {
     rawDate?: string;
 };
 
+// --- TAB BUTTON COMPONENT (Mobile Only) ---
+const TabButton = ({ id, label, icon: Icon, activeTab, setActiveTab }: any) => {
+    const isActive = activeTab === id;
+    return (
+        <button
+            onClick={() => setActiveTab(id)}
+            className={`
+                flex flex-col items-center justify-center px-4 py-3 rounded-xl border transition-all min-w-[85px] hover:scale-105 active:scale-95 duration-200 snap-center
+                ${isActive
+                    ? 'bg-gradient-to-br from-white/10 to-white/5 border-white/20 text-white shadow-[0_0_15px_-3px_rgba(255,255,255,0.1)]'
+                    : 'bg-black/20 border-white/5 text-white/40 hover:bg-white/5 hover:text-white/70'
+                }
+            `}
+        >
+            <div className={`mb-1.5 ${isActive ? 'text-emerald-400' : ''}`}>
+                <Icon size={20} />
+            </div>
+            <span className="text-[9px] font-bold uppercase tracking-widest whitespace-nowrap">
+                {label}
+            </span>
+        </button>
+    );
+};
+
 export default function TikTokFactory({ predictions, formattedDate, rawDate }: TikTokFactoryProps) {
+    // --- STATE ---
+    const [activeTab, setActiveTab] = useState<'editor' | 'portada' | 'bets' | 'outro' | 'bg'>('editor');
+
     const [generating, setGenerating] = useState(false);
     const [images, setImages] = useState<string[]>([]);
     const [previewImg, setPreviewImg] = useState<string | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
-    const [copiedCaption, setCopiedCaption] = useState(false);
-
-    // Social Content State
-    const [socialContent, setSocialContent] = useState<any>(null);
     const [showSocialModal, setShowSocialModal] = useState(false);
-
-    // Fetch Social Content on Mount
-    useEffect(() => {
-        const fetchSocial = async () => {
-            try {
-                const res = await fetch('/api/social/tiktok');
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data && data.title) {
-                        setSocialContent(data);
-                    }
-                }
-            } catch (err) {
-                console.error("Error fetching social content", err);
-            }
-        };
-        fetchSocial();
-    }, []);
-
-    // Helper: Generate TikTok Caption (Fallback)
-    const generateCaption = () => {
-        // ... (Keep existing logic as fallback if APi content missing)
-        const allSelections = slideGroups;
-        let text = `${config.introTitle} ${config.introEmoji1}\n\n`;
-
-        allSelections.forEach((group: any) => {
-            // Since icons are baked in, we strip them for the caption or keep them?
-            // User likely wants clean list or with icons. Let's keep them as is since they are in the 'matchDisplay'.
-            // But verify: group.matchDisplay now has "Real vs Barca ⚽". 
-            // The caption builder was manually adding emojis.
-            // Let's rely on the baked strings.
-            text += `${group.matchDisplay}\n`;
-
-            group.picks.forEach((pick: string, i: number) => {
-                const betRef = group.originalBets[i];
-                const odd = betRef.total_odd || betRef.odd || "";
-                const reason = betRef.reason || "";
-
-                // pick already has "Over 2.5 ✅"
-                text += `${pick} ${odd ? `(@${parseFloat(odd).toFixed(2)})` : ''}\n`;
-                if (reason) {
-                    // Clean up reason: remove italics markers or markdown if any
-                    const cleanReason = reason.replace(/\*/g, "").trim();
-                    text += `📝 ${cleanReason}\n`;
-                }
-                text += `\n`;
-            });
-        });
-
-        text += `\n${config.outroTitle}\n${config.outroSub}\n`;
-        text += `\n#apuestas #parlay #futbol #nba #betting #deportes`;
-
-        return text;
-    };
-
-    const handleCopyCaption = () => {
-        const text = generateCaption();
-        navigator.clipboard.writeText(text).then(() => {
-            setCopiedCaption(true);
-            setTimeout(() => setCopiedCaption(false), 2000);
-        });
-    };
-
+    const [socialContent, setSocialContent] = useState<any>(null);
     const [copiedStates, setCopiedStates] = useState<Record<string, boolean>>({});
 
-    const handleCopyText = (text: string, key: string) => {
-        navigator.clipboard.writeText(text).then(() => {
-            setCopiedStates(prev => ({ ...prev, [key]: true }));
-            setTimeout(() => {
-                setCopiedStates(prev => ({ ...prev, [key]: false }));
-            }, 2000);
-        });
-    };
+    // --- CONFIG & DATA ---
+    const getDayName = () => ['DOMINGO', 'LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'][new Date().getDay()];
 
-    // Dynamic date for default title
-    const getDayName = () => {
-        const days = ['DOMINGO', 'LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'];
-        return days[new Date().getDay()];
-    };
-
-    // Config State
     const [config, setConfig] = useState({
-        // Slide 1: Intro
         introTitle: `JUBILADORA HOY\n(${getDayName()})`,
-        introSubtitle: "", // Will be set by useEffect after initial config is ready
+        introSubtitle: "",
         introEmoji1: '🤫',
         introEmoji2: '✅',
-
-        // Slide Last: Outro
         outroTitle: "LA MEJOR DE TODAS\nLA DEJAMOS EN\nNUESTRO CANAL",
         outroSub: "ACCEDE DESDE EL PERFIL 🔗",
-
-        // Backgrounds (using strings now)
-        // Backgrounds
-        // Backgrounds
         bgSelection: [] as string[],
-
-        // Options
         addHundred: true,
         useFullDate: true
     });
 
-    // Helper: Format Date like "Jueves 15 ene"
+    const [slideGroups, setSlideGroups] = useState<any[]>([]);
+    const [currentPreviewIdx, setCurrentPreviewIdx] = useState(0);
+    const [availableFiles, setAvailableFiles] = useState<string[]>([]);
+
+    useEffect(() => {
+        fetch('/api/social/tiktok').then(res => res.ok ? res.json() : null).then(data => data?.title && setSocialContent(data));
+        fetch('/api/backgrounds').then(res => res.json()).then(data => data.files && setAvailableFiles(data.files));
+    }, []);
+
+    const handleCopyText = (text: string, key: string) => {
+        navigator.clipboard.writeText(text).then(() => {
+            setCopiedStates(prev => ({ ...prev, [key]: true }));
+            setTimeout(() => setCopiedStates(prev => ({ ...prev, [key]: false })), 2000);
+        });
+    };
+
     const getFormattedDateLong = () => {
         try {
-            // Prefer rawDate (ISO) if available, otherwise fall back to formattedDate (which might fail)
             const dateStr = rawDate || formattedDate;
             const date = new Date(dateStr);
             const dayName = new Intl.DateTimeFormat('es-ES', { weekday: 'long' }).format(date);
             const dayNum = date.getDate();
             const monthName = new Intl.DateTimeFormat('es-ES', { month: 'short' }).format(date);
-            const monthCap = monthName.charAt(0).toUpperCase() + monthName.slice(1);
-            // Capitalize first letter of day
-            return `${dayName.charAt(0).toUpperCase() + dayName.slice(1)} ${dayNum} ${monthCap}`;
-        } catch (e) {
-            return formattedDate;
-        }
+            return `${dayName.charAt(0).toUpperCase() + dayName.slice(1)} ${dayNum} ${monthName.charAt(0).toUpperCase() + monthName.slice(1)}`;
+        } catch (e) { return formattedDate; }
     };
 
-    // Helper: Calculate Total Odds for Initial State
+    useEffect(() => {
+        if (config.useFullDate) {
+            setConfig(prev => ({ ...prev, introTitle: `JUBILADORA HOY\n${getFormattedDateLong()}`, introEmoji1: '⚽', introEmoji2: '📅' }));
+        } else {
+            setConfig(prev => ({ ...prev, introTitle: `JUBILADORA HOY\n(${getDayName()})`, introEmoji1: '🤫', introEmoji2: '✅' }));
+        }
+    }, [config.useFullDate]);
+
     const calculateInitialOdds = (addHundred: boolean) => {
         let totalOdd = 1;
         const rawBets = predictions?.bets || (Array.isArray(predictions) ? predictions : []);
         let found = false;
-
         if (rawBets.length > 0) {
-            rawBets.forEach((b: any) => {
-                const odd = parseFloat(b.total_odd || b.odd);
-                if (!isNaN(odd) && odd > 0) {
-                    totalOdd *= odd;
-                    found = true;
-                }
-            });
+            rawBets.forEach((b: any) => { const odd = parseFloat(b.total_odd || b.odd); if (!isNaN(odd) && odd > 0) { totalOdd *= odd; found = true; } });
         } else {
-            const o1 = parseFloat(predictions?.safe?.total_odd || predictions?.safe?.odd);
-            const o2 = parseFloat(predictions?.value?.total_odd || predictions?.value?.odd);
-            const o3 = parseFloat(predictions?.funbet?.total_odd || predictions?.funbet?.odd);
-
-            if (!isNaN(o1)) { totalOdd *= o1; found = true; }
-            if (!isNaN(o2)) { totalOdd *= o2; found = true; }
-            if (!isNaN(o3)) { totalOdd *= o3; found = true; }
+            const o1 = parseFloat(predictions?.safe?.total_odd); if (!isNaN(o1)) { totalOdd *= o1; found = true; }
+            const o2 = parseFloat(predictions?.value?.total_odd); if (!isNaN(o2)) { totalOdd *= o2; found = true; }
+            const o3 = parseFloat(predictions?.funbet?.total_odd); if (!isNaN(o3)) { totalOdd *= o3; found = true; }
         }
-
         if (!found || totalOdd <= 1.01) return "+??? 📈";
-
-        // Logic: 
-        // If odds are small (e.g. 5.3), we show 53 (x10)
-        // If odds are large (e.g. 53.9), we show 53 (x1) - User request to truncate decimals for large odds
-        let oddValue = 0;
-        if (totalOdd < 10) {
-            oddValue = Math.round(totalOdd * 10);
-        } else {
-            oddValue = Math.round(totalOdd);
-        }
-
-        if (addHundred) {
-            oddValue *= 10; // 53 -> 530
-        }
-
+        let oddValue = Math.round(totalOdd * (totalOdd < 10 ? 10 : 1));
+        if (addHundred) oddValue *= 10;
         return `+${oddValue} 📈`;
     };
 
-    // Effect: Handle Date Format Toggle
-    useEffect(() => {
-        if (config.useFullDate) {
-            const longDate = getFormattedDateLong();
-            setConfig(prev => ({
-                ...prev,
-                introTitle: `JUBILADORA HOY\n${longDate}`,
-                introEmoji1: '⚽',
-                introEmoji2: '📅'
-            }));
-        } else {
-            // Revert to simple day name, but keep current title text if modified? 
-            // Better to reset to default pattern to match user expectation of "toggle"
-            setConfig(prev => ({
-                ...prev,
-                introTitle: `JUBILADORA HOY\n(${getDayName()})`,
-                // Don't necessarily revert emojis, or revert to default? 
-                // User didn't specify revert behavior, but implied specific emojis for specific format.
-                // Let's keep them as is if un-checked, or maybe reset to default?
-                // Let's leave them, or reset to default '🤫' '✅' if that was the state.
-                introEmoji1: '🤫',
-                introEmoji2: '✅'
-            }));
-        }
-    }, [config.useFullDate]);
+    useEffect(() => setConfig(prev => ({ ...prev, introSubtitle: calculateInitialOdds(prev.addHundred) })), [predictions]);
 
-    // Set initial introSubtitle after config is defined
-    useEffect(() => {
-        setConfig(prev => ({
-            ...prev,
-            introSubtitle: calculateInitialOdds(prev.addHundred)
-        }));
-    }, [predictions]); // Recalculate if predictions change
-
-    const [collapsed, setCollapsed] = useState({
-        intro: false,
-        bets: false,
-        outro: false,
-        bg: true
-    });
-
-    // Editable Groups State
-    const [slideGroups, setSlideGroups] = useState<any[]>([]);
-    const [currentPreviewIdx, setCurrentPreviewIdx] = useState(0);
-    const [availableFiles, setAvailableFiles] = useState<string[]>([]);
-
-    // Auto-collapse on mobile
-    useEffect(() => {
-        if (window.innerWidth < 768) {
-            setCollapsed({ intro: true, bets: true, outro: true, bg: true });
-        }
-    }, []);
-
-    // Helper: Parse Match and Pick
     const parseBetDisplay = (match: string, pick: string) => {
         if (!match) return { match: "Evento Desconocido", pick: pick || "" };
-
-        // Clean Match Name
         const cleanMatch = match.replace(/\s*vs\s*/i, " vs ").trim();
         const teams = cleanMatch.split(" vs ");
-        const home = teams[0] ? teams[0].trim() : "Local";
-        const away = teams[1] ? teams[1].trim() : "Visitante";
-
         const displayMatch = cleanMatch.split("(")[0].trim();
-
-        // Process Pick
-        let displayPick = pick;
-        const p = pick ? pick.toLowerCase().trim() : "";
-
-        if (p.startsWith("1 ") || p === "1" || p.includes("(local gana)")) {
-            displayPick = home;
-        } else if (p.startsWith("2 ") || p === "2" || p.includes("(visitante gana)")) {
-            displayPick = away;
-        } else if (p.startsWith("x ") || p === "x" || p.includes("empate")) {
-            displayPick = `Empate`;
-        } else {
-            // General cleanup
-            displayPick = pick
-                .replace(/Apuesta/gi, "")
-                .replace(/Gana/gi, "")
-                .replace(/\(.*\)/g, "")
-                .replace(/AH/g, "Hándicap")
-                .trim();
-
-            // Replace generic 'Local'/'Visitante' with Team Names
-            const homeRegex = new RegExp(/\blocal\b/, 'gi');
-            const awayRegex = new RegExp(/\bvisitante\b/, 'gi');
-            displayPick = displayPick.replace(homeRegex, home).replace(awayRegex, away);
-
-            if (displayPick === "1") displayPick = home;
-            if (displayPick === "2") displayPick = away;
+        let displayPick = pick ? pick.toLowerCase().trim() : "";
+        if (displayPick.startsWith("1 ") || displayPick === "1") displayPick = teams[0] || "Local";
+        else if (displayPick.startsWith("2 ") || displayPick === "2") displayPick = teams[1] || "Visitante";
+        else if (displayPick.startsWith("x ") || displayPick === "x") displayPick = "Empate";
+        else {
+            displayPick = displayPick.replace(/Apuesta/gi, "").replace(/Gana/gi, "").replace(/\(.*\)/g, "").replace(/AH/g, "Hándicap").trim();
+            displayPick = displayPick.replace(/\blocal\b/gi, teams[0] || "Local").replace(/\bvisitante\b/gi, teams[1] || "Visitante");
         }
-
-        return {
-            match: displayMatch,
-            pick: displayPick
-        };
+        return { match: displayMatch, pick: displayPick };
     };
 
-    // Prepare All Bets (Grouped by Match)
     const getAllSelections = () => {
         const flatBets: any[] = [];
         const rawBets = predictions?.bets || (Array.isArray(predictions) ? predictions : []);
-
         if (rawBets.length === 0) {
             if (predictions?.safe) rawBets.push(predictions.safe);
             if (predictions?.value) rawBets.push(predictions.value);
             if (predictions?.funbet) rawBets.push(predictions.funbet);
         }
-
-        // 1. Flatten
         rawBets.forEach((bet: any) => {
             if (!bet) return;
-            const parentSport = bet.sport;
-
-            const addBet = (item: any) => {
-                flatBets.push({
-                    ...item,
-                    sport: (item.sport || parentSport || 'football').toLowerCase()
-                });
-            };
-
-            if (bet.selections && Array.isArray(bet.selections) && bet.selections.length > 0) {
-                bet.selections.forEach((sel: any) => addBet(sel));
-            }
-            else if (bet.components && Array.isArray(bet.components) && bet.components.length > 0) {
-                bet.components.forEach((comp: any) => addBet(comp));
-            }
-            else if (bet.match && bet.pick) {
-                addBet(bet);
-            }
+            const add = (item: any) => flatBets.push({ ...item, sport: (item.sport || bet.sport || 'football').toLowerCase() });
+            if (bet.selections?.length) bet.selections.forEach(add);
+            else if (bet.components?.length) bet.components.forEach(add);
+            else if (bet.match) add(bet);
         });
 
-        // 2. Group by Normalized Match Name
         const groups: Record<string, any> = {};
-
         flatBets.forEach(bet => {
             const { match, pick } = parseBetDisplay(bet.match, bet.pick);
-            // Normalize match key: remove spaces, lowercase
-            const matchKey = match.toLowerCase().replace(/\s+/g, '');
-
-            if (!groups[matchKey]) {
-                groups[matchKey] = {
-                    matchDisplay: match, // Keep the first display name found
-                    sport: bet.sport,
-                    picks: [],
-                    originalBets: []
-                };
-            }
-
-            // Add Pick
-            groups[matchKey].picks.push(pick);
-            groups[matchKey].originalBets.push(bet);
+            const key = match.toLowerCase().replace(/\s+/g, '');
+            if (!groups[key]) groups[key] = { matchDisplay: match, sport: bet.sport, picks: [], originalBets: [] };
+            groups[key].picks.push(pick);
         });
 
         const groupedList = Object.values(groups);
-
-        // 3. Identify teams that have specific backgrounds (BY SPORT)
-        const teamsWithBg: Record<string, Set<string>> = {
-            football: new Set(),
-            basketball: new Set(),
-            tennis: new Set()
-        };
-
-        availableFiles.forEach(file => {
-            const lower = file.toLowerCase();
-            let sport = 'football';
-            if (lower.includes('basket')) sport = 'basketball';
-            else if (lower.includes('tenis') || lower.includes('tennis')) sport = 'tennis';
-
-            if (lower.includes('bg-')) {
-                // Extract team name roughly: bg-futbol-INTER-1.png
-                const parts = lower.split('-');
-                if (parts.length >= 3) {
-                    teamsWithBg[sport].add(parts[2]);
-                }
+        const teamsWithBg: any = { football: new Set(), basketball: new Set() };
+        availableFiles.forEach(f => {
+            if (f.includes('bg-')) {
+                const p = f.toLowerCase().split('-');
+                if (p.length >= 3) teamsWithBg[f.includes('basket') ? 'basketball' : 'football'].add(p[2]);
             }
         });
 
-        const cleanForMatch = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+        return groupedList.map(g => {
+            const sportIcon = (g.sport || '').includes('basket') ? '🏀' : '⚽';
+            const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+            const mt = clean(g.matchDisplay);
+            let isFeatured = false;
+            const relevant = teamsWithBg[(g.sport || '').includes('basket') ? 'basketball' : 'football'];
+            for (let t of Array.from(relevant) as string[]) if (t !== 'comodin' && mt.includes(clean(t))) isFeatured = true;
 
-        const hasTeamBg = (group: any) => {
-            const matchText = cleanForMatch(group.matchDisplay || "");
-            const sport = (group.sport || 'football').toLowerCase();
-
-            // Get relevant set of teams for this sport
-            const relevantTeams = teamsWithBg[sport] || teamsWithBg['football']; // Fallback only if unknown sport
-
-            // Check if any team in our set is present in match name
-            for (const team of Array.from(relevantTeams)) {
-                const cleanTeam = cleanForMatch(team);
-
-                if (team !== 'comodin' && matchText.includes(cleanTeam)) {
-                    return true;
-                }
-            }
-            return false;
-        };
-
-        // 4. Sort: Strict Priority
-        // Tier 1: Football (Featured > Regular)
-        // Tier 2: Others (Featured > Regular)
-        const footballFeatured: any[] = [];
-        const footballRegular: any[] = [];
-        const otherFeatured: any[] = [];
-        const otherRegular: any[] = [];
-
-        groupedList.forEach(group => {
-            const sport = (group.sport || 'football').toLowerCase();
-            const isFeatured = hasTeamBg(group);
-            const sportIcon = sport === 'basketball' ? '🏀' : '⚽';
-
-            // BAKE ICONS INTO TEXTS FOR EDITABILITY
-            // 1. Match Title
-            group.matchDisplay = `${group.matchDisplay} ${sportIcon}`;
-
-            // 2. Picks
-            group.picks = group.picks.map((pick: string) => {
-                const { pick: displayPick } = parseBetDisplay(group.matchDisplay, pick);
-
-                // Intelligent Casing Logic (Directly here to bake it in)
-                let formattedPick = displayPick;
-                const lowerPick = displayPick.toLowerCase();
-                // We need 'teams' array here? reusing logic from render?
-                // No, let's just use the cleanMatch logic again or pass it.
-                // Actually easier to do generic casing:
-                formattedPick = lowerPick.charAt(0).toUpperCase() + lowerPick.slice(1);
-
-                return `${formattedPick} ✅`;
-            });
-
-            if (sport === 'football') {
-                if (isFeatured) footballFeatured.push(group);
-                else footballRegular.push(group);
-            } else {
-                if (isFeatured) otherFeatured.push(group);
-                else otherRegular.push(group);
-            }
+            return {
+                ...g,
+                matchDisplay: `${g.matchDisplay} ${sportIcon}`,
+                picks: g.picks.map((p: string) => {
+                    const { pick } = parseBetDisplay(g.matchDisplay, p);
+                    return `${pick.charAt(0).toUpperCase() + pick.slice(1)} ✅`;
+                }),
+                isFeatured
+            };
         });
-
-        // Combine strictly: All Football -> All Others
-        // Note: Return clean objects but KEEP isFeatured flag for the chunker
-        return [
-            ...footballFeatured.map(g => ({ ...g, isFeatured: true })),
-            ...footballRegular.map(g => ({ ...g, isFeatured: false })),
-            ...otherFeatured.map(g => ({ ...g, isFeatured: true })),
-            ...otherRegular.map(g => ({ ...g, isFeatured: false }))
-        ];
     };
 
-    // Initialize slideGroups when predictions or files change
-    useEffect(() => {
-        const groups = getAllSelections();
-        // Only update if different to avoid loop (simple check or just set)
-        setSlideGroups(groups);
-    }, [predictions, availableFiles]);
+    useEffect(() => setSlideGroups(getAllSelections()), [predictions, availableFiles]);
 
-    // Chunk Logic: Smarter Chunking
-    // Rules:
-    // 1. Featured items (with specific BG) GET THEIR OWN SLIDE (Isolation).
-    // 2. Regular items are grouped max 3 per slide.
     const slidesData: any[][] = [];
     let currentChunk: any[] = [];
-
     slideGroups.forEach((item: any) => {
         if (item.isFeatured) {
-            // If we have a pending regular chunk, push it first
-            if (currentChunk.length > 0) {
-                slidesData.push(currentChunk);
-                currentChunk = [];
-            }
-            // Push the featured item as its own exclusive slide
+            if (currentChunk.length > 0) { slidesData.push(currentChunk); currentChunk = []; }
             slidesData.push([item]);
         } else {
-            // Regular item logic
             currentChunk.push(item);
-            if (currentChunk.length >= 3) {
-                slidesData.push(currentChunk);
-                currentChunk = [];
-            }
+            if (currentChunk.length >= 3) { slidesData.push(currentChunk); currentChunk = []; }
         }
     });
-    // Push last partial chunk
     if (currentChunk.length > 0) slidesData.push(currentChunk);
 
-    // Balance Logic: Avoid 3-1 split for REGULAR chunks only?
-    // Actually, simple balance is safer.
-    if (slidesData.length > 1) {
-        const lastIdx = slidesData.length - 1;
-        // If last slide has 1 item and prev has 3, move one over
-        if (slidesData[lastIdx].length === 1 && slidesData[lastIdx - 1].length === 3) {
-            const itemToMove = slidesData[lastIdx - 1].pop();
-            if (itemToMove) {
-                slidesData[lastIdx].unshift(itemToMove);
-            }
-        }
-    }
-
-    const toggleSection = (section: keyof typeof collapsed) => {
-        setCollapsed(prev => ({ ...prev, [section]: !prev[section] }));
-    };
-
     useEffect(() => {
-        // Fetch available backgrounds
-        fetch('/api/backgrounds')
-            .then(res => res.json())
-            .then(data => {
-                if (data.files && Array.isArray(data.files)) {
-                    setAvailableFiles(data.files);
+        if (availableFiles.length && slidesData.length) {
+            const newBgs: string[] = [];
+            const pick = (a: string[]) => a[Math.floor(Math.random() * a.length)];
+            const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+            const portadas = availableFiles.filter(f => f.includes('portada'));
+            newBgs.push(portadas.length ? pick(portadas) : 'bg-portada-1.png');
+            let last = newBgs[0];
+            slidesData.forEach(chunk => {
+                let sel = null;
+                const mainSport = (chunk[0]?.sport || 'football').toLowerCase();
+                for (let g of chunk) {
+                    if ((g.sport || '').toLowerCase() !== mainSport) continue;
+                    const mts = g.matchDisplay.split(/vs|-/);
+                    for (let t of mts) {
+                        const ct = clean(t);
+                        if (ct.length < 3) continue;
+                        const ms = availableFiles.filter(f => !f.includes('comodin') && f.includes(mainSport.includes('basket') ? 'basket' : 'futbol') && clean(f).includes(ct));
+                        if (ms.length) { sel = pick(ms); break; }
+                    }
+                    if (sel) break;
                 }
-            })
-            .catch(err => console.error("Error fetching backgrounds:", err));
-    }, []);
-
-    useEffect(() => {
-        if (availableFiles.length > 0 && slidesData.length > 0) {
-            smartSelectBackgrounds();
-        } else if (availableFiles.length === 0) {
-            // Fallback legacy if no API data yet
-            randomizeBackgroundsLegacy();
+                if (!sel) {
+                    const coms = availableFiles.filter(f => f.includes('comodin') && f.includes(mainSport.includes('basket') ? 'basket' : 'futbol'));
+                    const av = coms.filter(c => c !== last);
+                    sel = av.length ? pick(av) : (pick(coms) || 'bg-comodin.png');
+                }
+                newBgs.push(sel);
+                last = sel;
+            });
+            const outros = availableFiles.filter(f => f.includes('futbol') && f.includes('comodin'));
+            newBgs.push(outros.length ? pick(outros) : 'bg-outro.png');
+            setConfig(p => ({ ...p, bgSelection: newBgs }));
         }
     }, [availableFiles, slidesData.length]);
 
-    const handleBgChange = (index: number, bgId: string) => {
-        const newBgs = [...config.bgSelection];
-        newBgs[index] = bgId;
-        setConfig(prev => ({ ...prev, bgSelection: newBgs }));
-    };
-
-    // Legacy randomizer (numeric 1-8)
-    // Legacy randomizer (REMOVED - Now sets fallback filenames)
-    const randomizeBackgroundsLegacy = () => {
-        // Fallback to safe defaults if no API data
-        const safeDefaults = ['bg-portada-1.png', 'bg-futbol-comodin-1.png', 'bg-futbol-comodin-2.png', 'bg-basket-comodin-1.png'];
-        const count = slidesData.length + 2;
-        const result: string[] = [];
-        for (let i = 0; i < count; i++) {
-            result.push(safeDefaults[i % safeDefaults.length]);
-        }
-        setConfig(prev => ({ ...prev, bgSelection: result }));
-    };
-
-    const smartSelectBackgrounds = () => {
-        const newSelection: any[] = [];
-
-        // Helper: Get random item from array
-        const pickRandom = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
-
-        // Helper: clean string for comparison (remove accents, spaces, lowercase)
-        const cleanStr = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
-
-        // 1. COVER (Intro) - Must contain "portada"
-        // 1. COVER (Intro) - Must contain "portada"
-        const portadas = availableFiles.filter(f => f.toLowerCase().includes('portada'));
-        const coverBg = portadas.length > 0 ? pickRandom(portadas) : 'bg-portada-1.png'; // Fallback to filename
-        newSelection.push(coverBg);
-
-        // Track last used to prevent duplicates
-        let lastUsedBg = coverBg;
-
-        // 2. BET SLIDES
-        slidesData.forEach((chunk) => {
-            let selectedBg = null;
-            const mainSport = (chunk[0]?.sport || 'football').toLowerCase();
-
-            // Try to find Team Match (ONLY for bets matching the main sport)
-            for (const group of chunk) {
-                const currentSport = (group.sport || 'football').toLowerCase();
-                if (currentSport !== mainSport) continue;
-
-                // Use the group's match display directly
-                const matchDisplay = group.matchDisplay || "";
-                const teams = matchDisplay.split(/\s*vs\s*|\s*-\s*/i).map((t: string) => t.trim()).filter(Boolean);
-
-                for (const team of teams) {
-                    const cleanTeam = cleanStr(team);
-                    if (cleanTeam.length < 3) continue;
-
-                    const matchSportKeyword = mainSport === 'basketball' ? 'basket' : 'futbol';
-
-                    const matches = availableFiles.filter(f =>
-                        !f.toLowerCase().includes('comodin') &&
-                        f.toLowerCase().includes(matchSportKeyword) &&
-                        cleanStr(f).includes(cleanTeam)
-                    );
-                    if (matches.length > 0) {
-                        selectedBg = pickRandom(matches);
-                        break;
-                    }
-                }
-                if (selectedBg) break;
-            }
-
-            // Fallback: Sport + Comodin (Avoid repeating lastUsedBg)
-            if (!selectedBg) {
-                const keyword = mainSport === 'basketball' ? 'basket' : 'futbol';
-
-                const comodines = availableFiles.filter(f =>
-                    f.toLowerCase().includes(keyword) &&
-                    f.toLowerCase().includes('comodin')
-                );
-
-                if (comodines.length > 0) {
-                    // Filter out the one just used
-                    const availableComodines = comodines.filter(c => c !== lastUsedBg);
-
-                    if (availableComodines.length > 0) {
-                        selectedBg = pickRandom(availableComodines);
-                    } else {
-                        // If only 1 exists and it was just used, we have no choice but to repeat or pick random from original
-                        selectedBg = pickRandom(comodines);
-                    }
-                }
-            }
-
-            const finalBg = selectedBg || 'bg-futbol-comodin-1.png'; // Fallback to filename
-            newSelection.push(finalBg);
-            lastUsedBg = finalBg;
-        });
-
-        // 3. OUTRO (Last) - Must contain "futbol" AND "comodin"
-        const outroFiles = availableFiles.filter(f =>
-            f.toLowerCase().includes('futbol') &&
-            f.toLowerCase().includes('comodin')
-        );
-
-        // Try to pick one different from the last used slide if possible, otherwise random
-        let outroBg = outroFiles.length > 0 ? pickRandom(outroFiles) : 'bg-futbol-comodin-2.png'; // Fallback to filename
-        newSelection.push(outroBg);
-
-        setConfig(prev => ({ ...prev, bgSelection: newSelection }));
-    };
-
-    const generateImages = async () => {
+    const handleBgChange = (i: number, bg: string) => { const n = [...config.bgSelection]; n[i] = bg; setConfig(p => ({ ...p, bgSelection: n })); };
+    const generate = async () => {
         if (!containerRef.current) return;
-        setGenerating(true);
-        setImages([]);
+        setGenerating(true); setImages([]);
         await new Promise(r => setTimeout(r, 800));
-
-        const generated: string[] = [];
-        const slides = containerRef.current.children;
-
-        for (let i = 0; i < slides.length; i++) {
-            const slide = slides[i] as HTMLElement;
-            try {
-                const canvas = await html2canvas(slide, {
-                    scale: 1,
-                    useCORS: true,
-                    allowTaint: true,
-                    width: 1080,
-                    height: 1350,
-                    windowWidth: 1080,
-                    windowHeight: 1350,
-                    backgroundColor: null,
-                    logging: false,
-                    x: 0,
-                    y: 0,
-                    scrollX: 0,
-                    scrollY: 0
-                });
-                generated.push(canvas.toDataURL('image/png'));
-            } catch (err) {
-                console.error("Slide gen error", err);
-            }
+        const imgs = [];
+        for (let c of Array.from(containerRef.current.children) as HTMLElement[]) {
+            try { const cvs = await html2canvas(c, { scale: 1, useCORS: true, width: 1080, height: 1350 }); imgs.push(cvs.toDataURL('image/png')); } catch (e) { }
         }
-        setImages(generated);
-        setGenerating(false);
-    };
+        setImages(imgs); setGenerating(false);
+    }
+    const download = (url: string, i: number) => { const a = document.createElement('a'); a.href = url; a.download = `slide-${i + 1}.png`; a.click(); };
+    const downloadAll = () => images.forEach((img, i) => download(img, i));
+    const smartSelectBackgrounds = () => setAvailableFiles([...availableFiles]); // Toggle for effect re-run
 
-    const downloadAll = () => {
-        images.forEach((img, idx) => downloadImage(img, idx));
-    };
 
-    const downloadImage = (img: string, idx: number, e?: React.MouseEvent) => {
-        if (e) e.stopPropagation();
-        const a = document.createElement('a');
-        a.href = img;
-        a.download = `tiktok-slide-${idx + 1}.png`;
-        a.click();
-    };
-
+    // --- RENDER ---
     return (
-        <div className="w-full h-full flex flex-col md:flex-row bg-card border border-white/10 rounded-3xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-300 relative">
+        <div className="max-w-[1600px] mx-auto pb-10 space-y-6">
 
-            {/* SOCIAL MODAL */}
-            {showSocialModal && socialContent && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                    <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-6">
-                        <div className="flex justify-between items-center">
-                            <h2 className="text-xl font-black text-white flex items-center gap-2">📱 Contenido Viral Generado</h2>
-                            <button onClick={() => setShowSocialModal(false)} className="text-white/50 hover:text-white">
-                                <X size={24} />
-                            </button>
-                        </div>
-
-                        {/* TITLE SECTION */}
-                        <div className="space-y-2">
-                            <label className="text-xs uppercase font-bold text-emerald-400">Título (Headline)</label>
-                            <div className="flex gap-2">
-                                <div className="flex-1 bg-black/50 p-3 rounded-xl border border-white/5 text-white font-bold text-lg">
-                                    {socialContent.title}
-                                </div>
-                                <button
-                                    onClick={() => handleCopyText(socialContent.title, 'title')}
-                                    onTouchStart={() => triggerTouchFeedback()}
-                                    className={`btn-active-effect p-3 rounded-xl transition-transform duration-300 ${copiedStates['title'] ? 'bg-emerald-500 text-white' : 'bg-white text-black hover:bg-zinc-200'}`}
-                                >
-                                    {copiedStates['title'] ? <Check size={20} /> : <Copy size={20} />}
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* DESCRIPTION SECTION */}
-                        <div className="space-y-2">
-                            <label className="text-xs uppercase font-bold text-purple-400">Descripción (Caption)</label>
-                            <div className="flex gap-2 items-start">
-                                <div className="flex-1 bg-black/50 p-3 rounded-xl border border-white/5 text-white/80 text-sm whitespace-pre-wrap max-h-[300px] overflow-y-auto custom-scrollbar">
-                                    {socialContent.description || socialContent.caption}
-                                </div>
-                                <button
-                                    onClick={() => handleCopyText(socialContent.description || socialContent.caption, 'desc')}
-                                    onTouchStart={() => triggerTouchFeedback()}
-                                    className={`btn-active-effect p-3 rounded-xl transition-transform duration-300 ${copiedStates['desc'] ? 'bg-emerald-500 text-white' : 'bg-white text-black hover:bg-zinc-200'}`}
-                                >
-                                    {copiedStates['desc'] ? <Check size={20} /> : <Copy size={20} />}
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="pt-4 border-t border-white/10 text-center">
-                            <p className="text-[10px] text-white/30">Generado automáticamente por Gemini • {new Date(socialContent.updated_at).toLocaleTimeString()}</p>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* LEFT: SETTINGS PANEL */}
-            <div className="w-full md:w-1/3 border-r border-white/10 bg-black/40 flex flex-col h-auto md:h-full shrink-0">
-                <div className="p-4 border-b border-white/10 flex justify-between items-center bg-gradient-to-r from-emerald-900/20 to-teal-900/20">
-                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                        <Settings2 className="text-emerald-500" size={20} />
-                        Editor Jubiladora
-                    </h3>
+            {/* === MOBILE LAYOUT (Tabs) === */}
+            <div className="md:hidden space-y-6">
+                {/* 1. TOP NAVIGATION */}
+                <div className="flex items-center justify-start gap-3 overflow-x-auto pb-2 scrollbar-hide px-2 snap-x">
+                    <TabButton id="editor" label="Editor" icon={MonitorPlay} activeTab={activeTab} setActiveTab={setActiveTab} />
+                    <TabButton id="portada" label="Portada" icon={LayoutTemplate} activeTab={activeTab} setActiveTab={setActiveTab} />
+                    <TabButton id="bets" label="Apuestas" icon={Type} activeTab={activeTab} setActiveTab={setActiveTab} />
+                    <TabButton id="outro" label="Cierre" icon={Megaphone} activeTab={activeTab} setActiveTab={setActiveTab} />
+                    <TabButton id="bg" label="Fondos" icon={Palette} activeTab={activeTab} setActiveTab={setActiveTab} />
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-
-                    {/* SECTION 1: INTRO */}
-                    <div className="group border border-white/5 rounded-2xl overflow-hidden bg-black/20 transition-all hover:border-white/10 hover:shadow-lg hover:shadow-emerald-900/10">
-                        <button
-                            onClick={() => toggleSection('intro')}
-                            className={`w-full flex justify-between items-center p-4 transition-colors ${!collapsed.intro ? 'bg-white/5' : 'hover:bg-white/5'}`}
-                        >
-                            <span className="font-black text-sm uppercase text-emerald-400 flex items-center gap-2 tracking-wider">
-                                👋 Portada
-                            </span>
-                            {collapsed.intro ? <ChevronRight size={18} className="text-white/30" /> : <ChevronDown size={18} className="text-white/30" />}
-                        </button>
-                        {!collapsed.intro && (
-                            <div className="p-4 space-y-4 border-t border-white/5 animation-slider">
-                                <div>
-                                    <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block mb-2">Título Principal</label>
-                                    <textarea
-                                        value={config.introTitle}
-                                        onChange={e => setConfig({ ...config, introTitle: e.target.value })}
-                                        className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-sm font-bold min-h-[80px] focus:outline-none focus:border-emerald-500/50 transition-colors resize-none"
-                                    />
-                                    <div className="mt-3 flex items-center gap-2 bg-white/5 p-2 rounded-lg border border-white/5">
-                                        <input
-                                            type="checkbox"
-                                            id="useFullDate"
-                                            checked={config.useFullDate}
-                                            onChange={(e) => setConfig({ ...config, useFullDate: e.target.checked })}
-                                            className="accent-emerald-500 w-4 h-4 cursor-pointer"
-                                        />
-                                        <label htmlFor="useFullDate" className="text-xs font-bold text-emerald-400 cursor-pointer select-none">
-                                            Usar Fecha Larga + Iconos
-                                        </label>
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block mb-2">Emoji 1</label>
-                                        <input value={config.introEmoji1} onChange={e => setConfig({ ...config, introEmoji1: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded-xl p-2 text-white text-lg text-center focus:outline-none focus:border-emerald-500/50 transition-colors" />
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block mb-2">Emoji 2</label>
-                                        <input value={config.introEmoji2} onChange={e => setConfig({ ...config, introEmoji2: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded-xl p-2 text-white text-lg text-center focus:outline-none focus:border-emerald-500/50 transition-colors" />
-                                    </div>
-                                </div>
-                                <div>
-                                    <div className="flex justify-between items-center mb-2">
-                                        <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Cuota (Texto)</label>
-                                        <div className="flex items-center gap-2">
-                                            <input
-                                                type="checkbox"
-                                                id="addHundred"
-                                                checked={config.addHundred}
-                                                onChange={(e) => {
-                                                    const isChecked = e.target.checked;
-                                                    let current = config.introSubtitle.replace(' 📈', '').replace('+', '');
-                                                    let num = parseInt(current);
-
-                                                    if (!isNaN(num)) {
-                                                        if (isChecked) num = num * 10;
-                                                        else num = Math.round(num / 10);
-
-                                                        setConfig({
-                                                            ...config,
-                                                            addHundred: isChecked,
-                                                            introSubtitle: `+${num} 📈`
-                                                        });
-                                                    } else {
-                                                        setConfig({ ...config, addHundred: isChecked });
-                                                    }
-                                                }}
-                                                className="accent-emerald-500 w-3 h-3 cursor-pointer"
-                                            />
-                                            <label htmlFor="addHundred" className="text-[9px] font-bold text-white/50 cursor-pointer select-none">
-                                                x10
-                                            </label>
+                {/* 2. CONTENT AREA */}
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 min-h-[500px]">
+                    {/* TAB 1: EDITOR */}
+                    {activeTab === 'editor' && (
+                        <div className="w-full max-w-lg mx-auto flex flex-row items-center justify-center gap-4 px-2">
+                            <div className="relative aspect-[9/16] w-full max-w-[200px] bg-black rounded-3xl border border-white/10 shadow-2xl overflow-hidden group shrink-0">
+                                {images.length > 0 ? (
+                                    <div className="w-full h-full relative group">
+                                        <img src={images[currentPreviewIdx]} alt="Slide" className="w-full h-full object-contain" />
+                                        <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex items-end justify-center gap-4 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                                            <button onClick={() => setCurrentPreviewIdx(Math.max(0, currentPreviewIdx - 1))} className="p-2 bg-white/20 hover:bg-white/30 rounded-full backdrop-blur"><ChevronLeft className="text-white" size={16} /></button>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => setPreviewImg(images[currentPreviewIdx])} className="p-2 bg-white text-black rounded-lg hover:scale-110 transition"><ScanEye size={16} /></button>
+                                                <button onClick={() => download(images[currentPreviewIdx], currentPreviewIdx)} className="p-2 bg-emerald-500 text-white rounded-lg hover:scale-110 transition"><Download size={16} /></button>
+                                            </div>
+                                            <button onClick={() => setCurrentPreviewIdx(Math.min(images.length - 1, currentPreviewIdx + 1))} className="p-2 bg-white/20 hover:bg-white/30 rounded-full backdrop-blur"><ChevronRight className="text-white" size={16} /></button>
                                         </div>
+                                        <div className="absolute top-4 right-4 bg-black/60 px-2 py-0.5 rounded text-[10px] text-white/50 border border-white/5">{currentPreviewIdx + 1}/{images.length}</div>
                                     </div>
-                                    <input
-                                        value={config.introSubtitle}
-                                        onChange={e => setConfig({ ...config, introSubtitle: e.target.value })}
-                                        className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-sm font-bold focus:outline-none focus:border-emerald-500/50 transition-colors"
-                                    />
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* SECTION 2: BETS */}
-                    <div className="group border border-white/5 rounded-2xl overflow-hidden bg-black/20 transition-all hover:border-white/10 hover:shadow-lg hover:shadow-sky-900/10">
-                        <button
-                            onClick={() => toggleSection('bets')}
-                            className={`w-full flex justify-between items-center p-4 transition-colors ${!collapsed.bets ? 'bg-white/5' : 'hover:bg-white/5'}`}
-                        >
-                            <span className="font-black text-sm uppercase text-sky-400 flex items-center gap-2 tracking-wider">
-                                📝 Editar Apuestas
-                            </span>
-                            {collapsed.bets ? <ChevronRight size={18} className="text-white/30" /> : <ChevronDown size={18} className="text-white/30" />}
-                        </button>
-                        {!collapsed.bets && (
-                            <div className="p-4 space-y-4 border-t border-white/5 animation-slider">
-                                {slideGroups.map((group: any, gIdx: number) => (
-                                    <div key={gIdx} className="bg-black/40 rounded-xl p-3 border border-white/5 relative group/item">
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <input
-                                                value={group.matchDisplay}
-                                                onChange={(e) => {
-                                                    const newGroups = [...slideGroups];
-                                                    newGroups[gIdx].matchDisplay = e.target.value;
-                                                    setSlideGroups(newGroups);
-                                                }}
-                                                className="bg-transparent border-b border-white/10 w-full text-xs font-bold text-sky-300 focus:outline-none focus:border-sky-500 transition-colors"
-                                            />
-                                            {/* Feature Toggle */}
-                                            <button
-                                                onClick={() => {
-                                                    const newGroups = [...slideGroups];
-                                                    newGroups[gIdx].isFeatured = !newGroups[gIdx].isFeatured;
-                                                    setSlideGroups(newGroups);
-                                                }}
-                                                className={`p-1.5 rounded-lg border transition-all ${group.isFeatured ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-black/30 text-white/20 border-white/5 hover:text-white/50'}`}
-                                                title={group.isFeatured ? "Destacado (Slide Propia)" : "Estándar (Agrupado)"}
-                                            >
-                                                <ScanEye size={12} />
-                                            </button>
-                                        </div>
-                                        <div className="space-y-2 pl-2 border-l-2 border-white/5">
-                                            {group.picks.map((pick: string, pIdx: number) => (
-                                                <input
-                                                    key={pIdx}
-                                                    value={pick}
-                                                    onChange={(e) => {
-                                                        const newGroups = [...slideGroups];
-                                                        newGroups[gIdx].picks[pIdx] = e.target.value;
-                                                        setSlideGroups(newGroups);
-                                                    }}
-                                                    className="bg-transparent w-full text-[10px] text-white/70 focus:text-white focus:outline-none"
-                                                />
-                                            ))}
-                                        </div>
+                                ) : (
+                                    <div className="w-full h-full flex flex-col items-center justify-center text-white/20 gap-4 bg-[#0a0a0a]">
+                                        <div className="p-6 rounded-full bg-white/5 animate-pulse"><ImageIcon size={32} /></div>
+                                        <p className="text-[10px] font-bold uppercase tracking-widest text-center">Vista<br />Previa</p>
                                     </div>
-                                ))}
-                                {slideGroups.length === 0 && (
-                                    <p className="text-center text-xs text-white/30 italic py-4">No hay apuestas cargadas</p>
                                 )}
                             </div>
-                        )}
-                    </div>
-
-                    {/* SECTION 3: OUTRO */}
-                    <div className="group border border-white/5 rounded-2xl overflow-hidden bg-black/20 transition-all hover:border-white/10 hover:shadow-lg hover:shadow-purple-900/10">
-                        <button
-                            onClick={() => toggleSection('outro')}
-                            className={`w-full flex justify-between items-center p-4 transition-colors ${!collapsed.outro ? 'bg-white/5' : 'hover:bg-white/5'}`}
-                        >
-                            <span className="font-black text-sm uppercase text-purple-400 flex items-center gap-2 tracking-wider">
-                                🔚 Cierre
-                            </span>
-                            {collapsed.outro ? <ChevronRight size={18} className="text-white/30" /> : <ChevronDown size={18} className="text-white/30" />}
-                        </button>
-                        {!collapsed.outro && (
-                            <div className="p-4 space-y-4 border-t border-white/5 animation-slider">
-                                <div>
-                                    <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block mb-2">Texto Cierre</label>
-                                    <textarea
-                                        value={config.outroTitle}
-                                        onChange={e => setConfig({ ...config, outroTitle: e.target.value })}
-                                        className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-sm font-bold min-h-[60px] focus:outline-none focus:border-purple-500/50 transition-colors resize-none"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block mb-2">Subtítulo</label>
-                                    <textarea
-                                        value={config.outroSub}
-                                        onChange={e => setConfig({ ...config, outroSub: e.target.value })}
-                                        className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-sm font-bold min-h-[50px] focus:outline-none focus:border-purple-500/50 transition-colors resize-none"
-                                    />
-                                </div>
+                            <div className="flex flex-col gap-2 w-[100px] shrink-0">
+                                <button onClick={() => setShowSocialModal(true)} disabled={!socialContent} className="btn-active-effect bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-400 font-bold py-3 px-2 rounded-xl flex flex-col items-center justify-center gap-1 h-[70px]"><ScanEye size={18} /><span className="text-[9px] uppercase">Viral</span></button>
+                                <button onClick={generate} disabled={generating} className="btn-active-effect bg-white hover:bg-gray-200 text-black font-black py-3 px-2 rounded-xl flex flex-col items-center justify-center gap-1 shadow-lg shadow-white/10 h-[70px]">{generating ? <Loader2 className="animate-spin" size={18} /> : <ImageIcon size={18} />} <span className="text-[9px] uppercase">{generating ? '...' : 'Generar'}</span></button>
+                                <button onClick={() => images.forEach((img, i) => download(img, i))} disabled={!images.length} className="btn-active-effect bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-2 rounded-xl flex flex-col items-center justify-center gap-1 shadow-lg shadow-emerald-900/20 disabled:opacity-50 h-[70px]"><Save size={18} /><span className="text-[9px] uppercase">Bajar</span></button>
                             </div>
-                        )}
-                    </div>
-
-                    {/* SECTION 4: BACKGROUNDS */}
-                    <div className="group border border-white/5 rounded-2xl overflow-hidden bg-black/20 transition-all hover:border-white/10 hover:shadow-lg hover:shadow-amber-900/10">
-                        <button
-                            onClick={() => toggleSection('bg')}
-                            className={`w-full flex justify-between items-center p-4 transition-colors ${!collapsed.bg ? 'bg-white/5' : 'hover:bg-white/5'}`}
-                        >
-                            <span className="font-black text-sm uppercase text-amber-500 flex items-center gap-2 tracking-wider">
-                                🖼️ Fondos
-                            </span>
-                            {collapsed.bg ? <ChevronRight size={18} className="text-white/30" /> : <ChevronDown size={18} className="text-white/30" />}
-                        </button>
-                        {!collapsed.bg && (
-                            <div className="p-4 border-t border-white/5 animation-slider">
-                                <div className="grid grid-cols-2 gap-3 max-h-[300px] overflow-y-auto custom-scrollbar p-1">
-                                    {config.bgSelection.map((bg, slideIdx) => (
-                                        <div key={slideIdx} className="space-y-1">
-                                            <span className="text-[9px] font-bold text-white/30 block">Slide {slideIdx + 1}</span>
-                                            <div className="relative aspect-[9/16] rounded-lg overflow-hidden border border-white/10 group/bg hover:border-amber-500/50 transition">
-                                                <img
-                                                    src={`/backgrounds/${bg}`}
-                                                    className="w-full h-full object-cover"
-                                                    alt={`BG ${slideIdx}`}
-                                                />
-                                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/bg:opacity-100 flex items-center justify-center transition-opacity">
-                                                    <button
-                                                        onClick={() => {
-                                                            const newBg = availableFiles[Math.floor(Math.random() * availableFiles.length)];
-                                                            handleBgChange(slideIdx, newBg);
-                                                        }}
-                                                        className="p-2 bg-amber-500 rounded-full text-black hover:scale-110 transition"
-                                                        title="Cambiar Aleatorio"
-                                                    >
-                                                        <RefreshCw size={14} />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                            <div className="text-[8px] text-white/20 truncate px-1">{bg}</div>
-                                        </div>
-                                    ))}
-                                </div>
-                                <button
-                                    onClick={() => smartSelectBackgrounds()}
-                                    className="w-full mt-4 py-2 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-xl text-xs font-bold hover:bg-amber-500/20 transition flex items-center justify-center gap-2"
-                                >
-                                    <RefreshCw size={12} /> Regenerar Todo
-                                </button>
+                        </div>
+                    )}
+                    {/* TAB 2: PORTADA */}
+                    {activeTab === 'portada' && (
+                        <div className="w-full max-w-lg mx-auto bg-[#121212] border border-white/10 rounded-2xl p-6 space-y-6">
+                            <div className="space-y-4">
+                                <div><label className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block mb-2">Título Principal</label><textarea value={config.introTitle} onChange={e => setConfig({ ...config, introTitle: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-sm font-bold min-h-[80px] focus:border-emerald-500/50 outline-none" /><div className="mt-2 flex items-center gap-2"><input type="checkbox" checked={config.useFullDate} onChange={(e) => setConfig({ ...config, useFullDate: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><label className="text-[10px] text-white/50">Fecha Larga + Iconos</label></div></div>
+                                <div className="grid grid-cols-2 gap-3"><div><label className="text-[9px] text-white/30 uppercase mb-1 block">Emoji 1</label><input value={config.introEmoji1} onChange={e => setConfig({ ...config, introEmoji1: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded-lg p-2 text-center text-white" /></div><div><label className="text-[9px] text-white/30 uppercase mb-1 block">Emoji 2</label><input value={config.introEmoji2} onChange={e => setConfig({ ...config, introEmoji2: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded-lg p-2 text-center text-white" /></div></div>
+                                <div><div className="flex justify-between mb-1"><label className="text-[10px] font-bold text-emerald-400 uppercase">Cuota Sticker</label><div className="flex items-center gap-1"><input type="checkbox" checked={config.addHundred} onChange={(e) => { const c = e.target.checked; let val = parseInt(config.introSubtitle.replace(/\D/g, '')) || 0; setConfig({ ...config, addHundred: c, introSubtitle: `+${c ? val * 10 : Math.round(val / 10)} 📈` }) }} className="accent-emerald-500 w-3 h-3" /><span className="text-[9px] text-white/50">x10</span></div></div><input value={config.introSubtitle} onChange={e => setConfig({ ...config, introSubtitle: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-sm font-bold outline-none focus:border-emerald-500/50" /></div>
                             </div>
-                        )}
-                    </div>
-
-                </div>
-
-                <div className="p-4 border-t border-white/10 bg-black/20">
-                    <div className="grid grid-cols-3 gap-2">
-                        {/* VIEW VIRAL BUTTON */}
-                        {socialContent && (
-                            <button
-                                onClick={() => setShowSocialModal(true)}
-                                onTouchStart={() => triggerTouchFeedback()}
-                                className="btn-active-effect bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 text-[10px] rounded-xl shadow-lg transition-transform active:scale-95 flex flex-col items-center justify-center gap-1 leading-tight"
-                            >
-                                <ScanEye size={16} /> VER VIRAL
-                            </button>
-                        )}
-                        {!socialContent && (
-                            <button disabled className="bg-zinc-800 text-white/20 font-bold py-3 text-[10px] rounded-xl border border-white/5 flex flex-col items-center justify-center gap-1">
-                                <Loader2 size={16} /> NO DATA
-                            </button>
-                        )}
-
-                        {/* GENERATE BUTTON */}
-                        <button
-                            onClick={generateImages}
-                            onTouchStart={() => triggerTouchFeedback()}
-                            disabled={generating}
-                            className="btn-active-effect bg-white hover:bg-gray-200 text-black font-bold py-3 text-[10px] rounded-xl shadow-lg transition-transform active:scale-95 disabled:opacity-50 flex flex-col items-center justify-center gap-1 leading-tight"
-                        >
-                            {generating ? <Loader2 className="animate-spin" size={16} /> : <ImageIcon size={16} />}
-                            {generating ? '...' : 'GENERAR'}
-                        </button>
-
-                        {/* DOWNLOAD ALL BUTTON */}
-                        <button
-                            onClick={downloadAll}
-                            onTouchStart={() => triggerTouchFeedback()}
-                            disabled={images.length === 0}
-                            className="btn-active-effect bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 text-[10px] rounded-xl shadow-lg transition-transform active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1 leading-tight"
-                        >
-                            <Save size={16} /> BAJAR TODO
-                        </button>
-                    </div>
-                    <p className="text-center text-white/30 text-[10px] mt-2">{slidesData.length} slides (+2)</p>
+                        </div>
+                    )}
+                    {/* TAB 3: APUESTAS */}
+                    {activeTab === 'bets' && (
+                        <div className="w-full max-w-lg mx-auto bg-[#121212] border border-white/10 rounded-2xl p-4">
+                            <div className="space-y-3 max-h-[60vh] overflow-y-auto custom-scrollbar pr-1">
+                                {!slideGroups.length && <p className="text-center text-xs text-white/30 py-8">No hay apuestas cargadas</p>}
+                                {slideGroups.map((group: any, gIdx: number) => (<div key={gIdx} className="bg-black/30 rounded-xl p-3 border border-white/5 hover:border-sky-500/30 transition-colors"><div className="flex items-center gap-2 mb-2"><input value={group.matchDisplay} onChange={(e) => { const n = [...slideGroups]; n[gIdx].matchDisplay = e.target.value; setSlideGroups(n); }} className="bg-transparent border-b border-white/10 w-full text-xs font-bold text-sky-400 focus:border-sky-500 outline-none pb-1" /><button onClick={() => { const n = [...slideGroups]; n[gIdx].isFeatured = !n[gIdx].isFeatured; setSlideGroups(n); }} className={`p-1.5 rounded-lg border ${group.isFeatured ? 'bg-sky-500 border-sky-500 text-white' : 'bg-white/5 border-white/5 text-white/20'}`}><ScanEye size={12} /></button></div><div className="space-y-1 pl-2 border-l border-white/10">{group.picks.map((pick: string, pIdx: number) => (<input key={pIdx} value={pick} onChange={(e) => { const n = [...slideGroups]; n[gIdx].picks[pIdx] = e.target.value; setSlideGroups(n); }} className="bg-transparent w-full text-[10px] text-white/60 focus:text-white outline-none" />))}</div></div>))}
+                            </div>
+                        </div>
+                    )}
+                    {/* TAB 4: CIERRE */}
+                    {activeTab === 'outro' && (
+                        <div className="w-full max-w-lg mx-auto bg-[#121212] border border-white/10 rounded-2xl p-6 space-y-6">
+                            <div><label className="text-[10px] font-bold text-purple-400 uppercase tracking-wider block mb-2">Título Cierre</label><textarea value={config.outroTitle} onChange={e => setConfig({ ...config, outroTitle: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-sm font-bold min-h-[60px] focus:border-purple-500/50 outline-none" /></div>
+                            <div><label className="text-[10px] font-bold text-purple-400 uppercase tracking-wider block mb-2">Subtítulo</label><textarea value={config.outroSub} onChange={e => setConfig({ ...config, outroSub: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-sm font-bold min-h-[50px] focus:border-purple-500/50 outline-none" /></div>
+                        </div>
+                    )}
+                    {/* TAB 5: FONDOS */}
+                    {activeTab === 'bg' && (
+                        <div className="w-full max-w-lg mx-auto bg-[#121212] border border-white/10 rounded-2xl p-6">
+                            <div className="grid grid-cols-3 gap-2 max-h-[50vh] overflow-y-auto custom-scrollbar p-1 mb-4">
+                                {config.bgSelection.map((bg, i) => (<div key={i} className="group relative"><div className="aspect-[9/16] rounded-lg overflow-hidden border border-white/10 relative"><img src={`/backgrounds/${bg}`} className="w-full h-full object-cover" alt="bg" /><div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><button onClick={() => handleBgChange(i, availableFiles[Math.floor(Math.random() * availableFiles.length)])} className="p-1.5 bg-amber-500 rounded-full text-black hover:scale-110"><RefreshCw size={12} /></button></div></div><p className="text-[8px] text-center text-white/30 mt-1">Slide {i + 1}</p></div>))}
+                            </div>
+                            <button onClick={() => { setAvailableFiles([...availableFiles]); }} className="w-full py-3 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-xl text-xs font-bold hover:bg-amber-500/20 transition flex items-center justify-center gap-2"><RefreshCw size={14} /> REGENERAR TODOS</button>
+                        </div>
+                    )}
                 </div>
             </div>
 
-            {/* RIGHT: PREVIEW PANEL */}
-            <div className="flex-1 bg-black/80 flex flex-col min-h-[300px] md:h-full overflow-hidden relative">
-                {images.length > 0 ? (
-                    <div className="flex-1 overflow-y-auto p-2 md:p-8 flex flex-col items-center justify-center">
-                        <div className="flex items-center gap-4 w-full justify-center">
-                            <button
-                                onClick={() => setCurrentPreviewIdx(prev => Math.max(0, prev - 1))}
-                                disabled={currentPreviewIdx === 0}
-                                className="p-2 bg-white/10 hover:bg-white/20 rounded-full disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                            >
-                                <ChevronLeft size={32} className="text-white" />
-                            </button>
+            {/* === DESKTOP LAYOUT (SPLIT PANE) === */}
+            <div className="hidden md:flex w-full h-[85vh] gap-6 p-6 bg-[#0a0a0a] rounded-3xl border border-white/10 overflow-hidden shadow-2xl">
+                {/* LEFT: SETTINGS (Scrollable) */}
+                <div className="w-1/3 flex flex-col gap-6 overflow-y-auto pr-2 custom-scrollbar">
+                    <div className="flex items-center gap-2 text-white/50 border-b border-white/10 pb-4"><Settings2 size={20} /><h2 className="text-xl font-bold text-white">Configuración</h2></div>
 
-                            <div className="relative h-auto max-h-[55vh] bg-transparent rounded-lg overflow-hidden border border-white/10 shadow-2xl group aspect-[4/5]">
-                                <img src={images[currentPreviewIdx]} alt={`Slide ${currentPreviewIdx}`} className="w-full h-full object-contain" />
+                    {/* GROUP 1: PORTADA */}
+                    <div className="bg-[#121212] border border-white/5 rounded-2xl p-5 space-y-4">
+                        <h3 className="text-sm font-bold text-emerald-400 uppercase tracking-widest flex items-center gap-2"><LayoutTemplate size={16} /> Portada</h3>
+                        <div><label className="text-[10px] text-white/40 font-bold uppercase block mb-1">Título</label><textarea value={config.introTitle} onChange={e => setConfig({ ...config, introTitle: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white text-sm font-bold min-h-[70px] focus:border-emerald-500/50 outline-none" /></div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5"><input type="checkbox" checked={config.useFullDate} onChange={(e) => setConfig({ ...config, useFullDate: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-white/60 font-bold">Fecha Larga</span></div>
+                            <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5"><input type="checkbox" checked={config.addHundred} onChange={(e) => { const c = e.target.checked; let val = parseInt(config.introSubtitle.replace(/\D/g, '')) || 0; setConfig({ ...config, addHundred: c, introSubtitle: `+${c ? val * 10 : Math.round(val / 10)} 📈` }) }} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-white/60 font-bold">Cuota x10</span></div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <input value={config.introEmoji1} onChange={e => setConfig({ ...config, introEmoji1: e.target.value })} className="bg-black/40 border border-white/10 rounded-lg p-2 text-center text-white" placeholder="Emoji 1" />
+                            <input value={config.introEmoji2} onChange={e => setConfig({ ...config, introEmoji2: e.target.value })} className="bg-black/40 border border-white/10 rounded-lg p-2 text-center text-white" placeholder="Emoji 2" />
+                        </div>
+                        <input value={config.introSubtitle} onChange={e => setConfig({ ...config, introSubtitle: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white text-sm font-bold outline-none focus:border-emerald-500/50" placeholder="Texto Cuota" />
+                    </div>
 
-                                {/* Overlay Controls - Bottom Aligned */}
-                                <div className="absolute inset-x-0 bottom-0 top-1/2 bg-gradient-to-t from-black/90 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center gap-12 pb-8">
-                                    <div className="flex flex-col items-center gap-2 transform hover:scale-110 transition-transform cursor-pointer" onClick={() => setPreviewImg(images[currentPreviewIdx])}>
-                                        <ScanEye className="text-white" size={28} />
-                                        <span className="text-white text-[10px] font-bold uppercase tracking-wider">Ver</span>
-                                    </div>
-                                    <button
-                                        onClick={(e) => downloadImage(images[currentPreviewIdx], currentPreviewIdx, e)}
-                                        className="flex flex-col items-center gap-2 transform hover:scale-110 transition-transform"
-                                    >
-                                        <Download className="text-white" size={28} />
-                                        <span className="text-white text-[10px] font-bold uppercase tracking-wider">Bajar</span>
-                                    </button>
+                    {/* GROUP 2: APUESTAS */}
+                    <div className="bg-[#121212] border border-white/5 rounded-2xl p-5 space-y-4">
+                        <h3 className="text-sm font-bold text-sky-400 uppercase tracking-widest flex items-center gap-2"><Type size={16} /> Apuestas ({slideGroups.length})</h3>
+                        <div className="space-y-3">
+                            {slideGroups.map((group, idx) => (
+                                <div key={idx} className="bg-black/30 p-3 rounded-xl border border-white/5 hover:border-sky-500/20">
+                                    <div className="flex gap-2 mb-2"><input value={group.matchDisplay} onChange={e => { const n = [...slideGroups]; n[idx].matchDisplay = e.target.value; setSlideGroups(n) }} className="bg-transparent border-b border-white/10 w-full text-xs font-bold text-sky-300 focus:border-sky-500 outline-none" /><button onClick={() => { const n = [...slideGroups]; n[idx].isFeatured = !n[idx].isFeatured; setSlideGroups(n) }} className={`p-1 rounded ${group.isFeatured ? 'bg-sky-500 text-white' : 'text-white/20'}`}><ScanEye size={12} /></button></div>
+                                    <div className="pl-2 border-l border-white/10 space-y-1">{group.picks.map((p: string, i: number) => <input key={i} value={p} onChange={e => { const n = [...slideGroups]; n[idx].picks[i] = e.target.value; setSlideGroups(n) }} className="bg-transparent w-full text-[10px] text-white/50 focus:text-white outline-none" />)}</div>
                                 </div>
-
-                                <span className="absolute top-4 left-4 text-[10px] font-bold text-white/50 bg-black/50 px-2 py-0.5 rounded border border-white/10">
-                                    {currentPreviewIdx + 1} / {images.length}
-                                </span>
-                            </div>
-
-                            <button
-                                onClick={() => setCurrentPreviewIdx(prev => Math.min(images.length - 1, prev + 1))}
-                                disabled={currentPreviewIdx === images.length - 1}
-                                className="p-2 bg-white/10 hover:bg-white/20 rounded-full disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                            >
-                                <ChevronRight size={32} className="text-white" />
-                            </button>
+                            ))}
+                            {!slideGroups.length && <p className="text-xs text-center text-white/20 py-4">Sin datos</p>}
                         </div>
                     </div>
-                ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center text-white/30 gap-4">
-                        <ImageIcon size={64} className="opacity-20" />
-                        <p className="text-sm">Listo para generar</p>
-                        <p className="text-xs text-white/20">Se encontraron {slideGroups.length} selecciones</p>
-                    </div>
-                )}
 
+                    {/* GROUP 3: CIERRE */}
+                    <div className="bg-[#121212] border border-white/5 rounded-2xl p-5 space-y-4">
+                        <h3 className="text-sm font-bold text-purple-400 uppercase tracking-widest flex items-center gap-2"><Megaphone size={16} /> Cierre</h3>
+                        <textarea value={config.outroTitle} onChange={e => setConfig({ ...config, outroTitle: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white text-sm font-bold min-h-[60px] focus:border-purple-500/50 outline-none" placeholder="Título Cierre" />
+                        <textarea value={config.outroSub} onChange={e => setConfig({ ...config, outroSub: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white text-sm font-bold min-h-[50px] focus:border-purple-500/50 outline-none" placeholder="Subtítulo" />
+                    </div>
+
+                    {/* GROUP 4: FONDOS */}
+                    <div className="bg-[#121212] border border-white/5 rounded-2xl p-5 space-y-4">
+                        <div className="flex justify-between items-center"><h3 className="text-sm font-bold text-amber-400 uppercase tracking-widest flex items-center gap-2"><Palette size={16} /> Fondos</h3><button onClick={() => smartSelectBackgrounds()} className="text-[10px] font-bold text-amber-500 hover:underline">Regenerar</button></div>
+                        <div className="grid grid-cols-4 gap-2">
+                            {config.bgSelection.map((bg, i) => (
+                                <div key={i} className="group relative aspect-[9/16] rounded overflow-hidden border border-white/10 cursor-pointer" onClick={() => handleBgChange(i, availableFiles[Math.floor(Math.random() * availableFiles.length)])}>
+                                    <img src={`/backgrounds/${bg}`} className="w-full h-full object-cover" />
+                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center"><RefreshCw size={12} className="text-white" /></div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/* RIGHT: PREVIEW (Fixed) */}
+                <div className="flex-1 bg-[#121212] rounded-2xl border border-white/5 flex flex-col relative overflow-hidden">
+                    <div className="absolute top-0 inset-x-0 h-16 bg-gradient-to-b from-black/50 to-transparent z-10 pointer-events-none" />
+
+                    {/* PREVIEW IMAGE AREA */}
+                    <div className="flex-1 flex items-center justify-center p-8 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-100">
+                        {images.length > 0 ? (
+                            <div className="relative h-full max-h-[700px] aspect-[9/16] shadow-2xl rounded-xl overflow-hidden group">
+                                <img src={images[currentPreviewIdx]} className="w-full h-full object-contain bg-black" />
+                                <div className="absolute inset-x-0 bottom-0 p-8 flex border-t border-white/10 justify-center gap-8 bg-gradient-to-t from-black/90 to-transparent opacity-0 group-hover:opacity-100 transition-all">
+                                    <button onClick={() => setCurrentPreviewIdx(Math.max(0, currentPreviewIdx - 1))} className="p-3 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur transition"><ChevronLeft className="text-white" size={24} /></button>
+                                    <button onClick={() => setCurrentPreviewIdx(Math.min(images.length - 1, currentPreviewIdx + 1))} className="p-3 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur transition"><ChevronRight className="text-white" size={24} /></button>
+                                </div>
+                                <div className="absolute top-6 right-6 px-3 py-1 bg-black/60 rounded-full border border-white/10 text-xs font-bold text-white/70">{currentPreviewIdx + 1} / {images.length}</div>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center gap-4 opacity-30"><ImageIcon size={64} /><p className="text-xl font-bold uppercase tracking-widest">Listo para Generar</p></div>
+                        )}
+                    </div>
+
+                    {/* BOTTOM BAR ACTION AREA */}
+                    <div className="h-20 bg-black/40 border-t border-white/5 backdrop-blur flex items-center justify-between px-8">
+                        <div className="flex items-center gap-4">
+                            <button onClick={() => setShowSocialModal(true)} disabled={!socialContent} className="px-6 py-2.5 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 font-bold text-xs uppercase tracking-wider hover:bg-purple-500/20 transition flex items-center gap-2"><ScanEye size={16} /> Ver Viral Content</button>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <button onClick={generate} disabled={generating} className="px-8 py-3 rounded-xl bg-white text-black font-black text-xs uppercase tracking-widest hover:bg-gray-200 transition shadow-lg shadow-white/10 flex items-center gap-2">{generating ? <Loader2 className="animate-spin" size={16} /> : <ImageIcon size={16} />} {generating ? 'Generando...' : 'Generar Slides'}</button>
+                            <button onClick={downloadAll} disabled={!images.length} className="px-8 py-3 rounded-xl bg-emerald-600 text-white font-bold text-xs uppercase tracking-widest hover:bg-emerald-500 transition shadow-lg shadow-emerald-900/20 flex items-center gap-2 disabled:opacity-50"><Save size={16} /> Bajar Todo</button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            {/* FULL SCREEN PREVIEW MODAL */}
-            {previewImg && (
-                <div className="fixed inset-0 z-[300] bg-black/95 backdrop-blur flex items-center justify-center p-8 cursor-pointer" onClick={() => setPreviewImg(null)}>
-                    <img src={previewImg} alt="Preview" className="h-full w-auto object-contain rounded-xl shadow-2xl border border-white/20" />
-                    <button className="absolute top-8 right-8 text-white/50 hover:text-white p-2">
-                        <X size={40} />
-                    </button>
+            {/* MODAL & RENDERER (Cleaned up) */}
+            {showSocialModal && socialContent && (
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur p-4 text-left">
+                    <div className="bg-[#1a1a1a] border border-white/10 rounded-3xl p-6 w-full max-w-md space-y-4">
+                        <div className="flex justify-between items-center"><h3 className="font-bold text-white flex gap-2 items-center">📱 Viral Content</h3><button onClick={() => setShowSocialModal(false)} className="text-white/50"><X size={24} /></button></div>
+                        <div className="space-y-2"><label className="text-[10px] text-emerald-400 font-bold uppercase">Título</label><div className="flex gap-2"><div className="flex-1 bg-black/50 p-2 rounded text-white text-sm">{socialContent.title}</div><button onClick={() => handleCopyText(socialContent.title, 't')} className="p-2 bg-white/10 rounded hover:bg-white/20 text-white">{copiedStates['t'] ? <Check size={16} /> : <Copy size={16} />}</button></div></div>
+                        <div className="space-y-2"><label className="text-[10px] text-purple-400 font-bold uppercase">Caption</label><div className="flex gap-2"><div className="flex-1 bg-black/50 p-2 rounded text-white/80 text-xs max-h-32 overflow-y-auto">{socialContent.description || socialContent.caption}</div><button onClick={() => handleCopyText(socialContent.description || socialContent.caption, 'c')} className="p-2 bg-white/10 rounded hover:bg-white/20 text-white h-fit">{copiedStates['c'] ? <Check size={16} /> : <Copy size={16} />}</button></div></div>
+                    </div>
                 </div>
             )}
 
-            {/* HIDDEN RENDER CONTAINER */}
-            <div className="fixed top-0 left-0 z-[-1000] opacity-0 pointer-events-none">
+            {previewImg && <div className="fixed inset-0 z-[2000] bg-black/95 backdrop-blur flex items-center justify-center p-4" onClick={() => setPreviewImg(null)}><img src={previewImg} className="h-full object-contain rounded-xl shadow-2xl" /></div>}
+
+            {/* HIDDEN RENDERER */}
+            <div className="fixed top-0 left-0 z-[-9999] opacity-0 pointer-events-none">
                 <div ref={containerRef} style={{ width: 1080, height: 1350 }}>
-
+                    {/* 
+                       RENDER LOGIC (Identical Structure as before) 
+                     */}
                     <div className="w-[1080px] relative flex flex-col items-center justify-center font-sans overflow-hidden bg-black" style={{ height: 1350 }}>
-                        <img
-                            src={config.bgSelection[0]?.includes('.') ? `/backgrounds/${config.bgSelection[0]}` : `/backgrounds/${config.bgSelection[0] || 'bg-portada-1.png'}`}
-                            onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1518091043644-c1d4457512c6?q=80&w=1920&fit=crop"}
-                            crossOrigin="anonymous"
-                            width={1080}
-                            height={1350}
-                            className="absolute inset-0 w-full h-full object-cover z-0 opacity-100"
-                            alt="bg"
-                        />
+                        <img src={getImageSrc(config.bgSelection[0])} onError={(e) => e.currentTarget.src = "https://placehold.co/1080x1350/1a1a1a/FFF?text=Error+BG"} width={1080} height={1350} className="absolute inset-0 w-full h-full object-cover z-0 opacity-100" alt="bg" />
                         <div className="absolute inset-0 z-0 bg-black/5" />
-
                         <div className="relative z-10 w-full flex flex-col items-center gap-14 p-8">
-                            {/* TITLE SPLIT: 2 blocks, 2nd block has icons */}
-                            {(() => {
-                                const parts = config.introTitle.split('\n');
-                                const line1 = parts[0] || "";
-                                const line2 = parts[1] || "";
-
-                                return (
-                                    <div className="flex flex-col items-center gap-4 w-full">
-                                        {/* Line 1 */}
-                                        <div className="bg-white px-12 pt-2 pb-6 rounded-2xl w-fit max-w-[90%] flex items-center justify-center">
-                                            <h1 className="text-6xl font-black text-black tracking-tighter leading-tight whitespace-nowrap text-center pb-5">
-                                                {line1}
-                                            </h1>
-                                        </div>
-                                        {/* Line 2 with Icons */}
-                                        <div className="bg-white px-12 pt-2 pb-4 rounded-2xl flex items-center justify-center gap-6 w-fit max-w-[95%]">
-                                            <h1 className="text-5xl font-black text-black tracking-tighter leading-tight whitespace-nowrap pb-5">
-                                                {line2}
-                                            </h1>
-                                            <div className="flex items-center gap-4 pb-5">
-                                                {config.introEmoji1 && (
-                                                    <span className="text-5xl filter drop-shadow hover:brightness-110">{config.introEmoji1}</span>
-                                                )}
-                                                {config.introEmoji2 && (
-                                                    <span className="text-5xl filter drop-shadow hover:brightness-110">{config.introEmoji2}</span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })()}
-
-                            {/* ODDS PILL: STICKER STYLE (Editable) - Hide if empty */}
-                            {config.introSubtitle && config.introSubtitle.trim() !== "" && (
-                                <div className="bg-white px-14 pt-4 pb-8 rounded-2xl mt-8 flex items-center justify-center">
-                                    <span className="text-6xl font-black text-black uppercase tracking-tighter leading-none pb-5">
-                                        {config.introSubtitle}
-                                    </span>
-                                </div>
-                            )}
+                            {/* TITLE */}
+                            <div className="flex flex-col items-center gap-4 w-full">
+                                <div className="bg-white px-12 pt-2 pb-6 rounded-2xl w-fit max-w-[90%] flex items-center justify-center"><h1 className="text-6xl font-black text-black tracking-tighter leading-tight whitespace-nowrap text-center pb-5">{config.introTitle.split('\n')[0]}</h1></div>
+                                <div className="bg-white px-12 pt-2 pb-4 rounded-2xl flex items-center justify-center gap-6 w-fit max-w-[95%]"><h1 className="text-5xl font-black text-black tracking-tighter leading-tight whitespace-nowrap pb-5">{config.introTitle.split('\n')[1] || ''}</h1><div className="flex items-center gap-4 pb-5">{config.introEmoji1 && <span className="text-5xl filter drop-shadow">{config.introEmoji1}</span>}{config.introEmoji2 && <span className="text-5xl filter drop-shadow">{config.introEmoji2}</span>}</div></div>
+                            </div>
+                            {config.introSubtitle && <div className="bg-white px-14 pt-4 pb-8 rounded-2xl mt-8 flex items-center justify-center"><span className="text-6xl font-black text-black uppercase tracking-tighter leading-none pb-5">{config.introSubtitle}</span></div>}
                         </div>
                     </div>
 
-                    {/* SLIDES 2-N: BETS (3 per slide) */}
                     {slidesData.map((chunk, slideIdx) => (
                         <div key={slideIdx} className="w-[1080px] relative flex flex-col items-center justify-center font-sans overflow-hidden bg-black" style={{ height: 1350 }}>
-                            <img
-                                src={config.bgSelection[slideIdx + 1]?.includes('.') ? `/backgrounds/${config.bgSelection[slideIdx + 1]}` : `/backgrounds/${config.bgSelection[slideIdx + 1] || 'bg-futbol-comodin-1.png'}`}
-                                onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?q=80&w=1920&fit=crop"}
-                                crossOrigin="anonymous"
-                                width={1080}
-                                height={1350}
-                                className="absolute inset-0 w-full h-full object-cover z-0 opacity-100"
-                                alt="bg"
-                            />
+                            <img src={getImageSrc(config.bgSelection[slideIdx + 1])} width={1080} height={1350} className="absolute inset-0 w-full h-full object-cover z-0 opacity-100" alt="bg" />
                             <div className="absolute inset-0 z-0 bg-black/5" />
-
                             <div className="relative z-10 w-full h-full flex flex-col items-center justify-center p-8 gap-16 pb-[80px]">
-                                {chunk.map((group: any, bIdx: number) => {
-                                    const { match } = parseBetDisplay(group.matchDisplay, "");
-                                    const sportIcon = group.sport === 'basketball' ? '🏀' : '⚽';
-
-                                    // Extract team names for comparison
-                                    const teams = match.toLowerCase().split(' vs ').map(t => t.trim());
-
-                                    return (
-                                        <div key={bIdx} className="w-full flex flex-col items-center gap-4">
-                                            {/* MATCH TITLE: Inverted Colors (Black BG, White Text) - NO BORDER */}
-                                            <div className="bg-black px-8 pt-2 pb-4 rounded-xl max-w-[95%] border-2 border-black flex items-center justify-center text-center">
-                                                <h3 className="text-3xl font-black text-white uppercase tracking-tight leading-tight whitespace-pre-wrap break-words pb-5">
-                                                    {group.matchDisplay}
-                                                </h3>
-                                            </div>
-
-                                            {/* PICKS LOOP */}
-                                            {group.picks.map((pick: string, pIdx: number) => {
-                                                return (
-                                                    <div key={pIdx} className="bg-white px-8 pt-2 pb-4 rounded-xl max-w-[95%] flex items-center justify-center text-center mt-[-10px]">
-                                                        <span className="text-3xl font-black text-black tracking-tight leading-tight whitespace-pre-wrap break-words pb-5">
-                                                            {pick}
-                                                        </span>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    );
-                                })}
+                                {chunk.map((group: any, bIdx: number) => (
+                                    <div key={bIdx} className="w-full flex flex-col items-center gap-4">
+                                        <div className="bg-black px-8 pt-2 pb-4 rounded-xl max-w-[95%] border-2 border-black flex items-center justify-center text-center"><h3 className="text-3xl font-black text-white uppercase tracking-tight leading-tight whitespace-pre-wrap break-words pb-5">{group.matchDisplay}</h3></div>
+                                        {group.picks.map((pick: string, pIdx: number) => (
+                                            <div key={pIdx} className="bg-white px-8 pt-2 pb-4 rounded-xl max-w-[95%] flex items-center justify-center text-center mt-[-10px]"><span className="text-3xl font-black text-black tracking-tight leading-tight whitespace-pre-wrap break-words pb-5">{pick}</span></div>
+                                        ))}
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     ))}
 
-                    {/* SLIDE N: OUTRO */}
                     <div className="w-[1080px] relative flex flex-col items-center justify-center gap-16 font-sans overflow-hidden bg-black" style={{ height: 1350 }}>
-                        <img
-                            src={config.bgSelection[slidesData.length + 1]?.includes('.') ? `/backgrounds/${config.bgSelection[slidesData.length + 1]}` : `/backgrounds/${config.bgSelection[slidesData.length + 1] || 'bg-futbol-comodin-2.png'}`}
-                            onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1579952363873-1b9132c3f58a?q=80&w=1920&fit=crop"}
-                            crossOrigin="anonymous"
-                            width={1080}
-                            height={1350}
-                            className="absolute inset-0 w-full h-full object-cover z-0 opacity-100"
-                            alt="bg"
-                        />
+                        <img src={getImageSrc(config.bgSelection[slidesData.length + 1])} width={1080} height={1350} className="absolute inset-0 w-full h-full object-cover z-0 opacity-100" alt="bg" />
                         <div className="absolute inset-0 z-0 bg-black/5" />
-
                         <div className="relative z-10 w-full flex flex-col items-center gap-16 p-12">
-
-                            {/* MAIN TEXT - REMOVED SHADOW-2XL replaced with shadow-lg for flat look */}
-                            <div className="bg-white px-10 py-10 rounded-2xl max-w-[95%] text-center">
-                                <h2 className="text-6xl font-black text-black uppercase tracking-tighter leading-tight whitespace-pre-line">
-                                    {config.outroTitle}
-                                </h2>
-                            </div>
-
-                            {/* SUBTEXT (White w/ shadow-lg) */}
-                            <div className="bg-white px-12 py-6 rounded-2xl">
-                                <p className="text-3xl font-black text-black uppercase tracking-tight">
-                                    {config.outroSub}
-                                </p>
-                            </div>
-
+                            <div className="bg-white px-10 py-10 rounded-2xl max-w-[95%] text-center"><h2 className="text-6xl font-black text-black uppercase tracking-tighter leading-tight whitespace-pre-line">{config.outroTitle}</h2></div>
+                            <div className="bg-white px-12 py-6 rounded-2xl"><p className="text-3xl font-black text-black uppercase tracking-tight">{config.outroSub}</p></div>
                         </div>
                     </div>
-
                 </div>
             </div>
+
         </div>
     );
+}
+
+function getImageSrc(bg: string | undefined) {
+    if (!bg) return "/backgrounds/bg-portada-1.png";
+    return bg.includes('.') ? `/backgrounds/${bg}` : `/backgrounds/${bg}`;
 }
