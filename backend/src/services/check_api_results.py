@@ -38,10 +38,101 @@ API_KEY = os.getenv("API_KEY")
 FOOTBALL_API_URL = "https://v3.football.api-sports.io/fixtures"
 BASKETBALL_API_URL = "https://v1.basketball.api-sports.io/games"
 
-HEADERS = {
-    'x-rapidapi-host': "v3.football.api-sports.io",
-    'x-rapidapi-key': API_KEY
-}
+
+
+def call_api_with_proxy(url, extra_headers=None):
+    """
+    Helper to make API calls using the residential proxy with Retries.
+    """
+    proxy_url = os.getenv("PROXY_URL")
+    if not proxy_url:
+        print("[CRITICAL] Se requiere PROXY_URL para operar con seguridad.")
+        # Como es un script de check, a veces corre local sin proxy. Pero si el usuario exige... 
+        # asumimos que en GH Actions SIEMPRE debera estar.
+        # Si no esta, fallamos o warn? USER DIJO: "siempre con esa ip de proxy".
+        raise ValueError("PROXY_URL missing")
+        
+    proxies = {"http": proxy_url, "https": proxy_url} 
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "application/json"
+    }
+    if extra_headers:
+        headers.update(extra_headers)
+        
+    # Retry Loop
+    max_retries = 3
+    for attempt in range(1, max_retries + 1):
+        try:
+            if attempt > 1:
+                print(f"      [Reintento {attempt}/{max_retries}] ...")
+                time.sleep(2)
+                
+            response = requests.get(url, headers=headers, proxies=proxies, timeout=30)
+            response.raise_for_status()
+            return response
+        except Exception as e:
+            print(f"      [PROXY-FAIL] Attempt {attempt}: {e}")
+            if attempt == max_retries:
+                raise e
+
+def verify_ip_connection():
+    try:
+        print("[INIT] Verifying Proxy IP connection...")
+        resp = call_api_with_proxy("https://api.ipify.org?format=json")
+        data = resp.json()
+        print(f"[INIT] External IP verified: {data.get('ip')}")
+    except Exception as e:
+        print(f"[INIT-CRITICAL] Could not verify IP via Proxy: {e}")
+        raise e
+
+
+# --- BLACKLIST MANAGER ---
+class BlacklistManager:
+    def __init__(self, redis_service):
+        self.rs = redis_service
+
+    def _get_month_key(self, date_str):
+        # date_str is YYYY-MM-DD -> YYYY-MM
+        return date_str[:7]
+
+    def _get_failed_map(self, date_str):
+        """Recupera el mapa de IDs fallidos del Hash Mensual en Redis."""
+        if not self.rs.is_active: return {}
+        
+        month = self._get_month_key(date_str)
+        # Key: daily_bets:YYYY-MM, Field: ID_RESULT_FAILED
+        # Note: RedisService.hget handles prefixing
+        raw_json = self.rs.hget(f"daily_bets:{month}", "ID_RESULT_FAILED")
+        
+        if not raw_json: return {}
+        try:
+            return json.loads(raw_json)
+        except:
+            return {}
+
+    def is_blacklisted(self, fixture_id, date_str):
+        failed_map = self._get_failed_map(date_str)
+        return str(fixture_id) in failed_map
+
+    def add(self, fixture_id, reason, bet_info, date_str):
+        if not self.rs.is_active: return
+
+        month = self._get_month_key(date_str)
+        current_map = self._get_failed_map(date_str)
+        
+        fid = str(fixture_id)
+        if fid not in current_map:
+            current_map[fid] = {
+                "reason": str(reason),
+                "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "bet_info": bet_info
+            }
+            
+            # Save back to Redis
+            self.rs.hset(f"daily_bets:{month}", {"ID_RESULT_FAILED": json.dumps(current_map)})
+            print(f"      [BLACKLIST] ID {fid} added to Redis ({month}). Reason: {reason}")
 
 # --- HELPERS ---
 
@@ -57,7 +148,8 @@ def get_football_result(fixture_id):
     }
     
     try:
-        resp = requests.get(url, headers=headers)
+        # resp = requests.get(url, headers=headers)
+        resp = call_api_with_proxy(url, extra_headers=headers)
         data = resp.json()
         
         if not data.get("response"):
@@ -115,7 +207,8 @@ def get_basketball_result(game_id):
     }
     
     try:
-        resp = requests.get(url, headers=headers)
+        # resp = requests.get(url, headers=headers)
+        resp = call_api_with_proxy(url, extra_headers=headers)
         data = resp.json()
         
         if not data.get("response"):
@@ -134,15 +227,114 @@ def get_basketball_result(game_id):
         return {
             "status": "FINISHED",
             "home_score": home_total,
-            "away_score": away_total
+            "away_score": away_total,
+            "players": game.get("players", []) # Return players data for props
         }
-        
     except Exception as e:
-        print(f"[ERROR] Basketball API ID {game_id}: {e}")
+        print(f"[ERROR] Football API ID {fixture_id}: {e}")
         return None
+
+# --- PLAYER PROP LOGIC ---
+def evaluate_player_prop(pick, fixture_data):
+    """
+    Evaluates Player Props (Shots/Remates) with strict VOID rules.
+    Returns: (status_str, result_str)
+    Status: WON, LOST, VOID
+    """
+    # 1. Parse Line (Target)
+    # Search for number (e.g. 1.5, 0.5, 2.5)
+    import re
+    line = 1.5 # Default
+    match_num = re.search(r'(\d+(\.\d+)?)', pick.replace(",", "."))
+    if match_num:
+        # We need to be careful not to pick up the player name numbers if any, but usually line is distinct
+        # Logic: Look for number after "over", "más de", ">"
+        # For now, simplistic find first float.
+        # User example: "Vinicius más de 1.5 remates"
+        # We can reuse the regex from main loop but let's be robust here
+        if "más de" in pick or "over" in pick or ">" in pick:
+             cleanForNum = pick.lower().replace("más de", "").replace("over", "").replace(">", "")
+             m = re.search(r'(\d+(\.\d+)?)', cleanForNum)
+             if m: line = float(m.group(1))
+
+    # 2. Extract Player Name (Heuristic)
+    # Remove keywords and line
+    ignore_words = ["más de", "over", "remates", "shots", "tiros", "en el partido", "player" , "jugador", "gol", "goles", str(line)]
+    clean_name = pick.lower()
+    for w in ignore_words:
+        clean_name = clean_name.replace(w, "")
+    clean_name = re.sub(r'\d+', '', clean_name).strip() 
+    # clean_name is now "vinicius jr" approx
+    
+    # 3. Find Player in Data
+    # structure: fixture_data['players'] is list of 2 teams -> [ { team:..., players: [...] }, ... ]
+    found_stats = None
+    found_name = ""
+    
+    teams = fixture_data.get("players", [])
+    if not teams:
+         # No player stats available -> VOID (Protection) or Manual Check?
+         # If match is FT but no stats, we can't settle. 
+         # Let's return VOID or raise error. 
+         # User said: "Si no es NULA, evaluar...". If data missing, safer to VOID or Manual?
+         # Let's say Manual Check better if data completely missing to verify if API issue.
+         raise ValueError("No Player Data in API")
+
+    for team in teams:
+        for p_entry in team.get("players", []):
+            p = p_entry.get("player", {})
+            p_name = p.get("name", "").lower()
+            # fuzzy match
+            if clean_name in p_name or p_name in clean_name:
+                found_stats = p_entry.get("statistics", [])[0] # usually array of 1
+                found_name = p.get("name")
+                break
+        if found_stats: break
+    
+    if not found_stats:
+        # Player not found in API list (maybe didn't play at all?)
+        # If not in lineup, usually VOID
+        return "VOID", f"Player Not Found ({clean_name})"
+
+    # 4. Check VOID Rules (Prioridad 1)
+    # Rule A: Inactivity
+    minutes = found_stats["games"].get("minutes")
+    passes = found_stats["passes"].get("total")
+    
+    # Treat None as 0 for comparisons if safe, but here explicit check
+    is_min_zero = minutes is None or minutes == 0
+    is_passes_none = passes is None # API sends null
+    
+    if is_min_zero and is_passes_none:
+        return "VOID", "Inactive (0 min)"
+        
+    # Rule B: Substitute Protection
+    is_sub = found_stats["games"].get("substitute", False)
+    # minutes < 45
+    min_val = minutes if minutes is not None else 0
+    if is_sub and min_val < 45:
+        return "VOID", f"Sub < 45m ({min_val}m)"
+        
+    # 5. Check Result (Prioridad 2) - REMATES / SHOTS
+    # "Si statistics[0].shots.total es null, asignar valor 0"
+    shots_total = found_stats["shots"].get("total")
+    if shots_total is None: shots_total = 0
+    
+    result_str = f"{shots_total} Shots"
+    
+    # Logic: "GANADA: shots.total >= 2" (assuming line is 1.5)
+    # Generalize: total > line
+    
+    if shots_total > line: 
+        return "WON", result_str
+    else:
+        return "LOST", result_str
 
 def check_bets():
     print("--- AUTOMATED RESULT CHECKER STARTED ---")
+    
+    # 0. Safety Check
+    verify_ip_connection()
     
     if not API_KEY:
         print("[FATAL] API_KEY not found in env.")
@@ -156,10 +348,15 @@ def check_bets():
     # Check Today and Yesterday (for late night games)
     dates_to_check = [
         datetime.now().strftime("%Y-%m-%d"),
-        (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d"),
+        (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d")
     ]
     
     total_updates = 0
+
+
+    # 1. Init Blacklist Manager (Need RS)
+    bl_manager = BlacklistManager(rs)
 
     for date_str in dates_to_check:
         print(f"[*] Checking bets for date: {date_str}")
@@ -196,12 +393,14 @@ def check_bets():
             if not selections: continue
             
             # Reset logic flags
+            # Reset logic flags
             all_won = True
             any_lost = False
             pending_count = 0
-            
-            # Check attempts (Global for bet)
-            check_attempts = bet.get("check_attempts", 0)
+            void_count = 0
+            effective_odd = 1.0
+
+
             
             # --- PROCESS SELECTIONS ---
             for sel in selections:
@@ -210,16 +409,23 @@ def check_bets():
                 pick_lower = sel.get("pick", "").lower()
                 is_dc = "doble" in pick_lower or "double" in pick_lower or "1x" in pick_lower or "x2" in pick_lower or "12" in pick_lower
                 
-                if sel.get("status") in ["WON", "LOST", "PUSH", "VOID"] and not is_dc:
+                if sel.get("status") in ["WON", "LOST", "PUSH", "VOID", "NULA"] and not is_dc:
                     if sel["status"] == "LOST": any_lost = True
-                    if sel["status"] != "WON": all_won = False
+                    if sel["status"] != "WON" and sel["status"] != "VOID" and sel["status"] != "NULA": all_won = False
+                    
+                    # Accumulate effective odd for already resolved selections
+                    if sel["status"] == "WON":
+                        effective_odd *= float(sel.get("odd", 1.0))
+                    elif sel["status"] in ["VOID", "NULA"]:
+                        void_count += 1
+                        # Void counts as 1.0, so no change to effective_odd
                     continue
                     
                 # Check Time Constraint (+3 hours margin)
                 try:
                     match_time = datetime.strptime(sel["time"], "%Y-%m-%d %H:%M")
-                    if datetime.now() < match_time + timedelta(hours=3):
-                        # Too early
+                    if datetime.now() < match_time + timedelta(hours=2.5):
+                        # Too early (Wait 2.5h minimum)
                         pending_count += 1
                         all_won = False
                         continue
@@ -231,24 +437,37 @@ def check_bets():
                 fid = sel.get("fixture_id")
                 sport = sel.get("sport", "football").lower()
                 
+                # [BLACKLIST CHECK]
+                if bl_manager.is_blacklisted(fid, date_str):
+                     print(f"      [SKIP] ID {fid} is in Blacklist (Redis).")
+                     pending_count += 1
+                     all_won = False
+                     continue
+
                 print(f"   -> Checking {sport} ID {fid} ({sel['match']})...")
                 
                 data = None
-                if sport == "football":
-                    data = get_football_result(fid)
-                elif sport == "basketball":
-                    data = get_basketball_result(fid)
+                try:
+                    if sport == "football":
+                        data = get_football_result(fid)
+                    elif sport == "basketball":
+                        data = get_basketball_result(fid)
+                except Exception as e_api:
+                     # This catches critical API failures that survived the proxy retry
+                     print(f"      [API-WARN] Failed to fetch ID {fid}: {e_api}")
+                     # Do not blacklist temporary API failures, just retry later
+                     pending_count += 1
+                     all_won = False
+                     continue
                     
                 if not data or data.get("status") == "PENDING":
-                    # API No Data or Match not finished despite > 3h
+                    # API No Data or Match not finished despite > 2.5h
+                    # Just wait for next cron indefinitely
                     pending_count += 1
                     all_won = False
                     
-                    # Increment check attempts for this failure
-                    check_attempts += 1
-                    bet["check_attempts"] = check_attempts
-                    bets_modified = True
-                    print(f"      [WARN] Data unavail/pending. Attempt {check_attempts}/3")
+                    # No Manual Check, No Counter Increment
+                    print(f"      [PENDING] Data unavail/pending. Will retry next run.")
                     continue
                     
                 # --- EVALUATE WIN/LOSS ---
@@ -362,6 +581,7 @@ def check_bets():
                             sign = "+" if diff > 0 else ""
                             result_str += f" | {sign}{round(diff, 1)}"
 
+
                     # 5. CORNERS (Football)
                     elif "córner" in pick or "corner" in pick:
                         total_corners = data.get("corners")
@@ -376,15 +596,44 @@ def check_bets():
                             else:
                                 raise ValueError("No Corner Data")
 
+                    # 6. PLAYER PROPS (Remates / Shots)
+                    elif "remates" in pick or "shots" in pick or "tiros" in pick:
+                        # Use helper function
+                        status_prop, res_prop = evaluate_player_prop(pick, data)
+                        result_str = res_prop
+                        
+                        if status_prop == "WON":
+                            is_win = True
+                        elif status_prop == "LOST":
+                            is_win = False
+                        elif status_prop == "VOID":
+                            # Special handling for VOID in this loop
+                            # We set selection status directly and skip standard WON/LOST assignment at bottom
+                             print(f"      => Result: VOID ({result_str})")
+                             sel["status"] = "VOID"
+                             sel["result"] = result_str
+                             bets_modified = True
+                             void_count += 1
+                             continue # Skip bottom assignment
+
+
                 except Exception as e:
-                    print(f"      [WARN] Logic Parsing Error for '{pick}': {e}")
-                    # Skip auto-eval if we can't parse logic
+                    print(f"      [LOGIC-ERROR] Parsing Error for '{pick}': {e}")
+                    # CRITICAL: If logic fails here, it's likely a mapping error or bad pick format
+                    # Add to Blacklist immediately
+                    bl_manager.add(fid, str(e), f"{sel['match']} - {pick}", date_str)
+                    
                     pending_count += 1
                     all_won = False
                     continue
 
                 # --- UPDATE SELECTION ---
                 status_str = "WON" if is_win else "LOST"
+                
+                # Check for explicit VOID conditions from data if applicable (future proof)
+                # For now, we assume logic decides WON/LOST. 
+                # If we want to detect API cancellations, we should check data['status'] earlier.
+                
                 print(f"      => Result: {status_str} ({result_str})")
                 
                 sel["status"] = status_str
@@ -392,26 +641,52 @@ def check_bets():
                 bets_modified = True
                 
                 if not is_win: any_lost = True
-                if not is_win: all_won = False
+                
+                # Update counters for this new result
+                if status_str == "WON":
+                    effective_odd *= float(sel.get("odd", 1.0))
+                elif status_str in ["VOID", "NULA"]:
+                     void_count += 1
+                     # No change to effective_odd
+                else:
+                    # LOST
+                    all_won = False # Technically if any_lost is True this matters less for profit but good for state
+
 
             # --- UPDATE BET STATUS (Compound) ---
             old_status = bet.get("status")
             new_status = old_status
             
-            # Check Retry Limit
-            if check_attempts >= 3 and new_status == "PENDING" and pending_count > 0:
-                 new_status = "MANUAL_CHECK"
-                 print(f"      [!] Max attempts reached ({check_attempts}). Marked as MANUAL_CHECK.")
+            # Check Retry Limit (REMOVED)
+            # if check_attempts >= 3 and new_status == "PENDING" and pending_count > 0:
+            #      new_status = "MANUAL_CHECK"
+            #      print(f"      [!] Max attempts reached ({check_attempts}). Marked as MANUAL_CHECK.")
 
             if any_lost:
                 new_status = "LOST"
                 bet["profit"] = -1 * bet["stake"]
-            elif all_won and pending_count == 0:
-                new_status = "WON"
-                bet["profit"] = round(bet["estimated_units"], 2)
+            elif pending_count > 0:
+                 # Still pending
+                 pass 
+            else:
+                 # All resolved
+                 total_selections = len(selections)
+                 if void_count == total_selections:
+                     # ALL VOID -> BET VOID
+                     new_status = "VOID"
+                     bet["profit"] = 0.0
+                 else:
+                     # MIXED WON/VOID (No lost) -> BET WON
+                     new_status = "WON"
+                     # Recalculate profit based on effective odd
+                     # Profit = Stake * (EffectiveOdd - 1)
+                     bet["profit"] = round(bet["stake"] * (effective_odd - 1), 2)
             
             if new_status != old_status:
                 bet["status"] = new_status
+                bet["total_odd"] = round(effective_odd, 2) # Update displayed odd to reflect reality? Or keep original?
+                # User said: "esa cuota pasaria a ser cuota 1". Usually in history you want to see the Real Odd.
+                # Let's update it so it's clear why the profit is lower.
                 bets_modified = True
         
         # --- SAVE IF MODIFIED ---
@@ -419,9 +694,14 @@ def check_bets():
             # Recalculate Day Profit
             day_profit = 0
             for b in day_data["bets"]:
-                # Check for WON/LOST (Standard) and potentially legacy WIN/LOSS just in case
-                if b.get("status") in ["WON", "LOST", "WIN", "LOSS", "GANADA", "PERDIDA"]:
+                # Check for WON/LOST (Standard) and potentially legacy WIN/LOSS and VOID
+                status_upper = b.get("status", "").upper()
+                if status_upper in ["WON", "GANADA", "WIN"]:
                     day_profit += b.get("profit", 0)
+                elif status_upper in ["LOST", "LOSS", "PERDIDA"]:
+                    day_profit += b.get("profit", 0)
+                # VOID adds 0, so no need to explicitly handle for sum
+
             
             day_data["day_profit"] = round(day_profit, 2)
             

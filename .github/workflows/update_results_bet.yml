@@ -24,6 +24,7 @@ jobs:
         
     - name: Process Results and Update Redis
       env:
+        PROXY_URL: ${{ secrets.PROXY_URL }}
         REDIS_URL: ${{ secrets.REDIS_URL }}
         REDIS_TOKEN: ${{ secrets.REDIS_TOKEN }}
         # Mapeo de ambas variables para asegurar detección en el script

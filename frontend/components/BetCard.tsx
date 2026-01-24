@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, Target, PartyPopper, Clock, Check, X as XIcon, RefreshCw, Save, ChevronDown, ChevronUp } from 'lucide-react';
+import { ShieldCheck, Target, PartyPopper, Clock, Check, X as XIcon, RefreshCw, Save, ChevronDown, ChevronUp, MinusCircle } from 'lucide-react';
 import { triggerTouchFeedback } from '@/utils/haptics';
 
 type Selection = {
@@ -748,12 +748,17 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
             {/* Status & Countdown (Unified for Admin/User) */}
             <div className="absolute top-4 right-6 flex flex-col items-end gap-1 z-20">
                 {/* 1. Status Badge (Only if WON/LOST) */}
-                {(data.status === 'WON' || data.status === 'GANADA' || data.status === 'LOST' || data.status === 'PERDIDA') && (
+                {(data.status === 'WON' || data.status === 'GANADA' || data.status === 'LOST' || data.status === 'PERDIDA' || data.status === 'VOID' || data.status === 'NULA') && (
                     <div className={`flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-full border 
                         ${(data.status === 'WON' || data.status === 'GANADA') ? 'bg-emerald-500/20 text-emerald-500 border-emerald-500/20' :
-                            'bg-rose-500/20 text-rose-500 border-rose-500/20'}`}>
-                        {(data.status === 'WON' || data.status === 'GANADA') ? <Check size={12} /> : <XIcon size={12} />}
-                        <span>{(data.status === 'WON' || data.status === 'GANADA') ? 'GANADA' : 'PERDIDA'}</span>
+                            (data.status === 'VOID' || data.status === 'NULA') ? 'bg-gray-500/20 text-gray-400 border-gray-500/20' :
+                                'bg-rose-500/20 text-rose-500 border-rose-500/20'}`}>
+                        {(data.status === 'WON' || data.status === 'GANADA') ? <Check size={12} /> :
+                            (data.status === 'VOID' || data.status === 'NULA') ? <MinusCircle size={12} /> : <XIcon size={12} />}
+                        <span>
+                            {(data.status === 'WON' || data.status === 'GANADA') ? 'GANADA' :
+                                (data.status === 'VOID' || data.status === 'NULA') ? 'NULA' : 'PERDIDA'}
+                        </span>
                     </div>
                 )}
                 {/* 1.1 CHECK ATTEMPTS BADGE (ADMIN OR DEBUG) */}

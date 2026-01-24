@@ -32,6 +32,7 @@ jobs:
         API_KEY: ${{ secrets.API_KEY }}
         REDIS_URL: ${{ secrets.REDIS_URL }}
         REDIS_TOKEN: ${{ secrets.REDIS_TOKEN }}
+        PROXY_URL: ${{ secrets.PROXY_URL }}
       run: |
         cd backend
         python main.py --mode fetch
