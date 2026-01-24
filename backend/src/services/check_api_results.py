@@ -294,7 +294,7 @@ def evaluate_player_prop(pick, fixture_data):
     if not found_stats:
         # Player not found in API list (maybe didn't play at all?)
         # If not in lineup, usually VOID
-        return "VOID", f"Player Not Found ({clean_name})"
+        return "VOID", "No jugó"
 
     # 4. Check VOID Rules (Prioridad 1)
     # Rule A: Inactivity
@@ -313,7 +313,7 @@ def evaluate_player_prop(pick, fixture_data):
     # minutes < 45
     min_val = minutes if minutes is not None else 0
     if is_sub and min_val < 45:
-        return "VOID", f"Sub < 45m ({min_val}m)"
+        return "VOID", "Jugó suplente"
         
     # 5. Check Result (Prioridad 2) - REMATES / SHOTS
     # "Si statistics[0].shots.total es null, asignar valor 0"
@@ -478,6 +478,16 @@ def check_bets():
                 # Normalize accents manually to avoid encoding hell
                 pick = pick.replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o").replace("ú", "u")
                 
+                # EXTRACT TEAM NAMES for intelligent matching
+                home_team_clean = ""
+                away_team_clean = ""
+                try:
+                    match_parts = sel.get("match", "").lower().split(" vs ")
+                    if len(match_parts) == 2:
+                        home_team_clean = match_parts[0].strip()
+                        away_team_clean = match_parts[1].strip()
+                except: pass
+                
                 home_score = data["home_score"]
                 away_score = data["away_score"]
                 
@@ -513,10 +523,15 @@ def check_bets():
                              continue 
                     
                     # 1. WINNER (1X2)
-                    elif "gana" in pick or "win" in pick:
-                        if "local" in pick or "home" in pick or "1" in pick.split():
+                    # Extended Logic: Check for Team Name directly if no specific Handicap/Over numbers are present
+                    # This handles "Cedevita Olimpija" vs "Zadar" picking "Cedevita Olimpija"
+                    elif "gana" in pick or "win" in pick or \
+                         ((home_team_clean and home_team_clean in pick) and not re.search(r'[-+]\d+', pick) and "over" not in pick and "mas" not in pick) or \
+                         ((away_team_clean and away_team_clean in pick) and not re.search(r'[-+]\d+', pick) and "over" not in pick and "mas" not in pick):
+                        
+                        if "local" in pick or "home" in pick or "1" in pick.split() or (home_team_clean and home_team_clean in pick):
                             is_win = home_score > away_score
-                        elif "visitante" in pick or "away" in pick or "2" in pick.split():
+                        elif "visitante" in pick or "away" in pick or "2" in pick.split() or (away_team_clean and away_team_clean in pick):
                             is_win = away_score > home_score
 
                     # 1.5 DOUBLE CHANCE (Doble Oportunidad)
@@ -551,7 +566,9 @@ def check_bets():
                         is_win = total > val
                         # Add totals to result
                         if sport == "basketball":
-                            result_str += f" | {total} Pts"
+                            diff = total - val
+                            sign = "+" if diff > 0 else ""
+                            result_str += f" | {sign}{round(diff, 1)} Pts"
                         else:
                             result_str += f" | {total} Goles"
                         
@@ -566,7 +583,10 @@ def check_bets():
                         total = home_score + away_score
                         is_win = total < val
                         if sport == "basketball":
-                            result_str += f" | {total} Pts"
+                            diff = val - total
+                            # If Under 150, Result 140 -> Diff +10 (Won by 10)
+                            sign = "+" if diff > 0 else ""
+                            result_str += f" | {sign}{round(diff, 1)} Pts"
                         else:
                             result_str += f" | {total} Goles"
                     
@@ -614,9 +634,39 @@ def check_bets():
                             adj_away = away_score + line
                             is_win = adj_away > home_score
                             
-                            diff = adj_away - home_score
                             sign = "+" if diff > 0 else ""
                             result_str += f" | {sign}{round(diff, 1)}"
+                            
+                        # TEAM NAME MATCHING (For "Manisa -6.5")
+                        else:
+                            # Parse match info
+                            # sel['match'] ex: "Manisa vs Buyukcekmece"
+                            match_parts = sel.get("match", "").lower().split(" vs ")
+                            if len(match_parts) == 2:
+                                home_team_clean = match_parts[0].strip()
+                                away_team_clean = match_parts[1].strip()
+                                
+                                # Check if Team Name is in Pick
+                                if home_team_clean in pick:
+                                    # Home Handicap
+                                    adj_home = home_score + line
+                                    is_win = adj_home > away_score
+                                    diff = adj_home - away_score
+                                    sign = "+" if diff > 0 else ""
+                                    result_str += f" | {sign}{round(diff, 1)}"
+                                    
+                                elif away_team_clean in pick:
+                                    # Away Handicap
+                                    adj_away = away_score + line
+                                    is_win = adj_away > home_score
+                                    diff = adj_away - home_score
+                                    sign = "+" if diff > 0 else ""
+                                    result_str += f" | {sign}{round(diff, 1)}"
+                                else:
+                                    # Still couldn't identify?
+                                    raise ValueError(f"Handicap Team Not Found in Pick ({pick})")
+                            else:
+                                 raise ValueError("Match Name Format Error (vs)")
 
 
                     # 5. CORNERS (Football)
