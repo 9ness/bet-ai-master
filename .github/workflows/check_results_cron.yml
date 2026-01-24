@@ -1,7 +1,7 @@
 name: 4º - Comprobador Automático de Resultados
 on:
   schedule:
-    - cron: '0,30 0-2,13-23 * * *' # Cada 30 min (14:00 - 04:00 España)
+    - cron: '25,55 0-2,13-23 * * *' # Base start at :25 and :55 (plus jitter)
   workflow_dispatch:
 
 jobs:
@@ -9,6 +9,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      
+      - name: Random Anti-Bot Delay (0-10 min)
+        run: |
+          echo "Sleeping for better stealth..."
+          sleep $((RANDOM % 600))
 
       - name: Set up Python
         uses: actions/setup-python@v4
