@@ -182,7 +182,12 @@ class RedisService:
         """ Get ALL bets for a month (HGETALL) """
         if not self.is_active: return None
         hash_key = self._get_key(f"daily_bets:{year_month}")
-        return self._send_command("HGETALL", hash_key)
+        res = self._send_command("HGETALL", hash_key)
+        if isinstance(res, list):
+             # Upstash/Redis REST via request sometimes returns [k,v,k,v] list
+             # We need to dict it
+             return dict(zip(res[::2], res[1::2]))
+        return res
 
     # Helper for Check Results (Generic)
     def get(self, key):

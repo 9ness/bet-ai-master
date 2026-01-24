@@ -187,11 +187,11 @@ def get_football_result(fixture_id):
         if stat_found and corners is None: corners = 0
                         
         return {
-            "status": "FINISHED",
             "home_score": goals_home,
             "away_score": goals_away,
             "corners": corners,
-            "cards": cards
+            "cards": cards,
+            "players": match.get("players", []) # Include players for props
         }
     except Exception as e:
         print(f"[ERROR] Football API ID {fixture_id}: {e}")
@@ -437,12 +437,14 @@ def check_bets():
                 fid = sel.get("fixture_id")
                 sport = sel.get("sport", "football").lower()
                 
+
                 # [BLACKLIST CHECK]
                 if bl_manager.is_blacklisted(fid, date_str):
                      print(f"      [SKIP] ID {fid} is in Blacklist (Redis).")
                      pending_count += 1
                      all_won = False
                      continue
+
 
                 print(f"   -> Checking {sport} ID {fid} ({sel['match']})...")
                 
@@ -483,8 +485,35 @@ def check_bets():
                 result_str = f"{home_score}-{away_score}"
                 
                 try:
+                    # 0. PLAYER PROPS (HIGHEST PRIORITY)
+                    # Check keywords for player props to avoid catching "Over 2.5 Goals" as player prop if user wrote "Over 2.5" loosely
+                    # But specific words "remates", "tiros", "puntos", "rebotes", "asistencias" are clear indicators
+                    is_player_prop = False
+                    prop_keywords = ["remates", "shots", "tiros", "puntos", "points", "rebotes", "rebounds", "asistencias", "assists", "player", "jugador"]
+                    for k in prop_keywords:
+                        if k in pick:
+                            is_player_prop = True
+                            break
+                    
+                    if is_player_prop:
+                         # Use helper function
+                        status_prop, res_prop = evaluate_player_prop(pick, data)
+                        result_str = res_prop
+                        
+                        if status_prop == "WON":
+                            is_win = True
+                        elif status_prop == "LOST":
+                            is_win = False
+                        elif status_prop == "VOID":
+                             print(f"      => Result: VOID ({result_str})")
+                             sel["status"] = "VOID"
+                             sel["result"] = result_str
+                             bets_modified = True
+                             void_count += 1
+                             continue 
+                    
                     # 1. WINNER (1X2)
-                    if "gana" in pick or "win" in pick:
+                    elif "gana" in pick or "win" in pick:
                         if "local" in pick or "home" in pick or "1" in pick.split():
                             is_win = home_score > away_score
                         elif "visitante" in pick or "away" in pick or "2" in pick.split():
@@ -549,17 +578,25 @@ def check_bets():
                             is_win = home_score == 0 or away_score == 0
 
                     # 4. HANDICAP (Basket mainly)
-                    elif "hándicap" in pick or "handicap" in pick or "ah" in pick:
+                    elif "hándicap" in pick or "handicap" in pick or "ah" in pick or re.search(r'(^|\s)[-+]\d+(\.\d+)?', pick):
                         # Normalize: "Local AH +3.5" -> remove words -> "+3.5"
                         # Parsing logic: Find the number in the string (can be negative or positive)
                         # Regex to find number like +3.5, -4.5, 5.5
-                        match_num = re.search(r'[-+]?\d*\.?\d+', pick.split(' ')[-1])
+                        match_num = re.search(r'[-+]?\d*\.?\d+', pick.split(' ')[-1]) # Try last word first
+                        if not match_num:
+                             # Try anywhere
+                             match_num = re.search(r'[-+]?\d*\.?\d+', pick)
+
                         if match_num:
                             line = float(match_num.group())
                         else:
                             # Fallback if pick structure is unexpectedly complex
                             parts = pick.replace("hándicap", "").replace("asiático", "").replace("ah", "").split()
-                            line = float(parts[-1])
+                            try:
+                                line = float(parts[-1])
+                            except:
+                                print(f"      [WARN] Could not parse handicap line from '{pick}'")
+                                raise ValueError("Handicap Parse Error")
                         
                         # Apply Handicap
                         if "local" in pick or "home" in pick or "1" in pick.split():
@@ -596,25 +633,7 @@ def check_bets():
                             else:
                                 raise ValueError("No Corner Data")
 
-                    # 6. PLAYER PROPS (Remates / Shots)
-                    elif "remates" in pick or "shots" in pick or "tiros" in pick:
-                        # Use helper function
-                        status_prop, res_prop = evaluate_player_prop(pick, data)
-                        result_str = res_prop
-                        
-                        if status_prop == "WON":
-                            is_win = True
-                        elif status_prop == "LOST":
-                            is_win = False
-                        elif status_prop == "VOID":
-                            # Special handling for VOID in this loop
-                            # We set selection status directly and skip standard WON/LOST assignment at bottom
-                             print(f"      => Result: VOID ({result_str})")
-                             sel["status"] = "VOID"
-                             sel["result"] = result_str
-                             bets_modified = True
-                             void_count += 1
-                             continue # Skip bottom assignment
+
 
 
                 except Exception as e:
@@ -705,8 +724,10 @@ def check_bets():
             
             day_data["day_profit"] = round(day_profit, 2)
             
-            # Save to Specific Date Key
-            rs.set_data(f"daily_bets:{date_str}", day_data)
+            # Save to Specific Date Key (Monthly Hash)
+            month_key = date_str[:7]
+            rs.hset(f"daily_bets:{month_key}", {date_str: json.dumps(day_data)})
+            print(f"      [SAVE] Updated Monthly Hash: daily_bets:{month_key} -> {date_str}")
             
             # --- SYNC MASTER KEY (betai:daily_bets) ---
             # We must verify if the master key is currently holding THIS date's data.
