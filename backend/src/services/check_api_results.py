@@ -112,27 +112,39 @@ class BlacklistManager:
         except:
             return {}
 
-    def is_blacklisted(self, fixture_id, date_str):
-        failed_map = self._get_failed_map(date_str)
-        return str(fixture_id) in failed_map
+    def _sanitize_pick(self, pick):
+        """Creates a safe suffix for the key based on the pick/market."""
+        # Simple cleanup: remove special chars, spaces to underscores
+        import re
+        clean = re.sub(r'[^a-zA-Z0-9]', '_', pick).lower()
+        # Truncate to avoid super long keys if pick is verbose
+        return clean[:50]
 
-    def add(self, fixture_id, reason, bet_info, date_str):
+    def is_blacklisted(self, fixture_id, pick, date_str):
+        failed_map = self._get_failed_map(date_str)
+        composite_id = f"{fixture_id}_{self._sanitize_pick(pick)}"
+        return composite_id in failed_map
+
+    def add(self, fixture_id, pick, reason, bet_info, date_str):
         if not self.rs.is_active: return
 
         month = self._get_month_key(date_str)
         current_map = self._get_failed_map(date_str)
         
-        fid = str(fixture_id)
-        if fid not in current_map:
-            current_map[fid] = {
+        composite_id = f"{fixture_id}_{self._sanitize_pick(pick)}"
+        
+        if composite_id not in current_map:
+            current_map[composite_id] = {
                 "reason": str(reason),
                 "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "bet_info": bet_info
+                "bet_info": bet_info,
+                "fixture_id": fixture_id, # Keep ref
+                "pick": pick
             }
             
             # Save back to Redis
             self.rs.hset(f"daily_bets:{month}", {"ID_RESULT_FAILED": json.dumps(current_map)})
-            print(f"      [BLACKLIST] ID {fid} added to Redis ({month}). Reason: {reason}")
+            print(f"      [BLACKLIST] ID {composite_id} added to Redis ({month}). Reason: {reason}")
 
 # --- HELPERS ---
 
@@ -439,8 +451,9 @@ def check_bets():
                 
 
                 # [BLACKLIST CHECK]
-                if bl_manager.is_blacklisted(fid, date_str):
-                     print(f"      [SKIP] ID {fid} is in Blacklist (Redis).")
+                # Pass pick to generate composite ID
+                if bl_manager.is_blacklisted(fid, pick_lower, date_str):
+                     print(f"      [SKIP] ID {fid} ({pick_lower}) is in Blacklist (Redis).")
                      pending_count += 1
                      all_won = False
                      continue
@@ -502,8 +515,22 @@ def check_bets():
                     prop_keywords = ["remates", "shots", "tiros", "puntos", "points", "rebotes", "rebounds", "asistencias", "assists", "player", "jugador"]
                     for k in prop_keywords:
                         if k in pick:
-                            is_player_prop = True
-                            break
+                            # Special handling for points to distinguish from match totals
+                            if k in ["puntos", "points"]:
+                                # Heuristic: If there is no text other than "over/under" + number + "points", it is NOT a player prop
+                                # Example match: "Mas de 159.5 Puntos" -> Cleaned: "" -> Not Player
+                                # Example player: "Lebron Mas de 25.5 Puntos" -> Cleaned: "Lebron" -> Player
+                                temp = pick.replace("más de", "").replace("mas de", "").replace("over", "").replace("menos de", "").replace("under", "")
+                                temp = temp.replace("puntos", "").replace("points", "").replace("pts", "")
+                                temp = re.sub(r'\d+(\.\d+)?', '', temp).strip()
+                                
+                                # If significant text remains (heuristic > 2 chars), likely a player name
+                                if len(temp) > 2: 
+                                    is_player_prop = True
+                                    break
+                            else:
+                                is_player_prop = True
+                                break
                     
                     if is_player_prop:
                          # Use helper function
@@ -689,8 +716,8 @@ def check_bets():
                 except Exception as e:
                     print(f"      [LOGIC-ERROR] Parsing Error for '{pick}': {e}")
                     # CRITICAL: If logic fails here, it's likely a mapping error or bad pick format
-                    # Add to Blacklist immediately
-                    bl_manager.add(fid, str(e), f"{sel['match']} - {pick}", date_str)
+                    # Add to Blacklist immediately with composite ID
+                    bl_manager.add(fid, pick, str(e), f"{sel['match']} - {pick}", date_str)
                     
                     pending_count += 1
                     all_won = False
@@ -753,9 +780,8 @@ def check_bets():
             
             if new_status != old_status:
                 bet["status"] = new_status
-                bet["total_odd"] = round(effective_odd, 2) # Update displayed odd to reflect reality? Or keep original?
-                # User said: "esa cuota pasaria a ser cuota 1". Usually in history you want to see the Real Odd.
-                # Let's update it so it's clear why the profit is lower.
+                # bet["total_odd"] = round(effective_odd, 2) # OLD: Update displayed odd
+                # NEW: Keep original odd for display, but profit is calculated with effective_odd above.
                 bets_modified = True
         
         # --- SAVE IF MODIFIED ---
