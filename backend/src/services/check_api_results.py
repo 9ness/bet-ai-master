@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 
 from src.services.redis_service import RedisService
+from src.services.api_client import call_api, verify_ip
 
 # ENV LOADING
 try:
@@ -39,64 +40,12 @@ API_KEY = os.getenv("API_KEY")
 FOOTBALL_API_URL = "https://v3.football.api-sports.io/fixtures"
 BASKETBALL_API_URL = "https://v1.basketball.api-sports.io/games"
 
-# --- PROXY HELPERS (REMOTE) ---
+# --- PROXY HELPERS (UNIFIED) ---
 def call_api_with_proxy(url, extra_headers=None):
-    """
-    Helper to make API calls using the residential proxy with Retries.
-    """
-    proxy_url = os.getenv("PROXY_URL")
-    if not proxy_url:
-        print("[CRITICAL] Se requiere PROXY_URL para operar con seguridad.")
-        # Fallback allowed locally if env var missing? For now raise error as per user strictness.
-        # If testing locally without proxy, ensure PROXY_URL is set or handle exception.
-        # User said "always with proxy".
-        if not os.getenv("IGNORE_PROXY_ERROR"):
-             pass # raise ValueError("PROXY_URL missing") -> Let's warn but try direct if missing locally?
-             # User strict: "siempre con esa ip de proxy".
-             # But if I can't load env, I can't work.
-             pass 
-        
-    proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
-    
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept": "application/json"
-    }
-    if extra_headers:
-        headers.update(extra_headers)
-        
-    # Retry Loop
-    max_retries = 3
-    for attempt in range(1, max_retries + 1):
-        try:
-            if attempt > 1:
-                print(f"      [Reintento {attempt}/{max_retries}] ...")
-                time.sleep(2)
-            
-            kwargs = {"headers": headers, "timeout": 30}
-            if proxies: kwargs["proxies"] = proxies
-            
-            response = requests.get(url, **kwargs)
-            response.raise_for_status()
-            return response
-        except Exception as e:
-            print(f"      [PROXY-FAIL] Attempt {attempt}: {e}")
-            if attempt == max_retries:
-                raise e
+    return call_api(url, extra_headers=extra_headers)
 
 def verify_ip_connection():
-    try:
-        if not os.getenv("PROXY_URL"):
-             print("[INIT] No Proxy URL set. Skipping IP verification.")
-             return
-        print("[INIT] Verifying Proxy IP connection...")
-        resp = call_api_with_proxy("https://api.ipify.org?format=json")
-        data = resp.json()
-        print(f"[INIT] External IP verified: {data.get('ip')}")
-    except Exception as e:
-        print(f"[INIT-CRITICAL] Could not verify IP via Proxy: {e}")
-        # Proceed with risk? Or Stop?
-        # raise e
+    verify_ip()
 
 # --- BLACKLIST MANAGER (REMOTE) ---
 class BlacklistManager:

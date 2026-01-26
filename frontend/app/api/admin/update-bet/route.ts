@@ -15,9 +15,6 @@ export async function POST(request: Request) {
         const body = await request.json();
         let { date, betType, selectionId, newStatus, updates, newPick } = body;
 
-        console.log(`\n[UPDATE-BET] --- STARTED ---`);
-        console.log(`[UPDATE-BET] Target: ${date} | Type: ${betType} | Status: ${newStatus} | PickUpdate: ${!!newPick}`);
-
         // HELPER: Normalize Status
         const normalizeStatus = (s: string | undefined | null) => {
             if (!s) return null;
@@ -39,7 +36,6 @@ export async function POST(request: Request) {
         let source = 'HASH';
 
         if (!data) {
-            console.log(`[UPDATE-BET] Not found in HASH, trying Key ${dayKey}`);
             data = await redis.get(dayKey);
             source = 'KEY';
         }
@@ -61,8 +57,6 @@ export async function POST(request: Request) {
                 }
             }
         }
-
-        console.log(`[UPDATE-BET] Source: ${source}`);
 
         const historyData: any = typeof data === 'string' ? JSON.parse(data) : data;
         const bets = historyData.bets || {};
@@ -90,7 +84,6 @@ export async function POST(request: Request) {
         // A) Global Pick Text
         if (newPick) {
             bet.pick = newPick;
-            console.log(`[UPDATE-BET] Updated Pick Text`);
         }
 
         // B) Selections
@@ -126,8 +119,6 @@ export async function POST(request: Request) {
                     if (sStatus) match.status = sStatus;
                     if (sResult !== undefined) match.result = sResult;
                     updated = true;
-                    // Dont break, might match in multiple lists (rare but possible aliases)
-                    console.log(`[UPDATE-BET] Updated Selection ${sId} -> ${sStatus}`);
                 }
             }
         }
@@ -179,7 +170,6 @@ export async function POST(request: Request) {
         } else if (isManualGlobalOverride) {
             // Manual override of the global status
             bet.status = normalizeStatus(newStatus);
-            console.log(`[UPDATE-BET] Manual Global Override: ${bet.status}`);
         } else if (allSelections.length === 0 && newStatus) {
             // Single bet without selections array?
             bet.status = normalizeStatus(newStatus);
@@ -212,8 +202,6 @@ export async function POST(request: Request) {
             bet.profit = 0;
         }
 
-        console.log(`[UPDATE-BET] Final State: ${finalStatus} | Odd: ${finalOdd} | Profit: ${bet.profit}`);
-
         // 5. UPDATE DAY SUMMARY (Day Profit)
         let dayProfit = 0;
         const betList = Array.isArray(bets) ? bets : Object.values(bets);
@@ -228,8 +216,6 @@ export async function POST(request: Request) {
 
         // 6. SAVE
         const jsonStr = JSON.stringify(historyData);
-        console.log(`[UPDATE-BET] Saving ${jsonStr.length} chars to HASH ${hashKey} -> ${date}`);
-
         // A) Month Hash
         await redis.hset(hashKey, { [date]: jsonStr });
 
@@ -237,10 +223,7 @@ export async function POST(request: Request) {
         const todayStr = new Date().toISOString().split('T')[0];
         if (date === todayStr) {
             await redis.set("betai:daily_bets", jsonStr);
-            console.log(`[UPDATE-BET] Synced Master betai:daily_bets`);
         }
-
-        console.log(`[UPDATE-BET] Saved to ${hashKey}`);
 
         // 7. STATS
         await updateMonthStats(date);
@@ -259,8 +242,6 @@ async function updateMonthStats(dateStr: string) {
     const [year, month] = dateStr.split('-');
     const statsKey = `betai:stats:${year}-${month}`;
     const hashKey = `betai:daily_bets:${year}-${month}`;
-
-    console.log(`[UPDATE-BET] Recalculating Stats for ${year}-${month} using HASH ${hashKey}...`);
 
     // 1. Get all daily bets for this month (HGETALL)
     const monthData: Record<string, any> | null = await redis.hgetall(hashKey);
@@ -314,6 +295,5 @@ async function updateMonthStats(dateStr: string) {
     };
 
     await redis.set(statsKey, JSON.stringify(stats));
-    console.log(`[UPDATE-BET] Stats Persisted:`, stats);
     return stats;
 }

@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, Target, PartyPopper, Clock, Check, X as XIcon, RefreshCw, Save, ChevronDown, ChevronUp, MinusCircle } from 'lucide-react';
+import { ShieldCheck, Target, PartyPopper, Clock, Check, X as XIcon, RefreshCw, Save, ChevronDown, ChevronUp, MinusCircle, Info } from 'lucide-react';
 import { triggerTouchFeedback } from '@/utils/haptics';
+import FormattedReason from './FormattedReason';
 
 type Selection = {
     fixture_id?: number;
@@ -297,114 +298,6 @@ const extractTime = (dateStr?: string) => {
 
 // Helper: Formatted Reason 
 // Helper: Formatted Reason 
-const FormattedReason = ({ text }: { text?: string }) => {
-    if (!text) return null;
-
-    // Check if the text contains numbered list patterns like "1)", "2)", "1.", "2."
-    // We look for a digit followed by ) or . and a space
-    const hasNumberedList = /\d+[\)\.]\s/.test(text);
-
-    let parts: string[] = [];
-
-    if (hasNumberedList) {
-        // Advanced Logic: Numbered Lists
-        // 1. Insert a special delimiter before every numbered item to force a split
-        //    RegEx looks for: Start of string OR whitespace + Digit + ) or . + space
-        //    We maintain the list marker ($2) but precede it with our split token
-        const formatted = text.replace(/(^|\s)(\d+[\)\.])\s/g, (match, prefix, num) => {
-            return `|SPLIT|${num} `;
-        });
-
-        // 2. Also keep the old logic of separating introductory text if needed, 
-        //    but usually the first split handles the intro.
-        //    We split by our token.
-        parts = formatted.split('|SPLIT|').filter(p => p.trim().length > 0);
-    } else {
-        // Fallback Logic: Standard Bullet Points (split by sentences)
-        parts = text.split('. ').filter(p => p.trim().length > 0);
-    }
-
-    // Helper to highlight data points in text
-    const highlightContent = (text: string) => {
-        // 1. Check for Title Pattern at start (e.g. "Analysis:", "Market Edge (15%):")
-        //    Looking for text ending in ':' at the start. 
-        //    Limit length to avoid bolding entire long sentences if they happen to have a colon far away.
-        //    NOTE: Removed 's' flag for compatibility. matching across lines if handled by parts split anyway.
-        const titleMatch = text.match(/^(.{3,60}?):(\s+[\s\S]*)/);
-
-        let titlePart = "";
-        let bodyPart = text;
-
-        if (titleMatch) {
-            titlePart = titleMatch[1] + ":"; // Include the colon
-            bodyPart = titleMatch[2]; // The rest
-        }
-
-        // 2. Highlight numbers/data in the body
-        //    Regex for: Percents (15%), Decimals (1.50, 2.5), Scores (0-0, 1-2), X/Y stakes (1/10)
-        //    We split by capturing group to separate plain text from highlights
-        const dataRegex = /(\d+(?:[\.,]\d+)?%|\b\d+\.\d{2}\b|\b\d+-\d+\b|\b\d+\/\d+\b)/g;
-
-        const renderBody = (body: string) => {
-            return body.split(dataRegex).map((chunk, i) => {
-                if (dataRegex.test(chunk)) {
-                    return <span key={i} className="font-bold text-foreground/90">{chunk}</span>;
-                }
-                return <span key={i}>{chunk}</span>;
-            });
-        };
-
-        return (
-            <>
-                {titlePart && (
-                    <strong className="text-foreground/90 font-bold block sm:inline mb-1 sm:mb-0">
-                        {titlePart}
-                    </strong>
-                )}
-                {renderBody(bodyPart)}
-            </>
-        );
-    };
-
-    return (
-        <ul className="text-sm text-muted-foreground space-y-2 mt-3 text-left font-normal">
-            {parts.map((part, idx) => {
-                let content = part.trim();
-
-                // Check if this specific line is a numbered item
-                // NOTE: removed 's' flag for compatibility. format is usually single line or we use [\s\S] if needed.
-                const numberMatch = content.match(/^(\d+[\)\.])\s+([\s\S]*)/);
-
-                if (numberMatch && hasNumberedList) {
-                    const [_, num, rest] = numberMatch;
-
-                    return (
-                        <li key={idx} className="flex gap-2 items-start pl-1">
-                            {/* Number formatted in Primary Color */}
-                            <span className="text-primary font-bold mt-[2px] whitespace-nowrap">{num}</span>
-                            <span className="leading-relaxed opacity-90 block">
-                                {highlightContent(rest)}
-                            </span>
-                        </li>
-                    );
-                }
-
-                // Standard Bullet logic
-                if (!hasNumberedList && !content.endsWith('.')) content += '.';
-
-                return (
-                    <li key={idx} className="flex gap-2 items-start">
-                        <span className="text-primary font-bold mt-[3px] text-[10px]">•</span>
-                        <span className="leading-relaxed opacity-90 block">
-                            {highlightContent(content)}
-                        </span>
-                    </li>
-                );
-            })}
-        </ul>
-    );
-};
-
 // Countdown Timer Component (Hydration Safe)
 const CountdownTimer = ({ targetTime, targetDate }: { targetTime: string, targetDate?: string }) => {
     // 1. Initialize with null to ensure Server matching (nothing rendered initially)
@@ -826,9 +719,18 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
                 <div className={`p-3 rounded-2xl ${config.iconBg} ${config.textColor}`}>
                     <Icon size={28} />
                 </div>
-                <div>
-                    <h3 className="font-bold text-xl">{config.title}</h3>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">{config.subtitle}</p>
+                <div className="flex flex-col">
+                    <div className="flex items-center gap-2">
+                        <h3 className="font-bold text-xl">{config.title}</h3>
+                        {data.reason && (
+                            <span title={data.reason}>
+                                <Info size={16} className="text-muted-foreground/50 cursor-help hover:text-muted-foreground transition-colors" />
+                            </span>
+                        )}
+                    </div>
+                    <p className="text-sm text-muted-foreground uppercase tracking-[0.2em] font-medium leading-none mt-1">
+                        {config.subtitle}
+                    </p>
                 </div>
             </div>
 

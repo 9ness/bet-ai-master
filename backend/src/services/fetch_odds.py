@@ -4,6 +4,7 @@ import os
 import time
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
+from src.services.api_client import call_api, verify_ip
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 potential_paths = [
@@ -60,54 +61,13 @@ class SportsDataService:
 
     def _verify_ip(self):
         """Verifica y loguea la IP externa actual usando el proxy."""
-        try:
-            print("   [PROXY] Verificando IP externa...")
-            # Usamos un servicio ligero para ver nuestra IP
-            resp = self._call_api("https://api.ipify.org?format=json")
-            ip_data = resp.json()
-            print(f"   [PROXY] IP Actual detectada: {ip_data.get('ip')} (Debe coincidir con la residencial)")
-        except Exception as e:
-            print(f"   [PROXY-ERROR] No se pudo verificar la IP: {e}")
-            # Si es crítico "si o si", podríamos lanzar error aquí tambien, 
-            # pero mejor dejar que falle en la llamada real si el proxy está muerto.
+        verify_ip()
 
     def _call_api(self, url, params=None):
         """
-        Realiza la petición usando el Proxy Residencial con reintentos.
+        Realiza la petición usando el cliente centralizado.
         """
-        proxy_url = os.getenv("PROXY_URL")
-        if not proxy_url:
-            raise ValueError("[SECURITY] PROXY_URL no está configurada. Abortando para proteger IP real.")
-
-        proxies = {"http": proxy_url, "https": proxy_url}
-        
-        headers = self.headers.copy()
-        headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Accept": "application/json"
-        })
-
-        max_retries = 3
-        for attempt in range(1, max_retries + 1):
-            try:
-                if attempt > 1:
-                    print(f"      [Reintento {attempt}/{max_retries}] Conectando a {url}...")
-                    time.sleep(2) # Espera breve entre reintentos
-
-                response = requests.get(
-                    url, 
-                    params=params, 
-                    headers=headers, 
-                    proxies=proxies, 
-                    timeout=30
-                )
-                response.raise_for_status()
-                return response
-            except Exception as e:
-                print(f"      [PROXY-ERROR] Fallo intento {attempt}: {e}")
-                if attempt == max_retries:
-                    print("      [CRITICAL] Fallaron todos los intentos de conexión por Proxy.")
-                    raise e # Re-raise final exception to crash script and avoid leak
+        return call_api(url, params=params)
 
     def _normalize_key(self, text):
         text = str(text).lower()

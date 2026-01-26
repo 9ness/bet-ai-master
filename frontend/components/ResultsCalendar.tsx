@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, RefreshCw, Check, X, CircleCheck, CircleX, Clock, ChevronDown, Save, Loader2, TrendingUp, MinusCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, RefreshCw, Check, X, CircleCheck, CircleX, Clock, ChevronDown, Save, Loader2, TrendingUp, MinusCircle, Info, ChevronUp } from 'lucide-react';
+import FormattedReason from './FormattedReason';
 
 // --- FLAG MAPPINGS (Mirrored from BetCard.tsx) ---
 const LEAGUE_FLAGS: Record<number, string> = {
@@ -89,6 +90,7 @@ type BetResult = {
     profit: number;
     match: string;
     pick: string;
+    reason?: string;
     fixture_ids?: number[];
     picks_detail?: PickDetail[];
     selections?: any[]; // Allow selections array
@@ -106,8 +108,6 @@ type MonthStats = {
 };
 
 // Sub-component for individual Bet Cards in Modal
-// Sub-component for individual Bet Cards in Modal
-// Sub-component for individual Bet Cards in Modal
 const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: BetResult, date: string, isAdmin: boolean, onUpdate: () => void, onLocalChange: (betType: string, newStatus: string) => void }) => {
     // Normalize Type (support 'type' or 'betType') - Define early for usage in Header
     const finalType = bet.type || (bet as any).betType || 'safe';
@@ -120,12 +120,12 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
     // State for Editing Text (Admin)
     const [editedPick, setEditedPick] = useState(bet.pick);
     const [editedResults, setEditedResults] = useState<Record<string, string>>({});
+    const [reasonOpen, setReasonOpen] = useState(false);
 
     useEffect(() => {
         setEditedPick(bet.pick);
     }, [bet.pick]);
 
-    // Sync state when prop changes (e.g. after full refresh)
     // Sync state when prop changes (e.g. after full refresh)
     useEffect(() => {
         let norm = bet.status || 'PENDING';
@@ -300,11 +300,19 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
 
             {/* ... (Header) ... */}
             <div className="flex justify-between items-start mb-2">
-                <span className={`text-xs font-bold uppercase px-2 py-1 rounded-full 
+                <span className={`text-xs font-bold uppercase px-2 py-1 rounded-full flex items-center gap-1.5
                     ${finalType === 'safe' ? 'bg-emerald-500/10 text-emerald-500' :
                         finalType === 'value' ? 'bg-violet-500/10 text-violet-500' :
                             'bg-amber-500/10 text-amber-500'}`}>
                     {finalType === 'safe' ? 'SEGURA' : finalType === 'value' ? 'DE VALOR' : finalType}
+                    {bet.reason && (
+                        <button
+                            onClick={() => setReasonOpen(!reasonOpen)}
+                            className="hover:text-foreground transition-colors p-0.5 -mr-1"
+                        >
+                            <Info size={12} className={reasonOpen ? 'text-foreground opacity-100' : 'opacity-70'} />
+                        </button>
+                    )}
                 </span>
                 <span className={`font-mono font-bold ${bet.profit > 0 ? 'text-emerald-500' : bet.profit < 0 ? 'text-rose-500' : 'text-muted-foreground'}`}>
                     {(bet.profit || 0) > 0 ? '+' : ''}{(bet.profit || 0).toFixed(2)}u
@@ -529,6 +537,20 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
                     )}
                 </div>
             </div>
+
+            {/* Structured Reason / Analysis */}
+            {bet.reason && (
+                <div className={`mt-3 pt-3 border-t border-white/5 ${reasonOpen ? 'block' : 'hidden'}`}>
+                    <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground/80">Análisis Técnico:</span>
+                        <button onClick={() => setReasonOpen(false)} className="text-muted-foreground hover:text-foreground transition-colors">
+                            <ChevronUp size={12} />
+                        </button>
+                    </div>
+                    <FormattedReason text={bet.reason} className="mt-1 opacity-80" />
+                </div>
+            )}
+
         </div >
     );
 };

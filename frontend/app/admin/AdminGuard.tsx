@@ -398,24 +398,24 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                         <span className="hidden md:block text-muted-foreground/20">|</span>
 
                         {/* SOCIAL PROOF TICKER */}
-                        <div className="flex flex-nowrap items-center justify-center gap-2 overflow-x-auto max-w-full pb-1 md:pb-0 scrollbar-hide">
+                        <div className="flex flex-nowrap items-center justify-start md:justify-center gap-1.5 md:gap-2 overflow-x-auto max-w-full pb-2 md:pb-0 scrollbar-hide px-2">
                             {/* Profit Badge */}
-                            <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg shrink-0">
-                                <span className="text-[9px] text-emerald-500/70 font-bold uppercase tracking-wider">Ganancias</span>
-                                <span className="text-xs font-black text-emerald-400">+{headerStats.profit.toFixed(2)} u</span>
+                            <div className="flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/20 px-2 md:px-2.5 py-1 rounded-lg shrink-0">
+                                <span className="text-[8px] md:text-[9px] text-emerald-500/70 font-bold uppercase tracking-wider">Ganancias</span>
+                                <span className="text-[10px] md:text-xs font-black text-emerald-400">+{headerStats.profit.toFixed(2)} u</span>
                             </div>
 
                             {/* Yield Badge */}
-                            <div className="flex items-center gap-1.5 bg-fuchsia-500/10 border border-fuchsia-500/20 px-2.5 py-1 rounded-lg shrink-0">
-                                <span className="text-[9px] text-fuchsia-500/70 font-bold uppercase tracking-wider">Yield</span>
-                                <span className="text-xs font-black text-fuchsia-400">{headerStats.yieldVal.toFixed(2)}%</span>
+                            <div className="flex items-center gap-1 bg-fuchsia-500/10 border border-fuchsia-500/20 px-2 md:px-2.5 py-1 rounded-lg shrink-0">
+                                <span className="text-[8px] md:text-[9px] text-fuchsia-500/70 font-bold uppercase tracking-wider">Yield</span>
+                                <span className="text-[10px] md:text-xs font-black text-fuchsia-400">{headerStats.yieldVal.toFixed(2)}%</span>
                             </div>
 
                             {/* Yesterday Result (Only if exists) */}
                             {headerStats.yesterdayProfit !== null && (
-                                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border shrink-0 ${headerStats.yesterdayProfit >= 0 ? 'bg-blue-500/10 border-blue-500/20' : 'bg-rose-500/10 border-rose-500/20'}`}>
-                                    <span className={`text-[9px] font-bold uppercase tracking-wider ${headerStats.yesterdayProfit >= 0 ? 'text-blue-500/70' : 'text-rose-500/70'}`}>Ayer</span>
-                                    <span className={`text-xs font-black ${headerStats.yesterdayProfit >= 0 ? 'text-blue-400' : 'text-rose-400'}`}>
+                                <div className={`flex items-center gap-1 px-2 md:px-2.5 py-1 rounded-lg border shrink-0 ${headerStats.yesterdayProfit >= 0 ? 'bg-blue-500/10 border-blue-500/20' : 'bg-rose-500/10 border-rose-500/20'}`}>
+                                    <span className={`text-[8px] md:text-[9px] font-bold uppercase tracking-wider ${headerStats.yesterdayProfit >= 0 ? 'text-blue-500/70' : 'text-rose-500/70'}`}>Ayer</span>
+                                    <span className={`text-[10px] md:text-xs font-black ${headerStats.yesterdayProfit >= 0 ? 'text-blue-400' : 'text-rose-400'}`}>
                                         {headerStats.yesterdayProfit > 0 ? '+' : ''}{headerStats.yesterdayProfit.toFixed(2)} u
                                     </span>
                                 </div>
@@ -427,7 +427,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
 
             {/* Navigation Tabs */}
             <div className="bg-black/80 backdrop-blur-md border-b border-white/5 sticky top-16 z-[90]">
-                <div className="max-w-7xl mx-auto px-2 md:px-4 flex justify-between md:justify-start md:gap-6 overflow-x-hidden">
+                <div className="max-w-7xl mx-auto px-2 md:px-4 flex justify-start md:gap-6 overflow-x-auto scrollbar-hide">
                     <button
                         onClick={() => scrollToTab('analysis')}
                         onTouchStart={() => triggerTouchFeedback()}
@@ -542,7 +542,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                             <div className="max-w-3xl mx-auto space-y-8">
 
                                 {/* SUB-TABS NAVIGATION */}
-                                <div className="flex items-center justify-center gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                                <div className="flex items-center justify-start md:justify-center gap-2 md:gap-4 overflow-x-auto pb-4 scrollbar-hide px-2">
                                     {(() => {
                                         const hasBlacklistData = Object.keys(blacklist).length > 0;
 
@@ -565,7 +565,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                                     key={tab.id}
                                                     onClick={() => setActiveControlTab(tab.id as any)}
                                                     className={`
-                                                        flex flex-col items-center justify-center px-6 py-3 rounded-xl border transition-all min-w-[100px] hover:scale-105 active:scale-95 duration-200
+                                                        flex flex-col items-center justify-center px-4 md:px-6 py-2 md:py-3 rounded-xl border transition-all min-w-[85px] md:min-w-[120px] hover:scale-105 active:scale-95 duration-200
                                                         ${activeControlTab === tab.id
                                                             ? tab.activeClass
                                                             : 'bg-black/40 border-white/5 text-white/50 hover:bg-white/10 hover:text-white/80'
@@ -573,9 +573,9 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                                     `}
                                                 >
                                                     <div className="mb-1">
-                                                        <Icon size={20} />
+                                                        <Icon size={18} className="md:w-5 md:h-5" />
                                                     </div>
-                                                    <span className="text-[10px] font-bold uppercase tracking-wider">
+                                                    <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-wider">
                                                         {tab.label}
                                                     </span>
                                                 </button>
@@ -886,44 +886,51 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                             <AlertOctagon size={64} className="text-red-500" />
                                         </div>
 
-                                        <div className="flex justify-between items-center border-b border-white/5 pb-4">
+                                        <div className="border-b border-white/5 pb-4">
                                             <h3 className="text-xl font-bold flex items-center gap-2 text-white">
                                                 <AlertOctagon className="text-red-500" size={24} />
-                                                BlackList (ID_RESULT_FAILED)
+                                                BlackList
+                                                <span className="text-[10px] text-white/30 font-mono ml-1 hidden sm:inline">(ID_RESULT_FAILED)</span>
                                             </h3>
-                                            <button
-                                                onClick={handleClearBlacklist}
-                                                className="px-4 py-2 bg-red-600/20 hover:bg-red-600/40 border border-red-500/50 text-red-500 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2"
-                                            >
-                                                <Trash2 size={14} />
-                                                Borrar Todo
-                                            </button>
+                                            <p className="text-[10px] text-white/30 font-mono mt-1 sm:hidden truncate">(ID_RESULT_FAILED)</p>
                                         </div>
 
-                                        <div className="relative z-10 max-h-[400px] overflow-y-auto">
-                                            {loadingBlacklist ? (
-                                                <div className="flex justify-center py-8">
-                                                    <RefreshCw className="animate-spin text-white/20" size={24} />
-                                                </div>
-                                            ) : Object.keys(blacklist).length === 0 ? (
-                                                <div className="text-center py-8 text-white/30 italic">
-                                                    No hay elementos en la lista negra para este mes.
-                                                </div>
-                                            ) : (
-                                                <div className="grid gap-2">
-                                                    {Object.entries(blacklist).map(([key, value]: [string, any]) => (
-                                                        <div key={key} className="p-3 bg-black/20 rounded-lg border border-white/5 flex flex-col gap-1 hover:bg-black/40 transition-colors">
-                                                            <div className="flex justify-between items-center">
-                                                                <span className="text-xs font-mono text-white/70 select-all">{key}</span>
-                                                                <span className="text-[10px] bg-red-500/10 text-red-400 px-2 py-0.5 rounded uppercase font-bold">Failed</span>
+                                        <div className="relative z-10">
+                                            <div className="max-h-[300px] overflow-y-auto pr-1 scrollbar-hide">
+                                                {loadingBlacklist ? (
+                                                    <div className="flex justify-center py-8">
+                                                        <RefreshCw className="animate-spin text-white/20" size={24} />
+                                                    </div>
+                                                ) : Object.keys(blacklist).length === 0 ? (
+                                                    <div className="text-center py-12 text-white/20 italic text-sm">
+                                                        No hay elementos en la lista negra para este mes.
+                                                    </div>
+                                                ) : (
+                                                    <div className="grid gap-2 mb-4">
+                                                        {Object.entries(blacklist).map(([key, value]: [string, any]) => (
+                                                            <div key={key} className="p-3 bg-black/20 rounded-lg border border-white/5 flex flex-col gap-1 hover:bg-black/40 transition-colors">
+                                                                <div className="flex justify-between items-center">
+                                                                    <span className="text-xs font-mono text-white/70 select-all">{key}</span>
+                                                                    <span className="text-[10px] bg-red-500/10 text-red-400 px-2 py-0.5 rounded uppercase font-bold">Failed</span>
+                                                                </div>
+                                                                <p className="text-xs text-white/50">
+                                                                    {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                                                                </p>
                                                             </div>
-                                                            <p className="text-xs text-white/50">
-                                                                {typeof value === 'object' ? JSON.stringify(value) : String(value)}
-                                                            </p>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="pt-4 border-t border-white/5">
+                                                <button
+                                                    onClick={handleClearBlacklist}
+                                                    className="w-full sm:w-auto px-6 py-3 bg-red-600/10 hover:bg-red-600/20 border border-red-500/30 text-red-500 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+                                                >
+                                                    <Trash2 size={16} />
+                                                    Limpiar Lista Negra
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
