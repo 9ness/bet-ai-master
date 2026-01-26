@@ -26,6 +26,7 @@ const LEAGUE_NAME_FLAGS: Record<string, string> = {
     "Premier League": "gb-eng", "Bundesliga": "de", "Ligue 1": "fr",
     "La Liga": "es", "Serie A": "it", "Eredivisie": "nl",
     "Primeira Liga": "pt", "NBA": "us", "Liga Profesional": "ar",
+    "Liga Profesional Argentina": "ar",
     "UEFA Champions League": "eu", "UEFA Europa League": "eu",
     "UEFA Conference League": "eu", "Eurocup": "eu", "NCAA": "us",
     "Indonesia Liga 1": "id",
@@ -33,7 +34,18 @@ const LEAGUE_NAME_FLAGS: Record<string, string> = {
     "Myanmar National League": "mm",
     "Champions League": "eu",
     "Premiership": "gb-sct",
-    "Euroleague": "eu"
+    "Euroleague": "eu",
+    "Championship": "gb-eng",
+    "Jupiler Pro League": "be",
+    "Basket League": "gr",
+    "Super Ligi": "tr",
+    "ACB": "es",
+    "Lega A": "it",
+    "Pro League": "be",
+    "League Two": "gb-eng",
+    "League One": "gb-eng",
+    "Eerste Divisie": "nl",
+    "ABA League": "eu"
 };
 
 const getLeagueFlagCode = (leagueName?: string, leagueId?: number, country?: string) => {
@@ -49,6 +61,16 @@ const getLeagueFlagCode = (leagueName?: string, leagueId?: number, country?: str
     if (leagueName?.includes("Premiership")) return "gb-sct";
     if (leagueName?.includes("Euroleague")) return "eu";
     if (leagueName?.includes("Champions League")) return "eu";
+    if (leagueName?.includes("Championship")) return "gb-eng";
+    if (leagueName?.includes("Pro League")) return "be";
+    if (leagueName?.includes("Basket League")) return "gr";
+    if (leagueName?.includes("Super Ligi")) return "tr";
+    if (leagueName?.includes("Lega A")) return "it";
+    if (leagueName?.includes("ACB")) return "es";
+    if (leagueName?.includes("Argentina")) return "ar";
+    if (leagueName?.includes("League Two") || leagueName?.includes("League One")) return "gb-eng";
+    if (leagueName?.includes("Eerste Divisie")) return "nl";
+    if (leagueName?.includes("ABA League")) return "eu";
     return null;
 };
 
@@ -291,7 +313,24 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
 
             {/* ... (League Flags) ... */}
 
-            {bet.match}
+            <h4 className="font-bold text-sm leading-tight mb-1 flex items-center flex-wrap gap-1">
+                {bet.match}
+                {(!hasDetails || details.length === 1) && details[0]?.league && (() => {
+                    const sel = details[0];
+                    const flagCode = getLeagueFlagCode(sel.league, sel.league_id, sel.country);
+                    return (
+                        <span className="text-[10px] text-muted-foreground/70 ml-1 inline-flex items-center font-normal">
+                            ({sel.league}{flagCode && (
+                                <img
+                                    src={`https://flagcdn.com/20x15/${flagCode}.png`}
+                                    alt={flagCode}
+                                    className="w-3 h-2 object-cover rounded-[1px] opacity-80 ml-1"
+                                />
+                            )})
+                        </span>
+                    );
+                })()}
+            </h4>
 
             {/* ... (Desktop Flag) ... */}
 
@@ -383,11 +422,24 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
                                         {/* ... (Line 1/2) ... */}
                                         <div className="flex flex-col w-full">
                                             <div className="flex justify-between items-start gap-2">
-                                                <span className="text-muted-foreground text-[10px] flex items-center gap-1.5 leading-tight">
+                                                <span className="text-muted-foreground text-[10px] flex items-center gap-1 flex-wrap leading-tight">
                                                     <span className="opacity-80 grayscale-[0.3]">
                                                         {(detail.sport?.toLowerCase().includes('basket') ? '🏀' : (detail.sport?.toLowerCase().includes('tenn') ? '🎾' : '⚽'))}
                                                     </span>
-                                                    {detail.match}
+                                                    <span className="font-medium text-foreground/80">{detail.match}</span>
+                                                    {detail.league && (() => {
+                                                        const flagCode = getLeagueFlagCode(detail.league, detail.league_id, detail.country);
+                                                        return (
+                                                            <span className="text-[9px] text-muted-foreground/60 flex items-center">
+                                                                ({detail.league}{flagCode && (
+                                                                    <img
+                                                                        src={`https://flagcdn.com/20x15/${flagCode}.png`}
+                                                                        alt={flagCode}
+                                                                        className="w-2.5 h-2 object-cover rounded-[1px] opacity-70 ml-1"
+                                                                    />
+                                                                )})</span>
+                                                        );
+                                                    })()}
                                                 </span>
                                                 {detail.odd && (
                                                     <span className="shrink-0 bg-white/5 text-[10px] px-1.5 py-px rounded text-muted-foreground/90 font-mono border border-white/5 shadow-sm">

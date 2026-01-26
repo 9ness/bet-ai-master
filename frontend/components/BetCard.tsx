@@ -107,6 +107,13 @@ const LEAGUE_NAME_FLAGS: Record<string, string> = {
     "LNB": "ar",
     "VTB United League": "eu",
     "BNXT League": "eu",
+    "Jupiler Pro League": "be",
+    "ACB": "es",
+    "Liga Endesa": "es",
+    "Liga Profesional Argentina": "ar",
+    "Pro League": "be",
+    "League Two": "gb-eng",
+    "League One": "gb-eng"
 };
 
 const getLeagueFlagCode = (leagueName?: string, leagueId?: number, country?: string, sport?: string) => {
@@ -138,6 +145,14 @@ const getLeagueFlagCode = (leagueName?: string, leagueId?: number, country?: str
     if (leagueName?.includes("FA Cup")) return "gb-eng";
     if (leagueName?.includes("Euroleague")) return "eu";
     if (leagueName?.includes("Champions League")) return "eu";
+    if (leagueName?.includes("Pro League")) return "be";
+    if (leagueName?.includes("ACB") || leagueName?.includes("Endesa")) return "es";
+    if (leagueName?.includes("Basket League")) return "gr";
+    if (leagueName?.includes("Lega A")) return "it";
+    if (leagueName?.includes("Argentina")) return "ar";
+    if (leagueName?.includes("League Two") || leagueName?.includes("League One")) return "gb-eng";
+    if (leagueName?.includes("ABA League")) return "eu";
+    if (leagueName?.includes("Eerste Divisie")) return "nl";
     return null;
 };
 
@@ -858,15 +873,13 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
                                                     const flagCode = getLeagueFlagCode(sel.league, sel.league_id, sel.country, sel.sport);
                                                     return (
                                                         <span className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0 flex items-center">
-                                                            ({sel.league}
-                                                            {flagCode && (
+                                                            ({sel.league}{flagCode && (
                                                                 <img
                                                                     src={`https://flagcdn.com/20x15/${flagCode}.png`}
                                                                     alt={flagCode}
                                                                     className="w-3 h-2.5 object-cover inline-block rounded-[1px] opacity-80 ml-1"
                                                                 />
-                                                            )}
-                                                            )
+                                                            )})
                                                         </span>
                                                     );
                                                 })()}

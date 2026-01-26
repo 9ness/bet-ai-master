@@ -53,6 +53,19 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
     const [socialContent, setSocialContent] = useState<any>(null);
     const [copiedStates, setCopiedStates] = useState<Record<string, boolean>>({});
 
+    // --- HELPERS ---
+    const formatTeamName = (name: string) => {
+        if (!name) return "";
+        // 1. Remove extension
+        let formatted = name.split('.')[0];
+        // 2. Separate CamelCase
+        formatted = formatted.replace(/([a-z])([A-Z])/g, '$1 $2');
+        // 3. Replace Underscores and Hyphens with spaces
+        formatted = formatted.replace(/[_-]/g, ' ');
+        // 4. Proper Case + trim
+        return formatted.trim().split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+    };
+
     // --- CONFIG & DATA ---
     const getDayName = () => ['DOMINGO', 'LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'][new Date().getDay()];
 
@@ -73,6 +86,11 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
     const [slideGroups, setSlideGroups] = useState<any[]>([]);
     const [currentPreviewIdx, setCurrentPreviewIdx] = useState(0);
     const [availableFiles, setAvailableFiles] = useState<string[]>([]);
+
+    // --- FILTERS FOR BG SELECTOR ---
+    const [bgFilter, setBgFilter] = useState<'all' | 'futbol' | 'basket' | 'portada' | 'comodin' | 'equipo'>('all');
+    const [bgTeamSelected, setBgTeamSelected] = useState<string | null>(null);
+    const [bgSportForTeam, setBgSportForTeam] = useState<'futbol' | 'basket'>('futbol');
 
     useEffect(() => {
         fetch('/api/social/tiktok').then(res => res.ok ? res.json() : null).then(data => data?.title && setSocialContent(data));
@@ -177,12 +195,12 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         });
 
         return groupedList.map(g => {
-            const sportIcon = (g.sport || '').includes('basket') ? '🏀' : '⚽';
+            const rawMatchDisplay = g.matchDisplay; // No sport icons here
 
-            // Robust cleaning for matching (Handle Accents/Special Chars)
+            // Featured detection logic (RESTORED)
             const clean = (s: string) => s.toLowerCase()
-                .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove accents
-                .replace(/[^a-z0-9]/g, ""); // Remove non-alphanumeric
+                .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                .replace(/[^a-z0-9]/g, "");
 
             const mt = clean(g.matchDisplay);
             let isFeatured = false;
@@ -192,26 +210,53 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
 
             for (let t of relevant) {
                 if (t === 'comodin') continue;
-
                 const cleanTeam = clean(t);
-                if (cleanTeam.length < 3) continue; // Skip too short keys
-
-                // Bi-directional check: Match keys usually shorter than Match Title?
-                // File: "Verona" -> Match: "Verona vs Udinese" -> Match includes Team.
-                // File: "Olimpia Milano" -> Match: "Olimpia vs Varese" -> Team includes Match?? No.
-
+                if (cleanTeam.length < 3) continue;
                 if (mt.includes(cleanTeam)) {
                     isFeatured = true;
                     break;
                 }
             }
 
+            const getPickIcon = (text: string, sport: string) => {
+                const t = text.toLowerCase();
+                if (t.includes('puntos') || t.includes('rebotes') || t.includes('asistencias') || sport.includes('basket')) {
+                    if (t.includes('puntos')) return '🏀 ';
+                }
+                if (t.includes('córners') || t.includes('corners')) return '⛳ ';
+                if (t.includes('tarjetas')) return '🟨 ';
+                if (t.includes('hándicap') || t.includes('handicap')) return '📌 ';
+                if (t.includes('ambos marcan') || t.includes('ambos gol') || t.includes('goles') || t.includes('gol')) return '⚽ ';
+
+                if (t.includes('remates')) {
+                    if (t.includes('totales')) return '🥅 ';
+                    return '🎯 ';
+                }
+                return '';
+            };
+
             return {
                 ...g,
-                matchDisplay: `${g.matchDisplay} ${sportIcon}`,
+                matchDisplay: rawMatchDisplay,
                 picks: g.picks.map((p: string) => {
                     const { pick } = parseBetDisplay(g.matchDisplay, p);
-                    return `${pick.charAt(0).toUpperCase() + pick.slice(1)} ✅`;
+
+                    // 1. Shorthand replacement (+ / -)
+                    let cleanPick = pick.replace(/más de\s*/gi, '+')
+                        .replace(/menos de\s*/gi, '-');
+
+                    // 2. Title Case for players/names
+                    // We split by spaces, capitalize words longer than 2 chars or that aren't common lower-case words
+                    const formattedPick = cleanPick.split(/\s+/)
+                        .map(word => {
+                            const lower = word.toLowerCase();
+                            // Keep small prepositions in lowercase if not first word? 
+                            // Actually, better to just capitalize everything for a clean "Title Case" as per user request
+                            return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+                        })
+                        .join(' ');
+
+                    return `${getPickIcon(formattedPick, g.sport || '')}${formattedPick}`;
                 }),
                 isFeatured
             };
@@ -529,52 +574,163 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
             {imageSelector.idx !== null && (
                 <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/90 backdrop-blur p-4">
                     <div className="bg-[#1a1a1a] border border-white/10 rounded-3xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
-                        <div className="p-6 border-b border-white/10 flex justify-between items-center bg-[#1a1a1a] z-10">
-                            <div>
-                                <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                                    <ImageIcon size={20} className="text-amber-500" />
-                                    Seleccionar Fondo {imageSelector.idx === 0 ? "(Portada)" : `(Slide ${imageSelector.idx + 1})`}
-                                </h3>
-                                <p className="text-xs text-white/40 mt-1">Elige una imagen de la galería para reemplazar</p>
+                        <div className="p-6 border-b border-white/10 space-y-4 bg-[#1a1a1a] z-10">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                        <ImageIcon size={20} className="text-amber-500" />
+                                        Seleccionar Fondo {imageSelector.idx === 0 ? "(Portada)" : `(Slide ${imageSelector.idx + 1})`}
+                                    </h3>
+                                    <p className="text-xs text-white/40 mt-1">Elige una imagen de la galería para reemplazar</p>
+                                </div>
+                                <button onClick={() => setImageSelector({ idx: null })} className="p-2 hover:bg-white/10 rounded-full transition"><X size={24} className="text-white/70" /></button>
                             </div>
-                            <button onClick={() => setImageSelector({ idx: null })} className="p-2 hover:bg-white/10 rounded-full transition"><X size={24} className="text-white/70" /></button>
+
+                            {/* --- FILTERS BAR --- */}
+                            <div className="flex flex-wrap items-center gap-2 border-t border-white/5 pt-4">
+                                <button
+                                    onClick={() => { setBgFilter('all'); setBgTeamSelected(null); }}
+                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border
+                                        ${bgFilter === 'all' ? 'bg-white text-black border-white' : 'bg-white/5 text-white/60 border-white/10 hover:bg-white/10'}`}
+                                >
+                                    Todas ({availableFiles.length})
+                                </button>
+                                <button
+                                    onClick={() => { setBgFilter('futbol'); setBgTeamSelected(null); }}
+                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border
+                                        ${bgFilter === 'futbol' ? 'bg-sky-500 text-white border-sky-500' : 'bg-sky-500/10 text-sky-400 border-sky-500/20 hover:bg-sky-500/20'}`}
+                                >
+                                    ⚽ Fútbol ({availableFiles.filter(f => f.includes('futbol') && !f.includes('portada')).length})
+                                </button>
+                                <button
+                                    onClick={() => { setBgFilter('basket'); setBgTeamSelected(null); }}
+                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border
+                                        ${bgFilter === 'basket' ? 'bg-orange-500 text-white border-orange-500' : 'bg-orange-500/10 text-orange-400 border-orange-500/20 hover:bg-orange-500/20'}`}
+                                >
+                                    🏀 Basket ({availableFiles.filter(f => f.includes('basket') && !f.includes('portada')).length})
+                                </button>
+                                <button
+                                    onClick={() => { setBgFilter('portada'); setBgTeamSelected(null); }}
+                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border
+                                        ${bgFilter === 'portada' ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'}`}
+                                >
+                                    🖼️ Portada ({availableFiles.filter(f => f.includes('portada')).length})
+                                </button>
+                                <button
+                                    onClick={() => { setBgFilter('comodin'); setBgTeamSelected(null); }}
+                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border
+                                        ${bgFilter === 'comodin' ? 'bg-purple-500 text-white border-purple-500' : 'bg-purple-500/10 text-purple-400 border-purple-500/20 hover:bg-purple-500/20'}`}
+                                >
+                                    🃏 Comodín ({availableFiles.filter(f => f.includes('comodin')).length})
+                                </button>
+                                <button
+                                    onClick={() => setBgFilter('equipo')}
+                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border
+                                        ${bgFilter === 'equipo' ? 'bg-amber-500 text-black border-amber-500' : 'bg-amber-500/10 text-amber-500 border-amber-500/20 hover:bg-amber-500/20'}`}
+                                >
+                                    🛡️ Equipos ({new Set(availableFiles.filter(f => (f.includes('futbol') || f.includes('basket')) && !f.includes('comodin') && !f.includes('portada')).map(f => f.split('-')[2])).size})
+                                </button>
+                            </div>
+
+                            {/* --- TEAM SELECTOR (Conditional) --- */}
+                            {bgFilter === 'equipo' && (
+                                <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-200 border-t border-white/5 pt-3">
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => { setBgSportForTeam('futbol'); setBgTeamSelected(null); }}
+                                            className={`flex-1 py-1 rounded-md text-[9px] font-black uppercase tracking-tighter transition-all
+                                                ${bgSportForTeam === 'futbol' ? 'bg-sky-500 text-white' : 'bg-white/5 text-white/30'}`}
+                                        >
+                                            Fútbol
+                                        </button>
+                                        <button
+                                            onClick={() => { setBgSportForTeam('basket'); setBgTeamSelected(null); }}
+                                            className={`flex-1 py-1 rounded-md text-[9px] font-black uppercase tracking-tighter transition-all
+                                                ${bgSportForTeam === 'basket' ? 'bg-orange-500 text-white' : 'bg-white/5 text-white/30'}`}
+                                        >
+                                            Basket
+                                        </button>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5 max-h-[120px] overflow-y-auto custom-scrollbar p-1">
+                                        {Array.from(new Set(availableFiles
+                                            .filter(f => {
+                                                const lower = f.toLowerCase();
+                                                const sport = bgSportForTeam === 'futbol' ? 'futbol' : 'basket';
+                                                return lower.startsWith(`bg-${sport}-`) && !lower.includes('comodin') && !lower.includes('portada');
+                                            })
+                                            .map(f => {
+                                                const parts = f.split('-');
+                                                return parts[2] || "";
+                                            })
+                                            .filter(Boolean)
+                                        )).sort((a, b) => {
+                                            const nameA = formatTeamName(a);
+                                            const nameB = formatTeamName(b);
+                                            return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+                                        }).map(team => (
+                                            <button
+                                                key={team}
+                                                onClick={() => setBgTeamSelected(team)}
+                                                className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase border transition-all
+                                                    ${bgTeamSelected === team ? 'bg-white text-black border-white' : 'bg-black/40 text-white/50 border-white/10 hover:border-white/20'}`}
+                                            >
+                                                {formatTeamName(team)}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-black/20">
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                                {availableFiles.sort((a, b) => {
-                                    // Sort Logic: Portadas first if index 0, else by sport match? 
-                                    // Simple Logic: Selected BG first, then alphabetical or grouped
-                                    if (a === config.bgSelection[imageSelector.idx!]) return -1;
-                                    if (b === config.bgSelection[imageSelector.idx!]) return 1;
-                                    return 0;
-                                }).map((file, i) => (
-                                    <div
-                                        key={i}
-                                        onClick={() => {
-                                            handleBgChange(imageSelector.idx!, file);
-                                            setImageSelector({ idx: null });
-                                        }}
-                                        className={`
-                                            group relative aspect-[9/16] rounded-xl overflow-hidden border-2 cursor-pointer transition-all duration-200 hover:scale-105
-                                            ${config.bgSelection[imageSelector.idx!] === file ? 'border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.3)] ring-2 ring-amber-500/20' : 'border-white/5 hover:border-white/30'}
-                                        `}
-                                    >
-                                        <img src={`/backgrounds/${file}`} className="w-full h-full object-cover" loading="lazy" />
+                                {availableFiles
+                                    .filter(f => {
+                                        if (bgFilter === 'all') return true;
+                                        if (bgFilter === 'portada') return f.includes('portada');
+                                        if (bgFilter === 'comodin') return f.includes('comodin');
+                                        if (bgFilter === 'futbol' && !f.includes('portada')) return f.includes('futbol');
+                                        if (bgFilter === 'basket' && !f.includes('portada')) return f.includes('basket');
+                                        if (bgFilter === 'equipo') {
+                                            if (!bgTeamSelected) return false;
+                                            return f.includes(`bg-${bgSportForTeam}-${bgTeamSelected}-`);
+                                        }
+                                        return true;
+                                    })
+                                    .sort((a, b) => {
+                                        if (a === config.bgSelection[imageSelector.idx!]) return -1;
+                                        if (b === config.bgSelection[imageSelector.idx!]) return 1;
+                                        // Case-insensitive alphabetical sort
+                                        return a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true });
+                                    }).map((file, i) => (
+                                        <div
+                                            key={i}
+                                            onClick={() => {
+                                                handleBgChange(imageSelector.idx!, file);
+                                                setImageSelector({ idx: null });
+                                            }}
+                                            className={`
+                                                group relative aspect-[9/16] rounded-xl overflow-hidden border-2 cursor-pointer transition-all duration-200 hover:scale-105
+                                                ${config.bgSelection[imageSelector.idx!] === file ? 'border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.3)] ring-2 ring-amber-500/20' : 'border-white/5 hover:border-white/30'}
+                                            `}
+                                        >
+                                            <img src={`/backgrounds/${file}`} className="w-full h-full object-cover" loading="lazy" />
 
-                                        {/* Overlay Info */}
-                                        <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/90 via-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <p className="text-[10px] text-white font-mono truncate">{file.replace('bg-', '').replace('.png', '')}</p>
-                                        </div>
-
-                                        {/* Current Indicator */}
-                                        {config.bgSelection[imageSelector.idx!] === file && (
-                                            <div className="absolute top-2 right-2 bg-amber-500 text-black p-1 rounded-full shadow-lg">
-                                                <Check size={12} strokeWidth={4} />
+                                            {/* Overlay Info */}
+                                            <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/90 via-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <p className="text-[10px] text-white font-mono truncate">
+                                                    {formatTeamName(file.split('-')[2] || file.replace('bg-', '').replace('.png', ''))}
+                                                </p>
                                             </div>
-                                        )}
-                                    </div>
-                                ))}
+
+                                            {/* Current Indicator */}
+                                            {config.bgSelection[imageSelector.idx!] === file && (
+                                                <div className="absolute top-2 right-2 bg-amber-500 text-black p-1 rounded-full shadow-lg">
+                                                    <Check size={12} strokeWidth={4} />
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
                             </div>
                         </div>
                     </div>
