@@ -233,14 +233,44 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
         const status = scriptsStatus[scriptName];
         if (!status) return null;
 
-        const time = status.date ? status.date.split(' ')[1] : '';
-        const isSuccess = status.status === 'SUCCESS';
+        // Ajustar hora: Añadir 1 hora para España (asumiendo que viene en UTC o similar)
+        let displayTime = '';
+        if (status.date) {
+            try {
+                const dateParts = status.date.split(' ');
+                if (dateParts.length === 2) {
+                    const [yymmdd, hhmmss] = dateParts;
+                    // Forzamos el parseo y sumamos una hora de forma manual para evitar líos de zona horaria
+                    const [year, month, day] = yymmdd.split('-').map(Number);
+                    const [hours, minutes, seconds] = hhmmss.split(':').map(Number);
+                    const date = new Date(year, month - 1, day, hours, minutes, seconds);
+                    date.setHours(date.getHours() + 1);
+
+                    displayTime = date.getHours().toString().padStart(2, '0') + ':' +
+                        date.getMinutes().toString().padStart(2, '0') + ':' +
+                        date.getSeconds().toString().padStart(2, '0');
+                } else {
+                    displayTime = status.date.split(' ')[1] || '';
+                }
+            } catch (e) {
+                displayTime = status.date.split(' ')[1] || '';
+            }
+        }
+
+        const rawStatus = status.status || '';
+        const isSuccess = rawStatus === 'SUCCESS';
+
+        // Traducir estados
+        let displayStatus = rawStatus;
+        if (rawStatus === 'IDLE') displayStatus = 'SIN CAMBIOS';
+        else if (rawStatus === 'SUCCESS') displayStatus = 'ÉXITO';
+        else if (rawStatus === 'FAILURE' || rawStatus === 'ERROR') displayStatus = 'ERROR';
 
         return (
             <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${isSuccess ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
-                <span>{status.status}</span>
+                <span>{displayStatus}</span>
                 <span className="opacity-30">|</span>
-                <span>{time}</span>
+                <span>{displayTime}</span>
             </div>
         );
     };

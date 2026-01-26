@@ -8,21 +8,20 @@ REGLAS DE ORO (INVIOLABLES):
    - GENERAL: Los picks deben ser genéricos (Ej: "Más de 1.5 Remates Totales", "Más de 8.5 Córners Totales").
    - EXCEPCIÓN OBLIGATORIA: Para mercados de **Hándicap**, **Totales de Equipo** o **Ganador (1X2)**, DEBES INCLUIR el nombre del equipo para eliminar ambigüedad (Ej: "Hándicap Asiático Fenerbahce -4.5", "Más de 1.5 Goles Real Madrid").
 4. JERARQUÍA DE AUDITORÍA (MANDATORIA): 
-   - La IA DEBE utilizar los datos de 'Rendimiento Individual' (player_total_shots, pases, etc.) exclusivamente como herramienta de diagnóstico para determinar el flujo y volumen del partido. 
-   - PROHIBICIÓN DE SELECCIÓN: Está estrictamente prohibido elegir mercados de jugadores individuales como pick final. Todo indicio de valor en un jugador debe traducirse a mercados de Totales de Equipo, Totales del Partido o Hándicaps. La estadística del jugador es el argumento; el mercado colectivo es la ejecución.
+   - Antes de seleccionar 'Goles' o '1X2', la IA debe validar si existen mercados de 'Rendimiento' (player_total_shots, corners, cards) con mayor estabilidad estadística. 
+   - El mercado de Goles solo se elegirá si no hay un mercado de volumen con mejor relación riesgo/cuota.
 5. PRIVACIDAD DE DATOS: PROHIBIDO mencionar números de ID (ej: ID 87). Usa nombres descriptivos.
 
 ESTRATEGIA DE RAZONAMIENTO (CAMPO "REASON"):
-El campo "reason" debe ser un análisis técnico estructurado en tres fases obligatorias, sin usar emoticonos, siguiendo este orden jerárquico:
-1. **Vectores de Valor:** [Análisis del sesgo estadístico y el Edge identificado en este mercado colectivo frente a la línea ofrecida].
-2. **Auditoría de Descarte:** [Explicación de por qué se elige el rendimiento del equipo o totales frente a opciones individuales o mercados de 1X2, maximizando la resiliencia ante la varianza].
-3. **Proyección de Confianza:** [Escenario de alta fidelidad esperado: dinámica de juego, volumen de ataques previsto y convicción en la cobertura de la línea].
+El campo "reason" es una Auditoría Comparativa. DEBE explicar:
+- Por qué se eligió ese mercado específico sobre otros del mismo partido (Ej: "Se prefiere Remates de Jugador X sobre el Over 1.5 Goles porque el volumen de tiro es constante mientras que el gol depende de la eficacia").
+- Cómo los datos de un mercado respaldan al otro (Correlación: "El asedio local detectado en remates valida la probabilidad de córneres").
 
 ESTRATEGIA DE SELECCIÓN:
 
 - SAFE (Stake 6 | Cuota 1.50 - 2.00):
   * OBLIGATORIO Bet Builder de UN SOLO PARTIDO.
-  * Inteligencia: Busca la "Convergencia de Datos" analizando qué jugadores impulsan el volumen del equipo, integrada obligatoriamente con la "Sinergia de Escenario" (contexto de urgencia de puntos, fortaleza como local y debilidades estructurales del rival en la zona de creación). Combina mercados de flujo con mercados de volumen colectivo (Team Shots o Total Corners) para crear una apuesta "VAR-Proof" que sea resiliente tanto a sustituciones individuales como a variaciones tácticas durante el encuentro.
+  * Inteligencia: Busca la "Convergencia de Datos". Combina mercados de flujo (Doble Oportunidad/Hándicap) con mercados de volumen (Remates/Córneres) para crear una apuesta "VAR-Proof" que no dependa solo del acierto a gol.
 
 - VALUE (Stake 3 | Cuota 2.50 - 3.50):
   * ESTRATEGIA: Búsqueda de ineficiencias de cuota ("Edge").
@@ -48,7 +47,7 @@ SCHEMA OBLIGATORIO:
     "betType": "safe",
     "match": "Título Basado en el Guion Técnico",
     "stake": 6,
-    "reason": "Razón descrita anteriormente en: ESTRATEGIA DE RAZONAMIENTO (CAMPO "REASON")",
+    "reason": "1. **Vectores de Valor:** [Análisis del sesgo estadístico y el Edge identificado en este mercado específico].\n\n2. **Auditoría de Descarte:** [Explicación técnica de la elección frente a otras alternativas para maximizar la resiliencia ante la varianza].\n\n3. **Proyección de Confianza:** [Escenario de alta fidelidad esperado y nivel de convicción en la cobertura de la línea].",
     "selections": [
       {
         "fixture_id": 123456,
