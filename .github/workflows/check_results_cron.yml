@@ -1,7 +1,11 @@
 name: 4º - Comprobador Automático de Resultados
 on:
   schedule:
-    - cron: '0 * * * *' # Cada hora en punto
+    # Explicación del Cron:
+    # 17,47: Ejecuta en el minuto 17 y 47 de cada hora.
+    # 0-2,13-23: Ejecuta solo entre 00h-02h y 13h-23h (Hora UTC).
+    # Esto equivale aproximadamente a funcionar toda la tarde/noche y madrugada en España.
+    - cron: '17,47 0-2,13-23 * * *'
   workflow_dispatch:
 
 jobs:
@@ -9,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
+      
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -25,4 +29,5 @@ jobs:
           REDIS_URL: ${{ secrets.REDIS_URL }}
           REDIS_TOKEN: ${{ secrets.REDIS_TOKEN }}
           API_KEY: ${{ secrets.API_KEY }}
+          PROXY_URL: ${{ secrets.PROXY_URL }}
         run: python backend/src/services/check_api_results.py

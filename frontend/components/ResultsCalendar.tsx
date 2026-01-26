@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, RefreshCw, Check, X, CircleCheck, CircleX, Clock, ChevronDown, Save, Loader2, TrendingUp } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, RefreshCw, Check, X, CircleCheck, CircleX, Clock, ChevronDown, Save, Loader2, TrendingUp, MinusCircle } from 'lucide-react';
 
 // --- FLAG MAPPINGS (Mirrored from BetCard.tsx) ---
 const LEAGUE_FLAGS: Record<number, string> = {
@@ -105,7 +105,7 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
         if (details.length > 0) {
             const childrenStatus = details.map((d: any) => {
                 let s = (d.status || 'PENDING').toUpperCase();
-                return s === 'GANADA' ? 'WON' : s === 'PERDIDA' ? 'LOST' : s === 'PENDIENTE' ? 'PENDING' : s;
+                return s === 'GANADA' ? 'WON' : s === 'PERDIDA' ? 'LOST' : s === 'PENDIENTE' ? 'PENDING' : s === 'NULA' ? 'VOID' : s;
             });
 
             const hasLost = childrenStatus.some((s: string) => s === 'LOST');
@@ -146,7 +146,7 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
             const uid = getSelId(d);
             const s = updatedPending[uid] || d.status || 'PENDING';
             // Normalize
-            return s === 'GANADA' ? 'WON' : s === 'PERDIDA' ? 'LOST' : s === 'PENDIENTE' ? 'PENDING' : s;
+            return s === 'GANADA' ? 'WON' : s === 'PERDIDA' ? 'LOST' : s === 'PENDIENTE' ? 'PENDING' : s === 'NULA' ? 'VOID' : s;
         });
 
         const hasLost = mergedDetails.some((s: string) => s === 'LOST');
@@ -366,6 +366,7 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
                             if (currentStatus === 'GANADA') currentStatus = 'WON';
                             if (currentStatus === 'PERDIDA') currentStatus = 'LOST';
                             if (currentStatus === 'PENDIENTE') currentStatus = 'PENDING';
+                            if (currentStatus === 'NULA') currentStatus = 'VOID';
 
                             return (
                                 <div key={idx} className="flex justify-between items-center text-xs p-1 border-b border-white/5 last:border-0 gap-2">
@@ -390,7 +391,8 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
                                             {detail.result && detail.result !== 'N/A' && (
                                                 <div className={`text-[10px] font-bold mt-0.5 ${(rawStatus === 'WON' || rawStatus === 'GANADA') ? 'text-emerald-500' :
                                                     (rawStatus === 'LOST' || rawStatus === 'PERDIDA') ? 'text-rose-500' :
-                                                        'text-muted-foreground'
+                                                        (rawStatus === 'VOID' || rawStatus === 'NULA') ? 'text-gray-400' :
+                                                            'text-muted-foreground'
                                                     }`}>
                                                     {detail.result}
                                                 </div>
@@ -416,6 +418,7 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
                                             <>
                                                 {(detail.status === 'SUCCESS' || detail.status === 'WON' || detail.status === 'GANADA') && <CircleCheck size={14} className="text-emerald-500" />}
                                                 {(detail.status === 'FAIL' || detail.status === 'LOST' || detail.status === 'PERDIDA') && <CircleX size={14} className="text-rose-500" />}
+                                                {(detail.status === 'VOID' || detail.status === 'NULA') && <MinusCircle size={14} className="text-gray-400" />}
                                                 {(!detail.status || detail.status === 'PENDING' || detail.status === 'PENDIENTE') && <Clock size={14} className="text-amber-500" />}
                                             </>
                                         )}
@@ -444,11 +447,13 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
                             <option value="PENDING">PENDIENTE</option>
                             <option value="WON">WON</option>
                             <option value="LOST">LOST</option>
+                            <option value="VOID">VOID</option>
                         </select>
                     ) : (
                         <>
                             {(status === 'WON' || status === 'GANADA') && <><CircleCheck size={14} className="text-emerald-500" /> GANADA</>}
                             {(status === 'LOST' || status === 'PERDIDA') && <><CircleX size={14} className="text-rose-500" /> PERDIDA</>}
+                            {(status === 'VOID' || status === 'NULA') && <><MinusCircle size={14} className="text-gray-400" /> NULA</>}
                             {(status === 'PENDING' || status === 'PENDIENTE') && <span className="text-amber-500">PENDIENTE</span>}
                         </>
                     )}
@@ -540,6 +545,7 @@ export default function ResultsCalendar() {
             if (s === 'GANADA') s = 'WON';
             if (s === 'PERDIDA') s = 'LOST';
             if (s === 'PENDIENTE') s = 'PENDING';
+            if (s === 'NULA') s = 'VOID';
 
             const stake = Number(b.stake) || 0;
 

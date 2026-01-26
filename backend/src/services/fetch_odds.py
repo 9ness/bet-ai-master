@@ -58,6 +58,57 @@ class SportsDataService:
     def get_today_date(self):
         return datetime.now().strftime("%Y-%m-%d")
 
+    def _verify_ip(self):
+        """Verifica y loguea la IP externa actual usando el proxy."""
+        try:
+            print("   [PROXY] Verificando IP externa...")
+            # Usamos un servicio ligero para ver nuestra IP
+            resp = self._call_api("https://api.ipify.org?format=json")
+            ip_data = resp.json()
+            print(f"   [PROXY] IP Actual detectada: {ip_data.get('ip')} (Debe coincidir con la residencial)")
+        except Exception as e:
+            print(f"   [PROXY-ERROR] No se pudo verificar la IP: {e}")
+            # Si es crítico "si o si", podríamos lanzar error aquí tambien, 
+            # pero mejor dejar que falle en la llamada real si el proxy está muerto.
+
+    def _call_api(self, url, params=None):
+        """
+        Realiza la petición usando el Proxy Residencial con reintentos.
+        """
+        proxy_url = os.getenv("PROXY_URL")
+        if not proxy_url:
+            raise ValueError("[SECURITY] PROXY_URL no está configurada. Abortando para proteger IP real.")
+
+        proxies = {"http": proxy_url, "https": proxy_url}
+        
+        headers = self.headers.copy()
+        headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept": "application/json"
+        })
+
+        max_retries = 3
+        for attempt in range(1, max_retries + 1):
+            try:
+                if attempt > 1:
+                    print(f"      [Reintento {attempt}/{max_retries}] Conectando a {url}...")
+                    time.sleep(2) # Espera breve entre reintentos
+
+                response = requests.get(
+                    url, 
+                    params=params, 
+                    headers=headers, 
+                    proxies=proxies, 
+                    timeout=30
+                )
+                response.raise_for_status()
+                return response
+            except Exception as e:
+                print(f"      [PROXY-ERROR] Fallo intento {attempt}: {e}")
+                if attempt == max_retries:
+                    print("      [CRITICAL] Fallaron todos los intentos de conexión por Proxy.")
+                    raise e # Re-raise final exception to crash script and avoid leak
+
     def _normalize_key(self, text):
         text = str(text).lower()
         if "home/draw" in text: return "1X"
@@ -88,6 +139,10 @@ class SportsDataService:
         all_matches = []
         self.calls_football = 0
         self.calls_basketball = 0
+        
+        # 0. Verificar IP antes de empezar
+        self._verify_ip()
+        
         
         for date_str in dates_to_fetch:
             print(f"  > Consultando fecha: {date_str}")
@@ -126,7 +181,8 @@ class SportsDataService:
             params = {"date": date_str, "timezone": "Europe/Madrid"}
             
             url_list = f"{base_url}/{endpoint}"
-            resp = requests.get(url_list, headers=self.headers, params=params)
+            # resp = requests.get(url_list, headers=self.headers, params=params)
+            resp = self._call_api(url_list, params=params)
             
             # Count Initial Call
             if sport == "football": self.calls_football += 1
@@ -213,7 +269,8 @@ class SportsDataService:
             param_key = "fixture" if sport == "football" else "game"
             
             # Dynamic Bookmaker ID
-            resp = requests.get(url_odds, headers=self.headers, params={param_key: fixture_id, "bookmaker": bookmaker_id})
+            # resp = requests.get(url_odds, headers=self.headers, params={param_key: fixture_id, "bookmaker": bookmaker_id})
+            resp = self._call_api(url_odds, params={param_key: fixture_id, "bookmaker": bookmaker_id})
             data = resp.json()
             
             # Initialize with NULLs for strict schema
