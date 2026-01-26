@@ -13,220 +13,261 @@ export const dynamic = 'force-dynamic'; // Ensure no caching
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        let { date, betType, selectionId, newStatus, updates } = body; // updates supports batch
+        let { date, betType, selectionId, newStatus, updates, newPick } = body;
 
         console.log(`\n[UPDATE-BET] --- STARTED ---`);
-        console.log(`[UPDATE-BET] Target: ${date} | Type: ${betType} | Status: ${newStatus}`);
+        console.log(`[UPDATE-BET] Target: ${date} | Type: ${betType} | Status: ${newStatus} | PickUpdate: ${!!newPick}`);
 
-        // 1. PRIMARY KEY: betai:daily_bets:YYYY-MM (Hash) -> Field YYYY-MM-DD
         const yearMonth = date.substring(0, 7);
         const hashKey = `betai:daily_bets:${yearMonth}`;
+        const dayKey = `betai:daily_bets:${date}`;
 
-        // HGET from Hash
+        // 1. LOAD DATA (Try Hash first, then Day Key)
         let data: any = await redis.hget(hashKey, date);
-
-        // Legacy Fallback (Should not trigger if migrated)
+        let source = 'HASH';
         if (!data) {
-            data = await redis.get(`betai:daily_bets:${date}`);
+            console.log(`[UPDATE-BET] Data not found in HASH ${hashKey}, trying Key ${dayKey}`);
+            data = await redis.get(dayKey);
+            source = 'KEY';
+        } else {
+            console.log(`[UPDATE-BET] Loaded data from HASH ${hashKey} field ${date}`);
         }
 
-        // Fallback checks if primary key empty (Migration support)
+        // Fallback checks (Migration)
         if (!data) {
-            console.log(`[UPDATE-BET] Primary key missing, checking fallback: daily_bets`);
             const fallbackData: any = await redis.get("daily_bets");
             if (fallbackData && fallbackData.date === date) {
                 data = fallbackData;
-                console.log(`[UPDATE-BET] Found in fallback 'daily_bets'`);
+                source = 'FALLBACK_LEGACY';
             } else {
-                console.error(`[UPDATE-BET] CRITICAL: No data found for ${date}`);
-                return NextResponse.json({ success: false, error: "No data found for this date" }, { status: 404 });
+                return NextResponse.json({ success: false, error: "No data found" }, { status: 404 });
             }
         }
 
-        const historyData: any = data;
+        console.log(`[UPDATE-BET] Source: ${source}`);
+
+
+        const historyData: any = typeof data === 'string' ? JSON.parse(data) : data;
         const bets = historyData.bets || {};
 
-        // Find Bet
+        // Find specific bet
         let bet: any = null;
 
-        // Robust finding logic: Handle array or object
+        console.log(`[UPDATE-BET] Searching for '${betType}' in bets (IsArray: ${Array.isArray(bets)})`);
+
+        // Support Array or Object structure
         if (Array.isArray(bets)) {
-            bet = bets.find((b: any) => b.type === betType);
-        } else if (bets[betType]) {
-            bet = bets[betType];
+            bet = bets.find((b: any) => b.type === betType || b.betType === betType);
+            if (!bet) {
+                console.log(`[UPDATE-BET] Available Types in Array:`, bets.map(b => b.type || b.betType));
+            }
         } else {
-            // Try strict equality on keys if object
-            const key = Object.keys(bets).find(k => k === betType);
-            if (key) bet = bets[key];
+            bet = bets[betType];
+            if (!bet) {
+                // Try finding it by value loop if object keys are not the type
+                // Sometimes it might be { "0": { type: "safe" }, "1": { type: "value" } }
+                const foundKey = Object.keys(bets).find(k => bets[k].type === betType || bets[k].betType === betType);
+                if (foundKey) bet = bets[foundKey];
+
+                if (!bet) console.log(`[UPDATE-BET] Available Keys in Object:`, Object.keys(bets));
+            }
         }
 
         if (!bet) {
-            console.error(`[UPDATE-BET] Bet Not Found. Target: ${betType}. Available types: ${Array.isArray(bets) ? bets.map((b: any) => b.type).join(',') : Object.keys(bets).join(',')}`);
-            return NextResponse.json({ success: false, error: `Bet type '${betType}' not found for date ${date}` }, { status: 404 });
+            console.error(`[UPDATE-BET] Bet not found: ${betType} in date ${date}`);
+            // Dump snippet of bets to debug
+            console.error(`[UPDATE-BET] Bets dump:`, JSON.stringify(bets).substring(0, 200));
+            return NextResponse.json({ success: false, error: "Bet not found" }, { status: 404 });
         }
 
-        // 2. APPLY UPDATES (Status & Logic)
-        let somethingChanged = false;
+        // 2. APPLY UPDATES
 
-        // Normalize batch items
+        // A) Global Pick Text
+        if (newPick) {
+            bet.pick = newPick;
+            console.log(`[UPDATE-BET] Updated Bet Pick to: ${newPick}`);
+        }
+
+        // B) Selections (Status & Result)
+        let somethingChanged = !!newPick;
+
         let changes = [];
         if (updates && Array.isArray(updates)) changes = updates;
         else if (newStatus) changes.push({ selectionId, newStatus });
 
+        // Normalize Status Helper
+        const norm = (s: string) => {
+            if (!s) return null; // Allow null if only updating result
+            s = s.toUpperCase();
+            if (s === 'GANADA') return 'WON';
+            if (s === 'PERDIDA') return 'LOST';
+            if (s === 'PENDIENTE') return 'PENDING';
+            if (s === 'NULA') return 'VOID';
+            return s;
+        };
+
+        // Apply changes to specific selections
+        console.log(`[UPDATE-BET] Processing ${changes.length} updates:`, JSON.stringify(changes));
+
         for (const change of changes) {
-            let sStatus = change.newStatus;
             const sId = change.selectionId;
+            const sStatus = norm(change.newStatus);
+            const sResult = change.newResult; // New field
 
-            // Normalize
-            if (sStatus === 'GANADA') sStatus = 'WON';
-            if (sStatus === 'PERDIDA') sStatus = 'LOST';
-            if (sStatus === 'PENDIENTE') sStatus = 'PENDING';
-
-            // Global?
             if (sId === null || sId === undefined) {
-                bet.status = sStatus;
-                somethingChanged = true;
+                // Global Override
+                if (sStatus) bet.status = sStatus;
                 continue;
             }
 
-            // Selection
             const arrays = [bet.selections, bet.picks_detail, bet.components].filter(Array.isArray);
-            let found = false;
+            let updated = false;
+            // Search Strategy:
+            // 1. Try finding by ID properties (fixture_id, id, selectionId)
+            // 2. Try finding by Match Name
+            // 3. Fallback to index ONLY if sId is a small number
+
             for (const arr of arrays) {
-                // Try index
-                if (arr[sId]) {
-                    arr[sId].status = sStatus;
-                    found = true;
-                    somethingChanged = true;
-                    break;
+                // Find by ID/Match
+                let match = arr.find((item: any) =>
+                    String(item.fixture_id) === String(sId) ||
+                    String(item.match) === String(sId) ||
+                    String(item.id) === String(sId) ||
+                    String(item.selectionId) === String(sId)
+                );
+
+                // If not found, and sId is number-like and small, try index
+                if (!match && !isNaN(Number(sId)) && Number(sId) < 100 && arr[sId]) {
+                    match = arr[sId];
                 }
-                // Try ID search
-                const match = arr.find((item: any) => String(item.fixture_id) === String(sId) || String(item.match) === String(sId));
+
                 if (match) {
-                    match.status = sStatus;
-                    found = true;
+                    console.log(`[UPDATE-BET] Matched Selection: ${sId} -> ${sStatus}`);
+                    if (sStatus) match.status = sStatus;
+                    if (sResult !== undefined) match.result = sResult;
                     somethingChanged = true;
+                    updated = true;
                     break;
                 }
             }
+            if (!updated) {
+                console.warn(`[UPDATE-BET] WARNING: Selection ${sId} NOT FOUND in any array.`);
+                console.warn(`[UPDATE-BET] Available IDs/Matches:`, arrays.flat().map((i: any) => `${i.fixture_id}|${i.match}`));
+            }
         }
 
-        if (!somethingChanged) {
-            return NextResponse.json({ success: true, message: "No changes needed" });
-        }
-
-        // 2.5 AUTO-DERIVE PARENT STATUS FROM SELECTIONS
+        // 3. RECALCULATE LOGIC (Mirrored from check_api_results.py)
         // Check if we have selections to evaluate
         const arrays = [bet.selections, bet.picks_detail, bet.components].filter(Array.isArray);
         const allSelections = arrays.flat();
 
-        if (allSelections.length > 0) {
-            const hasLost = allSelections.some((s: any) => s.status === 'LOST' || s.status === 'PERDIDA');
-            const allWon = allSelections.every((s: any) => s.status === 'WON' || s.status === 'GANADA');
+        // Detect Manual Override: No selection updates, but global status provided
+        const isManualOverride = (!updates || !Array.isArray(updates) || updates.length === 0) && !!newStatus;
 
-            if (hasLost) {
-                // If any selection is lost, the whole bet is lost
-                newStatus = 'LOST';
-                console.log(`[UPDATE-BET] Auto-update: Bet ${betType} marked as HOST because a selection is LOST.`);
-            } else if (allWon) {
-                // If all selections are won, the whole bet is won
-                newStatus = 'WON';
-                console.log(`[UPDATE-BET] Auto-update: Bet ${betType} marked as WON because ALL selections are WON.`);
+        if (allSelections.length > 0) {
+            let anyLost = false;
+            let pendingCount = 0;
+            let voidCount = 0;
+            let effectiveOdd = 1.0;
+
+            for (const sel of allSelections) {
+                const s = norm(sel.status);
+                const odd = parseFloat(sel.odd) || 1.0;
+
+                if (s === 'LOST') {
+                    anyLost = true;
+                } else if (s === 'PENDING') {
+                    pendingCount++;
+                } else if (s === 'WON') {
+                    effectiveOdd *= odd;
+                } else if (s === 'VOID') {
+                    voidCount++;
+                }
             }
-            // Else change nothing, respect manual or pending
+
+            // Derive Parent Status
+            if (!isManualOverride) {
+                if (anyLost) {
+                    bet.status = 'LOST';
+                } else if (pendingCount > 0) {
+                    bet.status = 'PENDING';
+                } else if (voidCount === allSelections.length) {
+                    bet.status = 'VOID';
+                } else {
+                    // All resolved, no lost, no pending -> WON
+                    bet.status = 'WON';
+                    // Update the Total Odd to the effective odd (so profit calc is correct)
+                    bet.total_odd = parseFloat(effectiveOdd.toFixed(2));
+                }
+            } else {
+                // Apply manual status
+                if (newStatus) bet.status = norm(newStatus);
+                console.log(`[UPDATE-BET] Manual Override active. Taking ${bet.status} as truth.`);
+            }
+        } else {
+            // Single Bet (No Selections)
+            if (newStatus) bet.status = norm(newStatus);
         }
 
-        // 3. VALIDATE & CALCULATE
-        // STRICT: Read from Redis object.
-        let stake = Number(bet.stake);
-        let odd = Number(bet.total_odd || bet.odd);
-
-        // SELF-HEALING: If stake is missing (old data), infer from type
-        if (!stake || isNaN(stake)) {
-            console.warn(`[UPDATE-BET] Missing Stake for ${betType}. Attempting self-healing defaults.`);
+        // 4. CALCULATE PROFIT
+        let stake = Number(bet.stake) || 0;
+        // Self-heal stake
+        if (stake === 0) {
             if (betType === 'safe') stake = 6;
             else if (betType === 'value') stake = 3;
             else if (betType === 'funbet') stake = 1;
-
-            if (stake) {
-                bet.stake = stake; // Persist self-healing
-                console.log(`[UPDATE-BET] Healed Stake for ${betType} -> ${stake}`);
-            } else {
-                console.error(`[UPDATE-BET] Critical: Stake missing and type unknown (Data: ${JSON.stringify(bet)}).`);
-                return NextResponse.json({ success: false, error: `Critical: Stake missing for ${betType}.` }, { status: 400 });
-            }
+            bet.stake = stake;
         }
 
-        if (!odd || isNaN(odd)) {
-            console.error(`[UPDATE-BET] Missing Odd for ${betType} in DB. Data:`, bet);
-            return NextResponse.json({ success: false, error: `Critical: Odd missing in Redis for ${betType}. Cannot calculate profit.` }, { status: 400 });
-        }
+        const finalStatus = norm(bet.status);
+        const finalOdd = Number(bet.total_odd || bet.odd || 0);
 
-        let profit = 0;
-        let currentStatus = (newStatus || bet.status || "PENDING").toUpperCase();
-        if (currentStatus === 'GANADA') currentStatus = 'WON';
-        if (currentStatus === 'PERDIDA') currentStatus = 'LOST';
-        if (currentStatus === 'PENDIENTE') currentStatus = 'PENDING';
-
-        // UPDATE STATUS
-        bet.status = currentStatus;
-
-        // CALCULATE PROFIT
-        if (currentStatus === 'WON') {
-            profit = stake * (odd - 1); // Exact formula requested
-        } else if (currentStatus === 'LOST') {
-            profit = -stake; // Exact loss
+        if (finalStatus === 'WON') {
+            bet.profit = Number((stake * (finalOdd - 1)).toFixed(2));
+        } else if (finalStatus === 'LOST') {
+            bet.profit = -stake;
         } else {
-            profit = 0;
+            // VOID, PENDING
+            bet.profit = 0;
         }
 
-        // UPDATE PROFIT ONLY
-        bet.profit = Number(profit.toFixed(2));
+        console.log(`[UPDATE-BET] Result: ${betType} -> ${finalStatus} (${bet.profit}u)`);
 
-        // Verify peristance
-        bet.stake = stake;
-        if (!bet.total_odd) bet.total_odd = odd;
-
-        console.log(`[UPDATE-BET] Recalculated: ${betType} | Status: ${currentStatus} | Stake: ${stake} | Odd: ${odd} | Profit: ${bet.profit}`);
-
-        // 4. RECALCULATE DAY PROFIT
-        let totalDayProfit = 0;
-        const allBets = Array.isArray(bets) ? bets : Object.values(bets);
-        allBets.forEach((b: any) => {
-            totalDayProfit += (Number(b.profit) || 0);
+        // 5. RECALCULATE DAY PROFIT
+        let dayProfit = 0;
+        const betList = Array.isArray(bets) ? bets : Object.values(bets);
+        betList.forEach((b: any) => {
+            dayProfit += (Number(b.profit) || 0);
         });
-        historyData.day_profit = Number(totalDayProfit.toFixed(2));
+        historyData.day_profit = Number(dayProfit.toFixed(2));
 
-        // 5. CASCADING SAVE
-        console.log(`[UPDATE-BET] Saving to Keys (Day Profit: ${totalDayProfit})...`);
+        // 6. SAVE (DUAL WRITE)
+        // 6. SAVE (DUAL WRITE)
+        const jsonStr = JSON.stringify(historyData);
+        console.log(`[UPDATE-BET] Saving ${jsonStr.length} chars to HASH ${hashKey} -> ${date}`);
 
-        try {
-            const yearMonth = date.substring(0, 7);
-            const hashKey = `betai:daily_bets:${yearMonth}`;
+        // A) Menthly Hash
+        await redis.hset(hashKey, { [date]: jsonStr });
 
-            // Single save to source of truth (HASH)
-            await redis.hset(hashKey, { [date]: typeof historyData === 'string' ? historyData : JSON.stringify(historyData) });
+        // B) Daily Key (Standardization)
+        await redis.set(dayKey, jsonStr);
 
-            console.log(`[UPDATE-BET] Saved to HASH ${hashKey} -> ${date}`);
-
-
-
-            // 6. MONTHLY STATS
-            await updateMonthStats(date);
-
-        } catch (dbError) {
-            console.error("[UPDATE-BET] Redis Write Failed:", dbError);
-            return NextResponse.json({ success: false, error: "Redis Write Failed" }, { status: 500 });
+        // VERIFY IMMEDIATE READ
+        const check: any = await redis.hget(hashKey, date);
+        const isMatch = check === jsonStr;
+        console.log(`[UPDATE-BET] Persistence Check (Hash): ${isMatch ? 'MATCH' : 'MISMATCH'}`);
+        if (!isMatch) {
+            console.error(`[UPDATE-BET] WRITE FAILED!? Read back length: ${check?.length}, Expected: ${jsonStr.length}`);
         }
 
-        // 7. REVALIDATE
-        revalidatePath('/', 'layout');
+        // 7. STATS CHECK
+        await updateMonthStats(date);
 
-        console.log(`[UPDATE-BET] Success.`);
-        return NextResponse.json({ success: true, filtered: bet });
+        revalidatePath('/', 'layout');
+        return NextResponse.json({ success: true, bet });
 
     } catch (error) {
-        console.error(`[UPDATE-BET] Server Error:`, error);
+        console.error(`[UPDATE-BET] Error:`, error);
         return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
     }
 }
