@@ -151,11 +151,7 @@ export default function HomeTabs({ settings, predictions, formattedDate, isMock 
                 <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-[128px] pointer-events-none opacity-30" />
 
                 <div className="max-w-4xl mx-auto px-4 py-4 md:py-6 text-center relative z-10">
-                    {/* Top Badge */}
-                    <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full bg-secondary/50 text-secondary-foreground text-[10px] font-bold mb-3 hover:bg-secondary/80 transition-colors cursor-default border border-white/5">
-                        <Activity size={10} className="text-fuchsia-500 animate-pulse" />
-                        <span>ANÁLISIS Pro con IA</span>
-                    </div>
+
 
                     {/* Main Title COMPACT */}
                     <div className="flex flex-col md:flex-row items-center justify-center gap-2 md:gap-4 mb-3">

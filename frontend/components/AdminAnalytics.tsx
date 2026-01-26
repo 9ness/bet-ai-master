@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
-import { Loader2, TrendingUp, TrendingDown, DollarSign, Info, ChevronLeft, ChevronRight, Activity, Trophy, ChevronDown, RefreshCw, Percent, BarChart3, AlertTriangle, LayoutDashboard, LineChart, ListTree } from 'lucide-react';
+import { Loader2, TrendingUp, TrendingDown, DollarSign, Info, ChevronLeft, ChevronRight, Activity, Trophy, ChevronDown, Percent, BarChart3, AlertTriangle, LayoutDashboard, LineChart, ListTree } from 'lucide-react';
 
 // --- PREMIUM STAT CARD COMPONENT ---
 const StatCard = ({ title, value, subtext, icon: Icon, colorTheme = 'gray', tooltip }: any) => {
@@ -73,7 +73,6 @@ export default function AdminAnalytics() {
     const [loading, setLoading] = useState(true);
     // Month Selection State
     const [currentDate, setCurrentDate] = useState(new Date());
-    const [isUpdating, setIsUpdating] = useState(false);
 
     // TAB STATES ('resumen', 'evolucion', 'desglose')
     const [activeTab, setActiveTab] = useState<'resumen' | 'evolucion' | 'desglose'>('resumen');
@@ -140,32 +139,7 @@ export default function AdminAnalytics() {
     const monthName = currentDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' });
     const formattedMonth = monthName.charAt(0).toUpperCase() + monthName.slice(1);
 
-    const handleUpdateStats = async () => {
-        if (confirm("¿Forzar recálculo de estadísticas para este mes?")) {
-            setIsUpdating(true);
-            try {
-                const year = currentDate.getFullYear();
-                const month = currentDate.getMonth();
-                const monthStr = `${year}-${(month + 1).toString().padStart(2, '0')}`;
 
-                const res = await fetch('/api/admin/recalculate-stats', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ month: monthStr })
-                });
-
-                if (res.ok) {
-                    window.location.reload();
-                } else {
-                    alert("Error al actualizar");
-                }
-            } catch (e) {
-                alert("Error de red");
-            } finally {
-                setIsUpdating(false);
-            }
-        }
-    };
 
     if (loading) return <div className="flex justify-center p-12"><Loader2 className="animate-spin text-fuchsia-500" size={48} /></div>;
 
@@ -238,14 +212,7 @@ export default function AdminAnalytics() {
                         </button>
                     </div>
 
-                    <button
-                        onClick={handleUpdateStats}
-                        disabled={isUpdating}
-                        className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-[10px] font-bold text-white/40 hover:text-white transition flex items-center gap-2"
-                        title="Forzar actualización de estadísticas"
-                    >
-                        <RefreshCw size={12} className={isUpdating ? "animate-spin" : ""} />
-                    </button>
+
                 </div>
 
                 {/* TABS NAVIGATION */}

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Lock, ArrowRight, RefreshCw, LayoutDashboard, DownloadCloud, BrainCircuit, ClipboardCheck, Activity as ActivityIcon, AlertTriangle, Database, ChevronDown, ChevronUp, Home } from 'lucide-react';
+import { Lock, ArrowRight, RefreshCw, LayoutDashboard, DownloadCloud, BrainCircuit, ClipboardCheck, Activity as ActivityIcon, AlertTriangle, Database, ChevronDown, ChevronUp, Home, Play, Clock, PlayCircle, AlertOctagon, Trash2 } from 'lucide-react';
 import { triggerTouchFeedback } from '@/utils/haptics';
 import Link from 'next/link';
 import { verifyAdminPassword } from './actions';
@@ -56,6 +56,9 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
     };
 
     // Settings State
+    // Control Panel Sub-tabs State
+    const [activeControlTab, setActiveControlTab] = useState<'visibilidad' | 'anuncio' | 'acciones' | 'blacklist'>('visibilidad');
+
     const [settings, setSettings] = useState({
         show_daily_bets: true,
         show_calendar: true,
@@ -68,6 +71,9 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
     });
     const [savingSettings, setSavingSettings] = useState(false);
     const [lastRun, setLastRun] = useState<{ date: string, status: string, message: string, script: string } | null>(null);
+    const [scriptsStatus, setScriptsStatus] = useState<Record<string, any>>({});
+    const [blacklist, setBlacklist] = useState<Record<string, any>>({});
+    const [loadingBlacklist, setLoadingBlacklist] = useState(false);
     const [saveNotification, setSaveNotification] = useState<{ show: boolean, type: 'success' | 'error', message: string }>({ show: false, type: 'success', message: '' });
 
     // Trigger States
@@ -75,6 +81,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
     const [analyzeStatus, setAnalyzeStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [checkStatus, setCheckStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [collectStatus, setCollectStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+    const [socialStatus, setSocialStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [showControls, setShowControls] = useState(false);
 
     // Header Stats State (Synced with HomeTabs)
@@ -84,57 +91,16 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
         yesterdayProfit: 0
     });
 
-    // Fetch Header Stats
+    // --- INITIALIZATION (Auth, Settings, Stats, Blacklist) ---
     useEffect(() => {
-        const fetchStats = async () => {
-            try {
-                const now = new Date();
-                const monthStr = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
-
-                const res = await fetch(`/api/admin/history?month=${monthStr}`);
-                const json = await res.json();
-
-                if (json.stats) {
-                    // Dynamic Lookup for Yesterday's Profit from Chart Evolution
-                    const yesterday = new Date();
-                    yesterday.setDate(yesterday.getDate() - 1);
-                    const yesterdayStr = yesterday.toISOString().split('T')[0];
-
-                    let yesterdayProfitVal = 0;
-
-                    if (Array.isArray(json.stats.chart_evolution)) {
-                        const yesterdayEntry = json.stats.chart_evolution.find((e: any) => e.date === yesterdayStr);
-                        if (yesterdayEntry) {
-                            yesterdayProfitVal = yesterdayEntry.daily_profit;
-                        } else {
-                            yesterdayProfitVal = json.stats.yesterday_profit ?? 0;
-                        }
-                    } else {
-                        yesterdayProfitVal = json.stats.yesterday_profit ?? 0;
-                    }
-
-                    setHeaderStats({
-                        profit: json.stats.total_profit || 0,
-                        yieldVal: json.stats.yield || 0,
-                        yesterdayProfit: yesterdayProfitVal
-                    });
-                }
-            } catch (e) {
-                console.error("Failed to fetch header stats", e);
-            }
-        };
-
-        fetchStats();
-    }, []);
-
-    useEffect(() => {
+        // 1. Auth Logic
         const sessionAuth = localStorage.getItem("admin_auth");
         if (sessionAuth === "true") {
             setIsAuthenticated(true);
         }
         setIsCheckingAuth(false);
 
-        // Fetch Settings and Status
+        // 2. Fetch Settings
         fetch('/api/admin/settings')
             .then(res => res.json())
             .then(data => {
@@ -149,12 +115,55 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                         announcement_text: data.announcement_text ?? "",
                         announcement_type: data.announcement_type ?? "info"
                     });
-                    if (data.last_run) {
-                        setLastRun(data.last_run);
-                    }
+                    if (data.last_run) setLastRun(data.last_run);
+                    if (data.scripts_status) setScriptsStatus(data.scripts_status);
                 }
             })
             .catch(err => console.error("Failed to fetch settings", err));
+
+        // 3. Fetch Header Stats
+        const fetchStats = async () => {
+            try {
+                const now = new Date();
+                const monthStr = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
+                const res = await fetch(`/api/admin/history?month=${monthStr}`);
+                const json = await res.json();
+
+                if (json.stats) {
+                    const yesterday = new Date();
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    const yesterdayStr = yesterday.toISOString().split('T')[0];
+                    let yesterdayProfitVal = 120; // Default or fallback logic below
+
+                    if (Array.isArray(json.stats.chart_evolution)) {
+                        const yesterdayEntry = json.stats.chart_evolution.find((e: any) => e.date === yesterdayStr);
+                        yesterdayProfitVal = yesterdayEntry ? yesterdayEntry.daily_profit : (json.stats.yesterday_profit ?? 0);
+                    } else {
+                        yesterdayProfitVal = json.stats.yesterday_profit ?? 0;
+                    }
+
+                    setHeaderStats({
+                        profit: json.stats.total_profit || 0,
+                        yieldVal: json.stats.yield || 0,
+                        yesterdayProfit: yesterdayProfitVal
+                    });
+                }
+            } catch (e) {
+                console.error("Failed to fetch header stats", e);
+            }
+        };
+        fetchStats();
+
+        // 4. Fetch Blacklist
+        setLoadingBlacklist(true);
+        fetch('/api/admin/blacklist')
+            .then(res => res.json())
+            .then(data => {
+                if (data.blacklist) setBlacklist(data.blacklist);
+            })
+            .catch(err => console.error("Failed to fetch blacklist", err))
+            .finally(() => setLoadingBlacklist(false));
+
     }, []);
 
     const handleLogin = async (e: React.FormEvent) => {
@@ -215,6 +224,27 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
         triggerGitHubAction('/api/admin/trigger-analysis', { mode: 'all' }, setAnalyzeStatus);
     };
 
+    // Button 4: TikTok Social -> calls /api/admin/trigger-social
+    const handleSocial = () => {
+        triggerGitHubAction('/api/admin/trigger-social', { mode: 'all' }, setSocialStatus);
+    };
+
+    const getStatusBadge = (scriptName: string) => {
+        const status = scriptsStatus[scriptName];
+        if (!status) return null;
+
+        const time = status.date ? status.date.split(' ')[1] : '';
+        const isSuccess = status.status === 'SUCCESS';
+
+        return (
+            <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${isSuccess ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+                <span>{status.status}</span>
+                <span className="opacity-30">|</span>
+                <span>{time}</span>
+            </div>
+        );
+    };
+
     const handleSaveSettings = async () => {
         setSavingSettings(true);
         try {
@@ -231,6 +261,20 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
             setTimeout(() => setSaveNotification(prev => ({ ...prev, show: false })), 3000);
         } finally {
             setSavingSettings(false);
+        }
+    };
+
+    // Clear Blacklist Helper (Fetch is handled in main useEffect on mount)
+
+    const handleClearBlacklist = async () => {
+        if (!confirm("¿Estás seguro de borrar TODA la lista negra?")) return;
+        try {
+            await fetch('/api/admin/blacklist', { method: 'DELETE' });
+            setBlacklist({});
+            setSaveNotification({ show: true, type: 'success', message: 'Lista negra borrada' });
+            setTimeout(() => setSaveNotification(prev => ({ ...prev, show: false })), 3000);
+        } catch (e) {
+            alert("Error al borrar.");
         }
     };
 
@@ -319,63 +363,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                 <div className="max-w-4xl mx-auto px-4 py-4 md:py-6 text-center relative z-10">
 
                     {/* Toggle Trigger (Badge Style) */}
-                    <button
-                        onClick={() => setShowControls(!showControls)}
-                        className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full bg-secondary/50 text-secondary-foreground text-[10px] font-bold mb-3 hover:bg-secondary/80 transition-colors cursor-pointer border border-white/5 active:scale-95 group"
-                    >
-                        <ActivityIcon size={10} className="text-fuchsia-500 animate-pulse" />
-                        <span>VISTA DE ADMINISTRADOR</span>
-                        {showControls ? <ChevronUp size={10} className="text-muted-foreground ml-1" /> : <ChevronDown size={10} className="text-muted-foreground ml-1" />}
-                    </button>
 
-                    {/* Collapsible Admin Actions */}
-                    <div className={`overflow-hidden transition-all duration-300 ease-in-out ${showControls ? 'max-h-[200px] opacity-100 mb-6' : 'max-h-0 opacity-0 mb-0'}`}>
-                        <div className="flex flex-col items-center justify-center gap-2 w-full max-w-md mx-auto pt-2">
-                            <div className="flex items-center justify-center gap-2 w-full">
-                                <button
-                                    onClick={handleCheckBets}
-                                    onTouchStart={() => triggerTouchFeedback()}
-                                    disabled={checkStatus === 'loading'}
-                                    className={`btn-active-effect flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[10px] md:text-xs font-bold border border-slate-500/50 transition-all whitespace-nowrap shadow-lg shadow-black/20 ${checkStatus === 'loading' ? 'opacity-50' : 'bg-slate-800/80 hover:bg-slate-700 hover:scale-105'}`}>
-                                    <ClipboardCheck className="w-3.5 h-3.5" />
-                                    {checkStatus === 'loading' ? '...' : 'Comprobar'}
-                                </button>
-                                <button
-                                    onClick={handleCollect}
-                                    onTouchStart={() => triggerTouchFeedback()}
-                                    disabled={collectStatus === 'loading'}
-                                    className={`btn-active-effect flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[10px] md:text-xs font-bold border border-blue-500/50 transition-transform whitespace-nowrap shadow-lg shadow-blue-500/10 ${collectStatus === 'loading' ? 'opacity-50' : 'bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 hover:scale-105'}`}>
-                                    <Database className="w-3.5 h-3.5" />
-                                    {collectStatus === 'loading' ? '...' : 'Recolectar'}
-                                </button>
-                                <button
-                                    onClick={handleAnalyze}
-                                    onTouchStart={() => triggerTouchFeedback()}
-                                    disabled={analyzeStatus === 'loading'}
-                                    className={`btn-active-effect flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[10px] md:text-xs font-bold border border-emerald-500/50 transition-transform whitespace-nowrap shadow-lg shadow-emerald-500/10 ${analyzeStatus === 'loading' ? 'opacity-50' : 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 hover:scale-105'}`}>
-                                    <BrainCircuit className="w-3.5 h-3.5" />
-                                    {analyzeStatus === 'loading' ? '...' : 'Analizar'}
-                                </button>
-                            </div>
-
-                            {/* Status Log */}
-                            {lastRun && (
-                                <div className="flex items-center justify-center gap-2 text-[10px] font-mono leading-none opacity-70 bg-black/20 px-3 py-1 rounded-full border border-white/5">
-                                    <span className={`font-bold uppercase ${lastRun.status === 'SUCCESS' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                        {lastRun.status}
-                                    </span>
-                                    <span className="text-gray-600">|</span>
-                                    <span className="text-fuchsia-300/80">
-                                        {lastRun.script === 'Daily Analysis' ? 'Análisis' :
-                                            lastRun.script === 'Check Results' ? 'Check' :
-                                                lastRun.script}
-                                    </span>
-                                    <span className="text-gray-600">|</span>
-                                    <span className="text-gray-400">{lastRun.date.split(' ')[1] || lastRun.date}</span>
-                                </div>
-                            )}
-                        </div>
-                    </div>
 
                     {/* Main Title COMPACT */}
                     <div className="flex flex-col md:flex-row items-center justify-center gap-2 md:gap-4 mb-3">
@@ -455,7 +443,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                         className={`btn-active-effect flex-1 md:flex-none py-3 md:py-4 text-xs md:text-sm font-bold border-b-2 transition-transform flex justify-center md:justify-start items-center gap-1.5 md:gap-2
                         ${activeTab === 'calendar' ? 'border-fuchsia-500 text-fuchsia-400' : 'border-transparent text-gray-400 hover:text-white'}`}
                     >
-                        <span className="md:hidden">📅 Calendario</span>
+                        <span className="md:hidden">📅 Cal</span>
                         <span className="hidden md:block">📅 Calendario</span>
                     </button>
                     <button
@@ -464,7 +452,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                         className={`btn-active-effect flex-1 md:flex-none py-3 md:py-4 text-xs md:text-sm font-bold border-b-2 transition-transform flex justify-center md:justify-start items-center gap-1.5 md:gap-2
                         ${activeTab === 'analytics' ? 'border-fuchsia-500 text-fuchsia-400' : 'border-transparent text-gray-400 hover:text-white'}`}
                     >
-                        <span className="md:hidden">📊 Estadísticas</span>
+                        <span className="md:hidden">📊 Stats</span>
                         <span className="hidden md:block">📊 Estadísticas</span>
                     </button>
                     <button
@@ -473,7 +461,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                         className={`btn-active-effect flex-1 md:flex-none py-3 md:py-4 text-xs md:text-sm font-bold border-b-2 transition-transform flex justify-center md:justify-start items-center gap-1.5 md:gap-2
                         ${activeTab === 'telegram' ? 'border-sky-500 text-sky-400' : 'border-transparent text-gray-400 hover:text-white'}`}
                     >
-                        <span className="md:hidden">✈️ Telegram</span>
+                        <span className="md:hidden">✈️ Tlgrm</span>
                         <span className="hidden md:block">✈️ Telegram</span>
                     </button>
                     <button
@@ -491,8 +479,8 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                         className={`btn-active-effect flex-1 md:flex-none py-3 md:py-4 text-xs md:text-sm font-bold border-b-2 transition-transform flex justify-center md:justify-start items-center gap-1.5 md:gap-2
                         ${activeTab === 'settings' ? 'border-fuchsia-500 text-fuchsia-400' : 'border-transparent text-gray-400 hover:text-white'}`}
                     >
-                        <span className="md:hidden">⚙️ Ajustes</span>
-                        <span className="hidden md:block">⚙️ Ajustes</span>
+                        <span className="md:hidden">⚙️ Panel</span>
+                        <span className="hidden md:block">⚙️ Panel de Control</span>
                     </button>
                 </div>
             </div>
@@ -551,158 +539,400 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                     {/* Tab 5: Settings */}
                     <div className="w-full shrink-0 snap-start active:cursor-grabbing h-full">
                         <main className="max-w-7xl mx-auto px-4 py-8">
-                            <div className="max-w-2xl mx-auto bg-card border border-border/50 rounded-2xl p-6 md:p-8 space-y-8">
-                                <h3 className="text-xl font-bold flex items-center gap-2">
-                                    <BrainCircuit className="text-fuchsia-500" />
-                                    Control de Visibilidad (Home)
-                                </h3>
+                            <div className="max-w-3xl mx-auto space-y-8">
 
-                                <div className="space-y-6">
-                                    {/* Item 1 */}
-                                    <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-xl border border-white/5">
-                                        <div>
-                                            <h4 className="font-bold">Mostrar Apuestas Diarias</h4>
-                                            <p className="text-xs text-muted-foreground mt-1">Habilita las 3 tarjetas de predicción en la Home.</p>
+                                {/* SUB-TABS NAVIGATION */}
+                                <div className="flex items-center justify-center gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                                    {(() => {
+                                        const hasBlacklistData = Object.keys(blacklist).length > 0;
+
+                                        const tabs = [
+                                            { id: 'visibilidad', label: 'Visibilidad', icon: LayoutDashboard, activeClass: 'bg-fuchsia-500/20 border-fuchsia-500/50 text-fuchsia-400 shadow-[0_0_15px_-3px_rgba(217,70,239,0.3)]' },
+                                            { id: 'anuncio', label: 'Anuncio', icon: ActivityIcon, activeClass: 'bg-blue-500/20 border-blue-500/50 text-blue-400 shadow-[0_0_15px_-3px_rgba(59,130,246,0.3)]' },
+                                            { id: 'acciones', label: 'Acciones', icon: PlayCircle, activeClass: 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400 shadow-[0_0_15px_-3px_rgba(16,185,129,0.3)]' },
+                                            { id: 'blacklist', label: 'Blacklist', icon: AlertOctagon, activeClass: 'bg-red-500/20 border-red-500/50 text-red-400 shadow-[0_0_15px_-3px_rgba(239,68,68,0.3)]' },
+                                        ];
+
+                                        const orderedIds = hasBlacklistData
+                                            ? ['blacklist', 'acciones', 'visibilidad', 'anuncio']
+                                            : ['acciones', 'blacklist', 'visibilidad', 'anuncio'];
+
+                                        return orderedIds.map(id => {
+                                            const tab = tabs.find(t => t.id === id)!;
+                                            const Icon = tab.icon;
+                                            return (
+                                                <button
+                                                    key={tab.id}
+                                                    onClick={() => setActiveControlTab(tab.id as any)}
+                                                    className={`
+                                                        flex flex-col items-center justify-center px-6 py-3 rounded-xl border transition-all min-w-[100px] hover:scale-105 active:scale-95 duration-200
+                                                        ${activeControlTab === tab.id
+                                                            ? tab.activeClass
+                                                            : 'bg-black/40 border-white/5 text-white/50 hover:bg-white/10 hover:text-white/80'
+                                                        }
+                                                    `}
+                                                >
+                                                    <div className="mb-1">
+                                                        <Icon size={20} />
+                                                    </div>
+                                                    <span className="text-[10px] font-bold uppercase tracking-wider">
+                                                        {tab.label}
+                                                    </span>
+                                                </button>
+                                            );
+                                        });
+                                    })()}
+                                </div>
+
+                                {/* CONTENT: VISIBILIDAD */}
+                                {activeControlTab === 'visibilidad' && (
+                                    <div className="bg-card border border-white/10 rounded-2xl p-6 md:p-8 space-y-6 relative overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                        <div className="absolute top-0 right-0 p-4 opacity-10">
+                                            <LayoutDashboard size={64} />
                                         </div>
-                                        <label className="relative inline-flex items-center cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                className="sr-only peer"
-                                                checked={settings.show_daily_bets}
-                                                onChange={(e) => setSettings({ ...settings, show_daily_bets: e.target.checked })}
-                                            />
-                                            <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-fuchsia-600"></div>
-                                        </label>
-                                    </div>
 
-                                    {/* Item 2 */}
-                                    <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-xl border border-white/5">
-                                        <div>
-                                            <h4 className="font-bold">Mostrar Calendario</h4>
-                                            <p className="text-xs text-muted-foreground mt-1">Muestra el calendario de resultados históricos al público.</p>
-                                        </div>
-                                        <label className="relative inline-flex items-center cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                className="sr-only peer"
-                                                checked={settings.show_calendar}
-                                                onChange={(e) => setSettings({ ...settings, show_calendar: e.target.checked })}
-                                            />
-                                            <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-fuchsia-600"></div>
-                                        </label>
-                                    </div>
+                                        <h3 className="text-xl font-bold flex items-center gap-2 border-b border-white/5 pb-4 text-white">
+                                            <LayoutDashboard className="text-fuchsia-500" size={24} />
+                                            Visibilidad (Home)
+                                        </h3>
 
-                                    {/* Item 3 */}
-                                    <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-xl border border-white/5">
-                                        <div>
-                                            <h4 className="font-bold">Mostrar Analítica</h4>
-                                            <p className="text-xs text-muted-foreground mt-1">Muestra las gráficas de rendimiento (Beta) al público.</p>
-                                        </div>
-                                        <label className="relative inline-flex items-center cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                className="sr-only peer"
-                                                checked={settings.show_analytics}
-                                                onChange={(e) => setSettings({ ...settings, show_analytics: e.target.checked })}
-                                            />
-                                            <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-fuchsia-600"></div>
-                                        </label>
-                                    </div>
-
-                                    {/* Item New: Telegram */}
-                                    <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-xl border border-white/5">
-                                        <div>
-                                            <h4 className="font-bold">Mostrar Telegram</h4>
-                                            <p className="text-xs text-muted-foreground mt-1">Muestra la pestaña de Telegram en la Home (Pública).</p>
-                                        </div>
-                                        <label className="relative inline-flex items-center cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                className="sr-only peer"
-                                                checked={settings.show_telegram}
-                                                onChange={(e) => setSettings({ ...settings, show_telegram: e.target.checked })}
-                                            />
-                                            <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sky-500"></div>
-                                        </label>
-                                    </div>
-
-                                    {/* Item 4: TikTok Factory (Admin Only Visibility) */}
-                                    <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-xl border border-white/5 border-l-4 border-l-fuchsia-500">
-                                        <div>
-                                            <h4 className="font-bold text-fuchsia-400">Mostrar TikTok Factory</h4>
-                                            <p className="text-xs text-muted-foreground mt-1">Habilita el generador de contenido (Solo visible en Admin).</p>
-                                        </div>
-                                        <label className="relative inline-flex items-center cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                className="sr-only peer"
-                                                checked={settings.show_tiktok}
-                                                onChange={(e) => setSettings({ ...settings, show_tiktok: e.target.checked })}
-                                            />
-                                            <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-fuchsia-600"></div>
-                                        </label>
-                                    </div>
-
-                                    {/* Item 5: Global Announcement */}
-                                    <div className="flex flex-col p-4 bg-secondary/30 rounded-xl border border-white/5 gap-4">
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <h4 className={`font-bold transition-colors ${settings.announcement_type === 'warning' ? 'text-rose-400' : 'text-blue-400'}`}>Mostrar Anuncio Global</h4>
-                                                <p className="text-xs text-muted-foreground mt-1">Muestra un mensaje destacado arriba en la Home.</p>
+                                        <div className="space-y-6 relative z-10">
+                                            {/* Item 1 */}
+                                            <div className="flex items-center justify-between p-4 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
+                                                <div>
+                                                    <h4 className="font-bold text-sm md:text-base text-white">Mostrar Apuestas Diarias</h4>
+                                                    <p className="text-xs text-white/50 mt-1">Habilita las 3 tarjetas de predicción en la Home.</p>
+                                                </div>
+                                                <label className="relative inline-flex items-center cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="sr-only peer"
+                                                        checked={settings.show_daily_bets}
+                                                        onChange={(e) => setSettings({ ...settings, show_daily_bets: e.target.checked })}
+                                                    />
+                                                    <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-fuchsia-600"></div>
+                                                </label>
                                             </div>
-                                            <label className="relative inline-flex items-center cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    className="sr-only peer"
-                                                    checked={settings.show_announcement}
-                                                    onChange={(e) => setSettings({ ...settings, show_announcement: e.target.checked })}
-                                                />
-                                                <div className={`w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all ${settings.announcement_type === 'warning' ? 'peer-checked:bg-rose-500' : 'peer-checked:bg-blue-500'}`}></div>
-                                            </label>
+
+                                            {/* Item 2 */}
+                                            <div className="flex items-center justify-between p-4 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
+                                                <div>
+                                                    <h4 className="font-bold text-sm md:text-base text-white">Mostrar Calendario</h4>
+                                                    <p className="text-xs text-white/50 mt-1">Muestra el calendario de resultados históricos al público.</p>
+                                                </div>
+                                                <label className="relative inline-flex items-center cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="sr-only peer"
+                                                        checked={settings.show_calendar}
+                                                        onChange={(e) => setSettings({ ...settings, show_calendar: e.target.checked })}
+                                                    />
+                                                    <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-fuchsia-600"></div>
+                                                </label>
+                                            </div>
+
+                                            {/* Item 3 */}
+                                            <div className="flex items-center justify-between p-4 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
+                                                <div>
+                                                    <h4 className="font-bold text-sm md:text-base text-white">Mostrar Analítica</h4>
+                                                    <p className="text-xs text-white/50 mt-1">Muestra las gráficas de rendimiento (Beta) al público.</p>
+                                                </div>
+                                                <label className="relative inline-flex items-center cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="sr-only peer"
+                                                        checked={settings.show_analytics}
+                                                        onChange={(e) => setSettings({ ...settings, show_analytics: e.target.checked })}
+                                                    />
+                                                    <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-fuchsia-600"></div>
+                                                </label>
+                                            </div>
+
+                                            {/* Item Telegram */}
+                                            <div className="flex items-center justify-between p-4 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
+                                                <div>
+                                                    <h4 className="font-bold text-sm md:text-base text-white">Mostrar Telegram</h4>
+                                                    <p className="text-xs text-white/50 mt-1">Muestra la pestaña de Telegram en la Home (Pública).</p>
+                                                </div>
+                                                <label className="relative inline-flex items-center cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="sr-only peer"
+                                                        checked={settings.show_telegram}
+                                                        onChange={(e) => setSettings({ ...settings, show_telegram: e.target.checked })}
+                                                    />
+                                                    <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sky-500"></div>
+                                                </label>
+                                            </div>
+
+                                            {/* Item TikTok (Admin Only) */}
+                                            <div className="flex items-center justify-between p-4 bg-black/20 rounded-xl border border-white/5 border-l-4 border-l-fuchsia-500 hover:border-white/10 transition-colors">
+                                                <div>
+                                                    <h4 className="font-bold text-sm md:text-base text-fuchsia-400">Mostrar TikTok Factory</h4>
+                                                    <p className="text-xs text-white/50 mt-1">Habilita el generador de contenido (Solo visible en Admin).</p>
+                                                </div>
+                                                <label className="relative inline-flex items-center cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="sr-only peer"
+                                                        checked={settings.show_tiktok}
+                                                        onChange={(e) => setSettings({ ...settings, show_tiktok: e.target.checked })}
+                                                    />
+                                                    <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-fuchsia-600"></div>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* CONTENT: ANUNCIO */}
+                                {activeControlTab === 'anuncio' && (
+                                    <div className="bg-card border border-white/10 rounded-2xl p-6 md:p-8 space-y-6 relative overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                        <div className="absolute top-0 right-0 p-4 opacity-10">
+                                            <ActivityIcon size={64} />
                                         </div>
 
-                                        {/* Expanded Options */}
-                                        <div className={`overflow-hidden transition-all duration-300 ease-in-out ${settings.show_announcement ? 'max-h-[300px] opacity-100 pt-4 border-t border-white/5' : 'max-h-0 opacity-0'}`}>
-                                            <div className="space-y-4">
+                                        <h3 className="text-xl font-bold flex items-center gap-2 border-b border-white/5 pb-4 text-white">
+                                            <ActivityIcon className="text-blue-500" size={24} />
+                                            Anuncio Global
+                                        </h3>
+
+                                        <div className="space-y-6 relative z-10">
+                                            {/* Item 1: Enable Toggle */}
+                                            <div className="flex items-center justify-between p-4 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
+                                                <div>
+                                                    <h4 className="font-bold text-sm md:text-base text-white">Activar Anuncio</h4>
+                                                    <p className="text-xs text-white/50 mt-1">Muestra un mensaje destacado en la parte superior de la Home.</p>
+                                                </div>
+                                                <label className="relative inline-flex items-center cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="sr-only peer"
+                                                        checked={settings.show_announcement}
+                                                        onChange={(e) => setSettings({ ...settings, show_announcement: e.target.checked })}
+                                                    />
+                                                    <div className={`w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all ${settings.announcement_type === 'warning' ? 'peer-checked:bg-rose-500' : 'peer-checked:bg-blue-500'}`}></div>
+                                                </label>
+                                            </div>
+
+                                            {/* Configuration Panel */}
+                                            <div className={`space-y-4 transition-all duration-300 ${!settings.show_announcement ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
                                                 {/* Type Selector */}
-                                                <div className="grid grid-cols-2 gap-2">
-                                                    <button
-                                                        onClick={() => setSettings({ ...settings, announcement_type: 'info' })}
-                                                        className={`px-3 py-2 rounded-lg text-xs font-bold border transition-all flex items-center justify-center gap-2 ${settings.announcement_type === 'info' ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'bg-black/20 border-white/10 text-gray-400 hover:bg-white/5'}`}
-                                                    >
-                                                        <ActivityIcon size={14} />
-                                                        Información
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setSettings({ ...settings, announcement_type: 'warning' })}
-                                                        className={`px-3 py-2 rounded-lg text-xs font-bold border transition-all flex items-center justify-center gap-2 ${settings.announcement_type === 'warning' ? 'bg-rose-500/20 border-rose-500 text-rose-400' : 'bg-black/20 border-white/10 text-gray-400 hover:bg-white/5'}`}
-                                                    >
-                                                        <AlertTriangle size={14} />
-                                                        Importante
-                                                    </button>
+                                                <div>
+                                                    <label className="text-xs font-bold text-white/40 mb-2 block uppercase tracking-wider">Tipo de Aviso</label>
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        <button
+                                                            onClick={() => setSettings({ ...settings, announcement_type: 'info' })}
+                                                            className={`px-4 py-3 rounded-xl text-xs sm:text-sm font-bold border transition-all flex items-center justify-center gap-2 ${settings.announcement_type === 'info' ? 'bg-blue-500/20 border-blue-500 text-blue-400 shadow-[0_0_15px_-3px_rgba(59,130,246,0.3)]' : 'bg-black/20 border-white/10 text-white/40 hover:bg-white/5'}`}
+                                                        >
+                                                            <ActivityIcon size={16} />
+                                                            Información
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setSettings({ ...settings, announcement_type: 'warning' })}
+                                                            className={`px-4 py-3 rounded-xl text-xs sm:text-sm font-bold border transition-all flex items-center justify-center gap-2 ${settings.announcement_type === 'warning' ? 'bg-rose-500/20 border-rose-500 text-rose-400 shadow-[0_0_15px_-3px_rgba(244,63,94,0.3)]' : 'bg-black/20 border-white/10 text-white/40 hover:bg-white/5'}`}
+                                                        >
+                                                            <AlertTriangle size={16} />
+                                                            Importante
+                                                        </button>
+                                                    </div>
                                                 </div>
 
                                                 {/* Text Input */}
                                                 <div>
-                                                    <label className="text-xs font-bold text-gray-400 mb-1.5 block">Mensaje del Anuncio</label>
+                                                    <label className="text-xs font-bold text-white/40 mb-2 block uppercase tracking-wider">Mensaje del Anuncio</label>
                                                     <textarea
                                                         value={settings.announcement_text}
                                                         onChange={(e) => setSettings({ ...settings, announcement_text: e.target.value })}
                                                         placeholder="Escribe aquí el anuncio..."
-                                                        rows={2}
-                                                        className={`w-full bg-black/40 border rounded-lg px-3 py-2 text-sm text-white focus:outline-none transition-colors placeholder:text-white/20 resize-none ${settings.announcement_type === 'warning' ? 'border-rose-500/30 focus:border-rose-500' : 'border-white/10 focus:border-blue-500'}`}
+                                                        rows={3}
+                                                        className={`w-full bg-black/40 border rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-colors placeholder:text-white/20 resize-none ${settings.announcement_type === 'warning' ? 'border-rose-500/30 focus:border-rose-500' : 'border-white/10 focus:border-blue-500'}`}
                                                     />
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
+                                )}
+
+                                {/* CONTENT: ACCIONES */}
+                                {activeControlTab === 'acciones' && (
+                                    <div className="bg-card border border-white/10 rounded-2xl p-6 md:p-8 space-y-6 relative overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                        <div className="absolute top-0 right-0 p-4 opacity-10">
+                                            <PlayCircle size={64} />
+                                        </div>
+
+                                        <h3 className="text-xl font-bold flex items-center gap-2 border-b border-white/5 pb-4 text-white">
+                                            <PlayCircle className="text-emerald-500" size={24} />
+                                            Centro de Ejecución
+                                        </h3>
+
+                                        <div className="grid gap-4 relative z-10">
+                                            {/* 1. Recolector */}
+                                            <div className="p-4 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-colors flex flex-col gap-3">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <h4 className="font-bold text-base text-blue-400">1º - Recolector de datos API</h4>
+                                                        <p className="text-xs text-white/50 font-mono mt-0.5">daily_bet_update.yml</p>
+                                                    </div>
+                                                    {collectStatus === 'loading' ? <RefreshCw className="animate-spin text-blue-500" size={16} /> : getStatusBadge('Daily Fetch')}
+                                                </div>
+
+                                                <div className="flex items-center gap-2 text-xs text-white/60 bg-white/5 p-2 rounded-lg">
+                                                    <Clock size={14} className="text-white/40" />
+                                                    <span>Todos los días a las 08:00 AM (España)</span>
+                                                </div>
+
+                                                <div className="flex justify-end mt-2">
+                                                    <button
+                                                        onClick={handleCollect}
+                                                        disabled={collectStatus === 'loading'}
+                                                        className="px-4 py-2 bg-blue-600/20 hover:bg-blue-600/40 border border-blue-500/50 text-blue-400 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 disabled:opacity-50"
+                                                    >
+                                                        <Play size={12} fill="currentColor" />
+                                                        Ejecutar Ahora
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* 2. Analizador */}
+                                            <div className="p-4 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-colors flex flex-col gap-3">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <h4 className="font-bold text-base text-fuchsia-400">2º - Analizador AI Pro</h4>
+                                                        <p className="text-xs text-white/50 font-mono mt-0.5">ai_analysis.yml</p>
+                                                    </div>
+                                                    {analyzeStatus === 'loading' ? <RefreshCw className="animate-spin text-fuchsia-500" size={16} /> : getStatusBadge('Daily Analysis')}
+                                                </div>
+
+                                                <div className="flex items-center gap-2 text-xs text-white/60 bg-white/5 p-2 rounded-lg">
+                                                    <Clock size={14} className="text-white/40" />
+                                                    <span>Se ejecuta automáticamente después del 1º</span>
+                                                </div>
+
+                                                <div className="flex justify-end mt-2">
+                                                    <button
+                                                        onClick={handleAnalyze}
+                                                        disabled={analyzeStatus === 'loading'}
+                                                        className="px-4 py-2 bg-fuchsia-600/20 hover:bg-fuchsia-600/40 border border-fuchsia-500/50 text-fuchsia-400 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 disabled:opacity-50"
+                                                    >
+                                                        <Play size={12} fill="currentColor" />
+                                                        Ejecutar Ahora
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* 3. TikTok Social */}
+                                            <div className="p-4 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-colors flex flex-col gap-3">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <h4 className="font-bold text-base text-rose-400">3º - Generar textos Tiktok</h4>
+                                                        <p className="text-xs text-white/50 font-mono mt-0.5">generate_social_content.yml</p>
+                                                    </div>
+                                                    {socialStatus === 'loading' ? <RefreshCw className="animate-spin text-rose-500" size={16} /> : getStatusBadge('Social Generator')}
+                                                </div>
+
+                                                <div className="flex items-center gap-2 text-xs text-white/60 bg-white/5 p-2 rounded-lg">
+                                                    <Clock size={14} className="text-white/40" />
+                                                    <span>Se ejecuta después del 2º</span>
+                                                </div>
+
+                                                <div className="flex justify-end mt-2">
+                                                    <button
+                                                        onClick={handleSocial}
+                                                        disabled={socialStatus === 'loading'}
+                                                        className="px-4 py-2 bg-rose-600/20 hover:bg-rose-600/40 border border-rose-500/50 text-rose-400 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 disabled:opacity-50"
+                                                    >
+                                                        <Play size={12} fill="currentColor" />
+                                                        Ejecutar Ahora
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* 4. Comprobador */}
+                                            <div className="p-4 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-colors flex flex-col gap-3">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <h4 className="font-bold text-base text-emerald-400">4º - Comprobador Automático</h4>
+                                                        <p className="text-xs text-white/50 font-mono mt-0.5">update_results_bet.yml</p>
+                                                    </div>
+                                                    {checkStatus === 'loading' ? <RefreshCw className="animate-spin text-emerald-500" size={16} /> : getStatusBadge('Check Results')}
+                                                </div>
+
+                                                <div className="flex items-center gap-2 text-xs text-white/60 bg-white/5 p-2 rounded-lg">
+                                                    <Clock size={14} className="text-white/40" />
+                                                    <span>Se ejecuta automáticamente</span>
+                                                </div>
+
+                                                <div className="flex justify-end mt-2">
+                                                    <button
+                                                        onClick={handleCheckBets}
+                                                        disabled={checkStatus === 'loading'}
+                                                        className="px-4 py-2 bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/50 text-emerald-400 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 disabled:opacity-50"
+                                                    >
+                                                        <Play size={12} fill="currentColor" />
+                                                        Ejecutar Ahora
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* CONTENT: BLACKLIST */}
+                                {activeControlTab === 'blacklist' && (
+                                    <div className="bg-card border border-white/10 rounded-2xl p-6 md:p-8 space-y-6 relative overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                        <div className="absolute top-0 right-0 p-4 opacity-10">
+                                            <AlertOctagon size={64} className="text-red-500" />
+                                        </div>
+
+                                        <div className="flex justify-between items-center border-b border-white/5 pb-4">
+                                            <h3 className="text-xl font-bold flex items-center gap-2 text-white">
+                                                <AlertOctagon className="text-red-500" size={24} />
+                                                BlackList (ID_RESULT_FAILED)
+                                            </h3>
+                                            <button
+                                                onClick={handleClearBlacklist}
+                                                className="px-4 py-2 bg-red-600/20 hover:bg-red-600/40 border border-red-500/50 text-red-500 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2"
+                                            >
+                                                <Trash2 size={14} />
+                                                Borrar Todo
+                                            </button>
+                                        </div>
+
+                                        <div className="relative z-10 max-h-[400px] overflow-y-auto">
+                                            {loadingBlacklist ? (
+                                                <div className="flex justify-center py-8">
+                                                    <RefreshCw className="animate-spin text-white/20" size={24} />
+                                                </div>
+                                            ) : Object.keys(blacklist).length === 0 ? (
+                                                <div className="text-center py-8 text-white/30 italic">
+                                                    No hay elementos en la lista negra para este mes.
+                                                </div>
+                                            ) : (
+                                                <div className="grid gap-2">
+                                                    {Object.entries(blacklist).map(([key, value]: [string, any]) => (
+                                                        <div key={key} className="p-3 bg-black/20 rounded-lg border border-white/5 flex flex-col gap-1 hover:bg-black/40 transition-colors">
+                                                            <div className="flex justify-between items-center">
+                                                                <span className="text-xs font-mono text-white/70 select-all">{key}</span>
+                                                                <span className="text-[10px] bg-red-500/10 text-red-400 px-2 py-0.5 rounded uppercase font-bold">Failed</span>
+                                                            </div>
+                                                            <p className="text-xs text-white/50">
+                                                                {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                                                            </p>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
 
                                 <button
                                     onClick={handleSaveSettings}
                                     onTouchStart={() => triggerTouchFeedback()}
                                     disabled={savingSettings}
-                                    className="btn-active-effect w-full bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold py-3 rounded-xl transition-transform shadow-lg shadow-fuchsia-500/20 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                                    className="btn-active-effect w-full bg-gradient-to-r from-fuchsia-600 to-violet-600 hover:from-fuchsia-500 hover:to-violet-500 text-white font-bold py-4 rounded-xl transition-transform shadow-lg shadow-fuchsia-500/20 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
                                 >
                                     {savingSettings ? <RefreshCw className="animate-spin w-4 h-4" /> : <DownloadCloud className="w-4 h-4 rotate-180" />}
                                     {savingSettings ? 'Guardando...' : 'Guardar Configuración'}

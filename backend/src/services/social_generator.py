@@ -131,4 +131,11 @@ def console_log(msg):
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
 
 if __name__ == "__main__":
-    generate_viral_caption()
+    try:
+        generate_viral_caption()
+        rs = RedisService()
+        if rs.is_active: rs.log_status("Social Generator", "SUCCESS", "Completed")
+    except Exception as e:
+        print(f"[CRITICAL] Social Generator Failed: {e}")
+        rs = RedisService()
+        if rs.is_active: rs.log_status("Social Generator", "ERROR", str(e))

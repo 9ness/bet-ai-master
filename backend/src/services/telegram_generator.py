@@ -61,6 +61,7 @@ def generate_messages_from_analysis(date_str):
     for bet in bets:
         b_type = bet.get("betType", "safe").lower()
         info = type_map.get(b_type, type_map["safe"])
+        selections = bet.get("selections", [])
         
         # New Formatting Logic
         # 1. League Header
@@ -112,11 +113,11 @@ def generate_messages_from_analysis(date_str):
         msg = (
             f"{league_text}\n\n"
             f"{matches_block}\n\n"
-            f"📊 Cuota {bet.get('total_odd', 1.0)}   | 📈 STAKE {bet.get('stake', 1)}\n"
+            f"📊 <b>Cuota {bet.get('total_odd', 1.0)}   | 📈 STAKE {bet.get('stake', 1)}</b>\n"
             f"🏠 Apuesta realizada en Bet365\n"
             f"🔞 Apuesta con responsabilidad.\n\n"
-            f"🧠 *Análisis de BetAiMaster:*\n"
-            f"{formatted_reason}"
+            f"🧠 <b>Análisis de BetAiMaster:</b>\n"
+            f"<blockquote>{formatted_reason}</blockquote>"
         )
 
         item = {
@@ -148,12 +149,12 @@ def generate_messages_from_analysis(date_str):
             month_name = datetime.strptime(month_str, "%Y-%m").strftime("%B %Y").upper() # locale warning, English default maybe
             
             msg = (
-                f"📊 *REPORTE MENSUAL - {month_str}* 📊\n\n"
-                f"{icon_profit} *Profit:* {total_profit} u\n"
-                f"📈 *Yield:* {yield_val}%\n"
-                f"🎯 *Win Rate:* {win_rate}%\n"
-                f"📅 *Días Operados:* {days}\n\n"
-                f"🧠 *BetAiMaster Analytics*"
+                f"📊 <b>REPORTE MENSUAL - {month_str}</b> 📊\n\n"
+                f"{icon_profit} <b>Profit:</b> {total_profit} u\n"
+                f"📈 <b>Yield:</b> {yield_val}%\n"
+                f"🎯 <b>Win Rate:</b> {win_rate}%\n"
+                f"📅 <b>Días Operados:</b> {days}\n\n"
+                f"🧠 <b>BetAiMaster Analytics</b>"
             )
             
             stats_item = {

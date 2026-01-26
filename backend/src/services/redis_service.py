@@ -316,7 +316,7 @@ class RedisService:
         print(f"[Redis/Telegram] Guardados {len(telegram_items)} mensajes para {date_str}")
 
     def log_status(self, script_name, status, message=""):
-        key = self._get_key("status:last_run")
+        # 1. Global Last Run (Legacy Compatibility)
         data = {
             "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "script": script_name,
@@ -324,4 +324,10 @@ class RedisService:
             "message": str(message)
         }
         self.set("status:last_run", json.dumps(data))
+
+        # 2. Per-Script Status (Hash Store)
+        # Allows frontend to show status for each specific action card
+        key_hash = self._get_key("status:scripts")
+        self._send_command("HSET", key_hash, script_name, json.dumps(data))
+
         print(f"[LOG] Status logged to Redis: {status} ({script_name})")

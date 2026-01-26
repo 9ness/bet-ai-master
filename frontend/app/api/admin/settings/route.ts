@@ -35,7 +35,24 @@ export async function GET(req: NextRequest) {
             announcement_type: 'info'
         };
 
-        return NextResponse.json({ ...defaults, ...settings, last_run: statusObj });
+        // Fetch Scripts Status (Hash)
+        const scriptsKey = 'betai:status:scripts';
+        const scriptsStatusRaw = await redis.hgetall(scriptsKey);
+
+        let scriptsStatus: Record<string, any> = {};
+        if (scriptsStatusRaw) {
+            Object.keys(scriptsStatusRaw).forEach(k => {
+                try {
+                    // @ts-ignore
+                    scriptsStatus[k] = typeof scriptsStatusRaw[k] === 'string' ? JSON.parse(scriptsStatusRaw[k]) : scriptsStatusRaw[k];
+                } catch (e) {
+                    // @ts-ignore
+                    scriptsStatus[k] = scriptsStatusRaw[k];
+                }
+            });
+        }
+
+        return NextResponse.json({ ...defaults, ...settings, last_run: statusObj, scripts_status: scriptsStatus });
     } catch (error) {
         console.error("Settings GET Error:", error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

@@ -42,6 +42,9 @@ def main():
                 rs.save_raw_matches(today_str, matches)
                 print(f"[CACHE] Saved raw matches to Redis Hash for {today_str}")
 
+        if rs.is_active and args.mode in ['all', 'fetch']:
+             rs.log_status("Daily Fetch", "SUCCESS", "Fetch Completed")
+
         if not matches and args.mode == 'fetch':
             print("No matches found.")
         elif not matches and args.mode == 'all':
@@ -74,6 +77,8 @@ def main():
             rs.save_daily_bets(date_str, recommendations['bets'])
             
             print(f"[SUCCESS] Las apuestas se han guardado en Redis correctamente bajo la clave betai:daily_bets:{date_str}.")
+            
+            if rs.is_active: rs.log_status("Daily Analysis", "SUCCESS", "Analysis & Selection Completed")
 
         else:
             print("[ERROR] No se obtuvieron recomendaciones de Gemini. Abortando guardado.")
@@ -85,11 +90,11 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-        # Log success
-        rs = RedisService()
-        if rs.is_active: rs.log_status("Daily Analysis", "SUCCESS", "Completed")
+        # Logging is now handled inside main() to differentiate modes
     except Exception as e:
         print(f"[CRITICAL] Main Script Failed: {e}")
         rs = RedisService()
-        if rs.is_active: rs.log_status("Daily Analysis", "ERROR", str(e))
+        if rs.is_active: 
+             # Fallback error logging - hard to know which part failed without more context, defaulting to General
+             rs.log_status("Daily Analysis", "ERROR", str(e))
         exit(1)

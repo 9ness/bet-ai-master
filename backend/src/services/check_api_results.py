@@ -4,6 +4,7 @@ import json
 import time
 import requests
 import re
+import math
 from datetime import datetime, timedelta
 
 # Add parent directory to path to import services
@@ -606,11 +607,20 @@ def check_bets():
                              val = float(match_num.group()) if match_num else float(clean_pick.split()[0].replace(",", "."))
                              
                              total = home_score + away_score
-                             if is_over: is_win = total > val
-                             else: is_win = total < val
+                             if is_over: 
+                                 is_win = total > val
+                                 target = math.floor(val) + 1
+                                 diff = total - target
+                             else: 
+                                 is_win = total < val
+                                 target = math.ceil(val) - 1
+                                 diff = target - total
                              
-                             if sport == "basketball": result_str += f" | {total} Pts"
-                             else: result_str += f" | {total} Goles"
+                             sign = "+" if diff >= 0 else ""
+                             diff_str = f"{sign}{int(diff)}"
+                             
+                             if sport == "basketball": result_str += f" | {total} | {diff_str} Pts"
+                             else: result_str += f" | {total} | {diff_str}"
                              
                         # BTTS
                         elif "ambos marcan" in pick or "btts" in pick:
@@ -626,12 +636,18 @@ def check_bets():
                              if "local" in pick or "home" in pick or "1" in pick.split() or (home_team_clean and home_team_clean in pick):
                                  # Home
                                  is_win = (home_score + line) > away_score
-                                 diff = (home_score + line) - away_score
-                                 result_str += f" | {round(diff, 1)}"
+                                 actual_margin = home_score - away_score
+                                 target_margin = math.floor(-line) + 1
+                                 diff = actual_margin - target_margin
+                                 sign = "+" if diff >= 0 else ""
+                                 result_str += f" | {sign}{int(diff)}"
                              elif "visitante" in pick or "away" in pick or "2" in pick.split() or (away_team_clean and away_team_clean in pick):
                                  is_win = (away_score + line) > home_score
-                                 diff = (away_score + line) - home_score
-                                 result_str += f" | {round(diff, 1)}"
+                                 actual_margin = away_score - home_score
+                                 target_margin = math.floor(-line) + 1
+                                 diff = actual_margin - target_margin
+                                 sign = "+" if diff >= 0 else ""
+                                 result_str += f" | {sign}{int(diff)}"
                         
                         # Corners
                         elif "córner" in pick or "corner" in pick:

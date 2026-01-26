@@ -381,11 +381,21 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
                                 <div key={idx} className="flex justify-between items-center text-xs p-1 border-b border-white/5 last:border-0 gap-2">
                                     <div className="flex flex-col bg-black/20 rounded px-1.5 py-1 flex-1 min-w-0">
                                         {/* ... (Line 1/2) ... */}
-                                        <div className="flex flex-col">
-                                            <div className="flex flex-wrap items-center leading-tight">
-                                                <span className="text-muted-foreground mr-1 shrink-0 text-xs">{detail.match}:</span>
-                                                <span className="font-medium text-foreground text-xs">{detail.pick}</span>
+                                        <div className="flex flex-col w-full">
+                                            <div className="flex justify-between items-start gap-2">
+                                                <span className="text-muted-foreground text-[10px] flex items-center gap-1.5 leading-tight">
+                                                    <span className="opacity-80 grayscale-[0.3]">
+                                                        {(detail.sport?.toLowerCase().includes('basket') ? '🏀' : (detail.sport?.toLowerCase().includes('tenn') ? '🎾' : '⚽'))}
+                                                    </span>
+                                                    {detail.match}
+                                                </span>
+                                                {detail.odd && (
+                                                    <span className="shrink-0 bg-white/5 text-[10px] px-1.5 py-px rounded text-muted-foreground/90 font-mono border border-white/5 shadow-sm">
+                                                        {Number(detail.odd).toFixed(2)}
+                                                    </span>
+                                                )}
                                             </div>
+                                            <span className="font-bold text-foreground text-xs mt-0.5 leading-tight block">{detail.pick}</span>
                                             {/* RESULT LINE OR INPUT */}
                                             {isAdmin ? (
                                                 <input

@@ -47,7 +47,7 @@ SCHEMA OBLIGATORIO:
     "betType": "safe",
     "match": "Título Basado en el Guion Técnico",
     "stake": 6,
-    "reason": "Auditoría Comparativa: [Explicación técnica de la elección frente a otras opciones del JSON].",
+    "reason": "1. **Vectores de Valor:** [Análisis del sesgo estadístico y el Edge identificado en este mercado específico].\n\n2. **Auditoría de Descarte:** [Explicación técnica de la elección frente a otras alternativas para maximizar la resiliencia ante la varianza].\n\n3. **Proyección de Confianza:** [Escenario de alta fidelidad esperado y nivel de convicción en la cobertura de la línea].",
     "selections": [
       {
         "fixture_id": 123456,
