@@ -68,6 +68,8 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         useFullDate: true
     });
 
+    const [imageSelector, setImageSelector] = useState<{ idx: number | null }>({ idx: null });
+
     const [slideGroups, setSlideGroups] = useState<any[]>([]);
     const [currentPreviewIdx, setCurrentPreviewIdx] = useState(0);
     const [availableFiles, setAvailableFiles] = useState<string[]>([]);
@@ -176,11 +178,33 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
 
         return groupedList.map(g => {
             const sportIcon = (g.sport || '').includes('basket') ? '🏀' : '⚽';
-            const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+            // Robust cleaning for matching (Handle Accents/Special Chars)
+            const clean = (s: string) => s.toLowerCase()
+                .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove accents
+                .replace(/[^a-z0-9]/g, ""); // Remove non-alphanumeric
+
             const mt = clean(g.matchDisplay);
             let isFeatured = false;
-            const relevant = teamsWithBg[(g.sport || '').includes('basket') ? 'basketball' : 'football'];
-            for (let t of Array.from(relevant) as string[]) if (t !== 'comodin' && mt.includes(clean(t))) isFeatured = true;
+
+            const relevantSet = teamsWithBg[(g.sport || '').includes('basket') ? 'basketball' : 'football'];
+            const relevant = Array.from(relevantSet) as string[];
+
+            for (let t of relevant) {
+                if (t === 'comodin') continue;
+
+                const cleanTeam = clean(t);
+                if (cleanTeam.length < 3) continue; // Skip too short keys
+
+                // Bi-directional check: Match keys usually shorter than Match Title?
+                // File: "Verona" -> Match: "Verona vs Udinese" -> Match includes Team.
+                // File: "Olimpia Milano" -> Match: "Olimpia vs Varese" -> Team includes Match?? No.
+
+                if (mt.includes(cleanTeam)) {
+                    isFeatured = true;
+                    break;
+                }
+            }
 
             return {
                 ...g,
@@ -213,7 +237,12 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         if (availableFiles.length && slidesData.length) {
             const newBgs: string[] = [];
             const pick = (a: string[]) => a[Math.floor(Math.random() * a.length)];
-            const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+            // Robust cleaning (Match with getAllSelections)
+            const clean = (s: string) => s.toLowerCase()
+                .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                .replace(/[^a-z0-9]/g, "");
+
             const portadas = availableFiles.filter(f => f.includes('portada'));
             newBgs.push(portadas.length ? pick(portadas) : 'bg-portada-1.png');
             let last = newBgs[0];
@@ -339,7 +368,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                     {activeTab === 'bg' && (
                         <div className="w-full max-w-lg mx-auto bg-[#121212] border border-white/10 rounded-2xl p-6">
                             <div className="grid grid-cols-3 gap-2 max-h-[50vh] overflow-y-auto custom-scrollbar p-1 mb-4">
-                                {config.bgSelection.map((bg, i) => (<div key={i} className="group relative"><div className="aspect-[9/16] rounded-lg overflow-hidden border border-white/10 relative"><img src={`/backgrounds/${bg}`} className="w-full h-full object-cover" alt="bg" /><div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><button onClick={() => handleBgChange(i, availableFiles[Math.floor(Math.random() * availableFiles.length)])} className="p-1.5 bg-amber-500 rounded-full text-black hover:scale-110"><RefreshCw size={12} /></button></div></div><p className="text-[8px] text-center text-white/30 mt-1">Slide {i + 1}</p></div>))}
+                                {config.bgSelection.map((bg, i) => (<div key={i} className="group relative" onClick={() => setImageSelector({ idx: i })}><div className="aspect-[9/16] rounded-lg overflow-hidden border border-white/10 relative"><img src={`/backgrounds/${bg}`} className="w-full h-full object-cover" alt="bg" /><div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><button className="p-1.5 bg-amber-500 rounded-full text-black hover:scale-110"><RefreshCw size={12} /></button></div></div><p className="text-[8px] text-center text-white/30 mt-1">Slide {i + 1}</p></div>))}
                             </div>
                             <button onClick={() => { setAvailableFiles([...availableFiles]); }} className="w-full py-3 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-xl text-xs font-bold hover:bg-amber-500/20 transition flex items-center justify-center gap-2"><RefreshCw size={14} /> REGENERAR TODOS</button>
                         </div>
@@ -394,7 +423,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                         <div className="flex justify-between items-center"><h3 className="text-sm font-bold text-amber-400 uppercase tracking-widest flex items-center gap-2"><Palette size={16} /> Fondos</h3><button onClick={() => smartSelectBackgrounds()} className="text-[10px] font-bold text-amber-500 hover:underline">Regenerar</button></div>
                         <div className="grid grid-cols-4 gap-2 p-1">
                             {config.bgSelection.map((bg, i) => (
-                                <div key={i} className="group relative aspect-[9/16] rounded overflow-hidden border border-white/10 cursor-pointer" onClick={() => handleBgChange(i, availableFiles[Math.floor(Math.random() * availableFiles.length)])}>
+                                <div key={i} className="group relative aspect-[9/16] rounded overflow-hidden border border-white/10 cursor-pointer hover:border-amber-500/50 transition" onClick={() => setImageSelector({ idx: i })}>
                                     <img src={`/backgrounds/${bg}`} className="w-full h-full object-cover" />
                                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center"><RefreshCw size={12} className="text-white" /></div>
                                 </div>
@@ -495,6 +524,62 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                     </div>
                 </div>
             </div>
+
+            {/* IMAGE SELECTOR MODAL */}
+            {imageSelector.idx !== null && (
+                <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/90 backdrop-blur p-4">
+                    <div className="bg-[#1a1a1a] border border-white/10 rounded-3xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+                        <div className="p-6 border-b border-white/10 flex justify-between items-center bg-[#1a1a1a] z-10">
+                            <div>
+                                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                    <ImageIcon size={20} className="text-amber-500" />
+                                    Seleccionar Fondo {imageSelector.idx === 0 ? "(Portada)" : `(Slide ${imageSelector.idx + 1})`}
+                                </h3>
+                                <p className="text-xs text-white/40 mt-1">Elige una imagen de la galería para reemplazar</p>
+                            </div>
+                            <button onClick={() => setImageSelector({ idx: null })} className="p-2 hover:bg-white/10 rounded-full transition"><X size={24} className="text-white/70" /></button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-black/20">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                {availableFiles.sort((a, b) => {
+                                    // Sort Logic: Portadas first if index 0, else by sport match? 
+                                    // Simple Logic: Selected BG first, then alphabetical or grouped
+                                    if (a === config.bgSelection[imageSelector.idx!]) return -1;
+                                    if (b === config.bgSelection[imageSelector.idx!]) return 1;
+                                    return 0;
+                                }).map((file, i) => (
+                                    <div
+                                        key={i}
+                                        onClick={() => {
+                                            handleBgChange(imageSelector.idx!, file);
+                                            setImageSelector({ idx: null });
+                                        }}
+                                        className={`
+                                            group relative aspect-[9/16] rounded-xl overflow-hidden border-2 cursor-pointer transition-all duration-200 hover:scale-105
+                                            ${config.bgSelection[imageSelector.idx!] === file ? 'border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.3)] ring-2 ring-amber-500/20' : 'border-white/5 hover:border-white/30'}
+                                        `}
+                                    >
+                                        <img src={`/backgrounds/${file}`} className="w-full h-full object-cover" loading="lazy" />
+
+                                        {/* Overlay Info */}
+                                        <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/90 via-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <p className="text-[10px] text-white font-mono truncate">{file.replace('bg-', '').replace('.png', '')}</p>
+                                        </div>
+
+                                        {/* Current Indicator */}
+                                        {config.bgSelection[imageSelector.idx!] === file && (
+                                            <div className="absolute top-2 right-2 bg-amber-500 text-black p-1 rounded-full shadow-lg">
+                                                <Check size={12} strokeWidth={4} />
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
         </div>
     );
