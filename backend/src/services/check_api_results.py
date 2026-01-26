@@ -141,6 +141,116 @@ def get_basketball_result(game_id):
         print(f"[ERROR] Basketball API ID {game_id}: {e}")
         return None
 
+    except Exception as e:
+        print(f"[ERROR] Basketball API ID {game_id}: {e}")
+        return None
+
+# --- PLAYER STATS HELPERS ---
+
+def get_football_player_stats(fixture_id):
+    """
+    Fetches player statistics for a specific match.
+    Returns list of players with their stats.
+    """
+    url = f"{FOOTBALL_API_URL}/players?fixture={fixture_id}"
+    headers = {'x-rapidapi-key': API_KEY}
+    
+    try:
+        resp = requests.get(url, headers=headers)
+        data = resp.json()
+        
+        if not data.get("response"):
+            return []
+            
+        # Response is list of teams, each containing players
+        all_players = []
+        for team_data in data["response"]:
+            players = team_data.get("players", [])
+            for p in players:
+                # Flask stats
+                p_stats = p.get("statistics", [{}])[0]
+                p_info = p.get("player", {})
+                
+                # Normalize data structure
+                entry = {
+                    "id": p_info.get("id"),
+                    "name": p_info.get("name"),
+                    "firstname": p_info.get("firstname"),
+                    "lastname": p_info.get("lastname"),
+                    "team": team_data.get("team", {}).get("name"),
+                    # Stats mapping
+                    "shots": p_stats.get("shots", {}).get("total") or 0,
+                    "shots_on_goal": p_stats.get("shots", {}).get("on") or 0,
+                    "goals": p_stats.get("goals", {}).get("total") or 0,
+                    "assists": p_stats.get("goals", {}).get("assists") or 0,
+                    "passes": p_stats.get("passes", {}).get("total") or 0,
+                    "tackles": p_stats.get("tackles", {}).get("total") or 0,
+                    "cards_yellow": p_stats.get("cards", {}).get("yellow") or 0,
+                    "cards_red": p_stats.get("cards", {}).get("red") or 0,
+                    "minutes": p_stats.get("games", {}).get("minutes") or 0
+                }
+                all_players.append(entry)
+        return all_players
+    except Exception as e:
+        print(f"[ERROR] Player Stats API ID {fixture_id}: {e}")
+        return []
+
+def find_player_in_stats(pick_text, players_data):
+    """
+    Fuzzy searches for a player in the stats list based on the pick text.
+    """
+    if not players_data: return None
+    
+    # 1. Clean Pick Text to extract potential name
+    # Remove market words
+    ignore_words = ["más de", "mas de", "over", "menos de", "under", "remates", "tiros", "shots", "goals", "goles", "asistencias", "assists", "puntos", "points", "rebotes", "rebounds", "a puerta", "on goal", "player", "jugador", "tarjetas", "cards"]
+    
+    clean_name = pick_text.lower()
+    # Remove numbers
+    clean_name = re.sub(r'\d+(\.\d+)?', '', clean_name)
+    
+    for w in ignore_words:
+        clean_name = clean_name.replace(w, "")
+    
+    clean_name = clean_name.strip()
+    # Split into parts
+    name_parts = clean_name.split()
+    
+    best_score = 0
+    best_player = None
+    
+    import difflib
+    
+    for p in players_data:
+        # Match against Full Name, Lastname, Firstname
+        p_name = unidecode(p.get("name", "").lower())
+        p_last = unidecode(p.get("lastname", "").lower())
+        p_first = unidecode(p.get("firstname", "").lower())
+        
+        target = unidecode(clean_name)
+        
+        # 1. Direct contains (High confidence)
+        if target in p_name or (p_last and p_last in target):
+            score = 100
+            # Length penalty (shorter matches in long strings might be wrong, but usually specific enough)
+        else:
+            # 2. Fuzzy
+            ratio = difflib.SequenceMatcher(None, target, p_name).ratio()
+            score = ratio * 100
+            
+        if score > best_score:
+            best_score = score
+            best_player = p
+            
+    # Threshold
+    if best_score > 60:
+        return best_player
+    return None
+
+def unidecode(text):
+    # Simple unidecode fallback
+    return text.replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o").replace("ú", "u").replace("ñ", "n").replace("ü", "u")
+
 def check_bets():
     print("--- AUTOMATED RESULT CHECKER STARTED ---")
     
@@ -298,16 +408,64 @@ def check_bets():
                         else:
                              # Fallback
                              val = float(clean_pick.split()[0].replace(",", "."))
-                        
-                        total = home_score + away_score
-                        is_win = total > val
-                        # Add totals to result
-                        if sport == "basketball":
-                            result_str += f" | {total} Pts"
+
+                        # --- PLAYER PROP VERIFICATION ---
+                        if any(x in pick for x in ["remates", "tiros", "asistencia", "pases", "entradas", "player", "shots", "assists", "passes", "tackles"]):
+                            # 1. Fetch Stats
+                            print(f"      [PLAYER] Fetching stats for '{pick}'...")
+                            players_stats = get_football_player_stats(fid)
+                            
+                            # 2. Find Player
+                            target_player = find_player_in_stats(pick, players_stats)
+                            
+                            if target_player:
+                                p_name = target_player.get("name", "Unknown")
+                                
+                                # 3. Determine Stat Category
+                                current_val = 0
+                                stat_label = ""
+                                
+                                if "puerta" in pick or "on goal" in pick:
+                                    current_val = target_player["shots_on_goal"]
+                                    stat_label = "Tiros Puerta"
+                                elif "remates" in pick or "tiros" in pick or "shots" in pick:
+                                    current_val = target_player["shots"]
+                                    stat_label = "Remates"
+                                elif "asistencia" in pick or "assist" in pick:
+                                    current_val = target_player["assists"]
+                                    stat_label = "Asistencias"
+                                elif "pases" in pick or "passes" in pick:
+                                    current_val = target_player["passes"]
+                                    stat_label = "Pases"
+                                elif "entradas" in pick or "tackles" in pick:
+                                    current_val = target_player["tackles"]
+                                    stat_label = "Entradas"
+                                
+                                # Validate nil
+                                if current_val is None: current_val = 0
+                                
+                                is_win = current_val > val
+                                result_str += f" | {current_val} {stat_label} ({p_name})"
+                                print(f"      [PLAYER CHECK] {p_name}: {current_val} {stat_label} vs {val}")
+                                
+                            else:
+                                print(f"      [WARN] Player not found for pick: {pick}")
+                                pending_count += 1
+                                result_str = "Player Not Found in API"
+                                continue
                         else:
-                            result_str += f" | {total} Goles"
+                            # Standard Match Stats logic
+                            total = home_score + away_score
+                            is_win = total > val
+                            # Add totals to result
+                            if sport == "basketball":
+                                result_str += f" | {total} Pts"
+                            else:
+                                result_str += f" | {total} Goles"
+
                         
                     elif "menos de" in pick or "under" in pick:
+                        # Clean string
                         clean_pick = pick.replace("menos de", "").replace("under", "").replace("goles", "").replace("goals", "").replace("puntos", "").replace("points", "").replace("pts", "").strip()
                         match = re.search(r'\d+(\.\d+)?', clean_pick)
                         if match:
@@ -315,12 +473,57 @@ def check_bets():
                         else:
                              val = float(clean_pick.split()[0].replace(",", "."))
                              
-                        total = home_score + away_score
-                        is_win = total < val
-                        if sport == "basketball":
-                            result_str += f" | {total} Pts"
+                        # --- PLAYER PROP VERIFICATION ---
+                        if any(x in pick for x in ["remates", "tiros", "asistencia", "pases", "entradas", "player", "shots", "assists", "passes", "tackles"]):
+                            # 1. Fetch Stats
+                            print(f"      [PLAYER] Fetching stats for '{pick}'...")
+                            players_stats = get_football_player_stats(fid)
+                            
+                            # 2. Find Player
+                            target_player = find_player_in_stats(pick, players_stats)
+                            
+                            if target_player:
+                                p_name = target_player.get("name", "Unknown")
+                                
+                                # 3. Determine Stat Category
+                                current_val = 0
+                                stat_label = ""
+                                
+                                if "puerta" in pick or "on goal" in pick:
+                                    current_val = target_player["shots_on_goal"]
+                                    stat_label = "Tiros Puerta"
+                                elif "remates" in pick or "tiros" in pick or "shots" in pick:
+                                    current_val = target_player["shots"]
+                                    stat_label = "Remates"
+                                elif "asistencia" in pick or "assist" in pick:
+                                    current_val = target_player["assists"]
+                                    stat_label = "Asistencias"
+                                elif "pases" in pick or "passes" in pick:
+                                    current_val = target_player["passes"]
+                                    stat_label = "Pases"
+                                elif "entradas" in pick or "tackles" in pick:
+                                    current_val = target_player["tackles"]
+                                    stat_label = "Entradas"
+                                
+                                # Validate nil
+                                if current_val is None: current_val = 0
+                                
+                                is_win = current_val < val
+                                result_str += f" | {current_val} {stat_label} ({p_name})"
+                                print(f"      [PLAYER CHECK] {p_name}: {current_val} {stat_label} vs {val}")
+                                
+                            else:
+                                print(f"      [WARN] Player not found for pick: {pick}")
+                                pending_count += 1
+                                result_str = "Player Not Found in API"
+                                continue
                         else:
-                            result_str += f" | {total} Goles"
+                            total = home_score + away_score
+                            is_win = total < val
+                            if sport == "basketball":
+                                result_str += f" | {total} Pts"
+                            else:
+                                result_str += f" | {total} Goles"
                     
                     # 3. BOTH TO SCORE (Football)
                     elif "ambos marcan" in pick or "btts" in pick:

@@ -40,6 +40,10 @@ class BetFormatter:
         # Specific Cleanups requested by user
         p = p.replace("Match Ganador:", "").replace("Match Winner:", "").replace("Ganador del Partido:", "").strip()
         
+        # Protect specific names that look like markets
+        if "Cengiz Under" in p:
+            p = p.replace("Cengiz Under", "Cengiz Ünder")
+        
         # 1X2 Logic
         if p == "1" and home_team: return f"Gana {home_team}"
         if p == "2" and away_team: return f"Gana {away_team}"
