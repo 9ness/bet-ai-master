@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import html2canvas from 'html2canvas';
-import { Download, Loader2, Settings2, Image as ImageIcon, ChevronRight, ChevronLeft, RefreshCw, Save, ScanEye, X, Copy, Check, LayoutTemplate, Type, Megaphone, Palette, MonitorPlay, Search } from 'lucide-react';
+import { Play, Download, Trash2, X, Plus, Image as ImageIcon, Video, Type, Music, Settings, Upload, MonitorPlay, Palette, LayoutTemplate, Megaphone, Search, Loader2, Check, Info, ChevronLeft, ScanEye, ChevronRight, Save, RefreshCw, Copy, Settings2 } from 'lucide-react';
 import { triggerTouchFeedback } from '@/utils/haptics';
 
 /* 
@@ -54,15 +54,23 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
     const [copiedStates, setCopiedStates] = useState<Record<string, boolean>>({});
 
     // --- HELPERS ---
+    const getFilename = (pathOrUrl: string) => pathOrUrl.split('/').pop() || "";
+
     const formatTeamName = (name: string) => {
         if (!name) return "";
-        // 1. Remove extension
-        let formatted = name.split('.')[0];
-        // 2. Separate CamelCase
+        // 1. Extract filename if it's a path/URL
+        let formatted = getFilename(name);
+
+        // 2. Decode URL characters (Fix for %20, %C3%B6 etc.)
+        try { formatted = decodeURIComponent(formatted); } catch (e) { }
+
+        // 3. Remove extension
+        formatted = formatted.split('.')[0];
+        // 4. Separate CamelCase
         formatted = formatted.replace(/([a-z])([A-Z])/g, '$1 $2');
-        // 3. Replace Underscores and Hyphens with spaces
-        formatted = formatted.replace(/[_-]/g, ' ');
-        // 4. Proper Case + trim
+        // 5. Replace Underscores, Hyphens and 'bg-' prefix with spaces
+        formatted = formatted.replace('bg-', '').replace(/[_-]/g, ' ');
+        // 6. Proper Case + trim
         return formatted.trim().split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
     };
 
@@ -103,6 +111,39 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [saveSettings, setSaveSettings] = useState({ type: 'futbol' as 'futbol' | 'basket' | 'portada' | 'comodin', tag: '' });
+    const [suggestions, setSuggestions] = useState<string[]>([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+
+    const getUniqueTeams = () => {
+        const teams = new Set<string>();
+        availableFiles.forEach(f => {
+            const fname = getFilename(f);
+            if (fname.includes('bg-') && (fname.includes('futbol') || fname.includes('basket')) && !fname.includes('comodin') && !fname.includes('portada')) {
+                const parts = fname.split('-');
+                if (parts[2]) teams.add(formatTeamName(parts[2]));
+            }
+        });
+        return Array.from(teams).sort();
+    };
+
+    const handleTagChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value;
+        setSaveSettings({ ...saveSettings, tag: val });
+
+        if (val.length > 1) {
+            const allTeams = getUniqueTeams();
+            const filtered = allTeams.filter(t => t.toLowerCase().includes(val.toLowerCase()));
+            setSuggestions(filtered.slice(0, 5));
+            setShowSuggestions(true);
+        } else {
+            setShowSuggestions(false);
+        }
+    };
+
+    const selectSuggestion = (name: string) => {
+        setSaveSettings({ ...saveSettings, tag: name });
+        setShowSuggestions(false);
+    };
 
 
     // --- ERROR MODAL STATE ---
@@ -123,7 +164,57 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         setIsSearching(false);
     };
 
-    const saveWebImage = async (url: string) => {
+    const [confirmModal, setConfirmModal] = useState<{ show: boolean, onConfirm: () => void }>({ show: false, onConfirm: () => { } });
+
+    // --- ADMIN STATE ---
+    const [adminModalOpen, setAdminModalOpen] = useState(false);
+    const [adminFilter, setAdminFilter] = useState<'futbol' | 'basket' | 'portada' | 'comodin'>('futbol');
+    const [moveModal, setMoveModal] = useState<{ open: boolean, url: string, type: 'futbol' | 'basket' | 'portada' | 'comodin', tag: string }>({ open: false, url: '', type: 'futbol', tag: '' });
+
+    const handleDeleteImage = async (url: string) => {
+        if (!confirm("¿Seguro que quieres borrar esta imagen?")) return;
+        try {
+            const res = await fetch('/api/admin/manage-images', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url })
+            });
+            if (res.ok) {
+                // Refresh
+                const data = await fetch('/api/backgrounds').then(r => r.json());
+                if (data.files) setAvailableFiles(data.files);
+            } else {
+                alert("Error al borrar");
+            }
+        } catch (e) { console.error(e); alert("Error de conexión"); }
+    };
+
+    const handleMoveImage = async () => {
+        try {
+            const res = await fetch('/api/admin/manage-images', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: moveModal.url, type: moveModal.type, tag: moveModal.tag })
+            });
+            if (res.ok) {
+                const data = await fetch('/api/backgrounds').then(r => r.json());
+                if (data.files) setAvailableFiles(data.files);
+                setMoveModal({ ...moveModal, open: false });
+            } else {
+                alert("Error al mover");
+            }
+        } catch (e) { console.error(e); alert("Error de conexión"); }
+    };
+
+    const saveWebImage = async (url: string, force: boolean = false) => {
+        if (!force && !saveSettings.tag.trim()) {
+            setConfirmModal({
+                show: true,
+                onConfirm: () => saveWebImage(url, true)
+            });
+            return;
+        }
+
         setIsSearching(true); // Reuse loading state
         try {
             const res = await fetch('/api/admin/save-image', {
@@ -254,9 +345,10 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         const groupedList = Object.values(groups);
         const teamsWithBg: any = { football: new Set(), basketball: new Set() };
         availableFiles.forEach(f => {
-            if (f.includes('bg-')) {
-                const p = f.toLowerCase().split('-');
-                if (p.length >= 3) teamsWithBg[f.includes('basket') ? 'basketball' : 'football'].add(p[2]);
+            const fname = getFilename(f).toLowerCase();
+            if (fname.includes('bg-')) {
+                const p = fname.split('-');
+                if (p.length >= 3) teamsWithBg[f.includes('basket') ? 'basketball' : 'football'].add(p[2]); // Note: p[2] from filename "bg-sport-team.png" is team
             }
         });
 
@@ -382,7 +474,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                 .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
                 .replace(/[^a-z0-9]/g, "");
 
-            const portadas = availableFiles.filter(f => f.includes('portada'));
+            const portadas = availableFiles.filter(f => getFilename(f).includes('portada'));
             newBgs.push(portadas.length ? pick(portadas) : 'bg-portada-1.png');
             let last = newBgs[0];
             slidesData.forEach(chunk => {
@@ -394,20 +486,23 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                     for (let t of mts) {
                         const ct = clean(t);
                         if (ct.length < 3) continue;
-                        const ms = availableFiles.filter(f => !f.includes('comodin') && f.includes(mainSport.includes('basket') ? 'basket' : 'futbol') && clean(f).includes(ct));
+                        const ms = availableFiles.filter(f => {
+                            const fname = getFilename(f);
+                            return !fname.includes('comodin') && fname.includes(mainSport.includes('basket') ? 'basket' : 'futbol') && clean(fname).includes(ct);
+                        });
                         if (ms.length) { sel = pick(ms); break; }
                     }
                     if (sel) break;
                 }
                 if (!sel) {
-                    const coms = availableFiles.filter(f => f.includes('comodin') && f.includes(mainSport.includes('basket') ? 'basket' : 'futbol'));
+                    const coms = availableFiles.filter(f => getFilename(f).includes('comodin') && getFilename(f).includes(mainSport.includes('basket') ? 'basket' : 'futbol'));
                     const av = coms.filter(c => c !== last);
                     sel = av.length ? pick(av) : (pick(coms) || 'bg-comodin.png');
                 }
                 newBgs.push(sel);
                 last = sel;
             });
-            const outros = availableFiles.filter(f => f.includes('futbol') && f.includes('comodin'));
+            const outros = availableFiles.filter(f => getFilename(f).includes('futbol') && getFilename(f).includes('comodin'));
             newBgs.push(outros.length ? pick(outros) : 'bg-outro.png');
             setConfig(p => ({ ...p, bgSelection: newBgs }));
         }
@@ -438,10 +533,10 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                 {/* 1. TOP NAVIGATION */}
                 <div className="flex items-center justify-start gap-3 overflow-x-auto pb-2 scrollbar-hide px-2 snap-x">
                     <TabButton id="editor" label="Editor" icon={MonitorPlay} activeTab={activeTab} setActiveTab={setActiveTab} />
+                    <TabButton id="bg" label="Fondos" icon={Palette} activeTab={activeTab} setActiveTab={setActiveTab} />
                     <TabButton id="portada" label="Portada" icon={LayoutTemplate} activeTab={activeTab} setActiveTab={setActiveTab} />
                     <TabButton id="bets" label="Apuestas" icon={Type} activeTab={activeTab} setActiveTab={setActiveTab} />
                     <TabButton id="outro" label="Cierre" icon={Megaphone} activeTab={activeTab} setActiveTab={setActiveTab} />
-                    <TabButton id="bg" label="Fondos" icon={Palette} activeTab={activeTab} setActiveTab={setActiveTab} />
                 </div>
 
                 {/* 2. CONTENT AREA */}
@@ -507,7 +602,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                     {activeTab === 'bg' && (
                         <div className="w-full max-w-lg mx-auto bg-[#121212] border border-white/10 rounded-2xl p-6">
                             <div className="grid grid-cols-3 gap-2 max-h-[50vh] overflow-y-auto custom-scrollbar p-1 mb-4">
-                                {config.bgSelection.map((bg, i) => (<div key={i} className="group relative" onClick={() => setImageSelector({ idx: i })}><div className="aspect-[9/16] rounded-lg overflow-hidden border border-white/10 relative"><img src={`/backgrounds/${bg}`} className="w-full h-full object-cover" alt="bg" /><div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><button className="p-1.5 bg-amber-500 rounded-full text-black hover:scale-110"><RefreshCw size={12} /></button></div></div><p className="text-[8px] text-center text-white/30 mt-1">Slide {i + 1}</p></div>))}
+                                {config.bgSelection.map((bg, i) => (<div key={i} className="group relative" onClick={() => setImageSelector({ idx: i })}><div className="aspect-[9/16] rounded-lg overflow-hidden border border-white/10 relative"><img src={getImageSrc(bg)} className="w-full h-full object-cover" alt="bg" /><div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><button className="p-1.5 bg-amber-500 rounded-full text-black hover:scale-110"><RefreshCw size={12} /></button></div></div><p className="text-[8px] text-center text-white/30 mt-1">Slide {i + 1}</p></div>))}
                             </div>
                             <button onClick={() => setSearchModalOpen(true)} className="w-full mb-2 py-3 bg-sky-500/10 text-sky-500 border border-sky-500/20 rounded-xl text-xs font-bold hover:bg-sky-500/20 transition flex items-center justify-center gap-2"><Search size={14} /> BUSCAR ONLINE</button>
                             <button onClick={() => { setAvailableFiles([...availableFiles]); }} className="w-full py-3 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-xl text-xs font-bold hover:bg-amber-500/20 transition flex items-center justify-center gap-2"><RefreshCw size={14} /> REGENERAR TODOS</button>
@@ -590,7 +685,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                 <div className="grid grid-cols-3 gap-2">
                                     {config.bgSelection.map((bg, i) => (
                                         <div key={i} className={`group relative aspect-[9/16] rounded-lg overflow-hidden border cursor-pointer transition-all ${imageSelector.idx === i ? 'border-amber-500 ring-2 ring-amber-500/20' : 'border-white/10 hover:border-white/30'}`} onClick={() => setImageSelector({ idx: i })}>
-                                            <img src={`/backgrounds/${bg}`} className="w-full h-full object-cover" />
+                                            <img src={getImageSrc(bg)} className="w-full h-full object-cover" />
                                             {imageSelector.idx === i && <div className="absolute inset-0 bg-amber-500/20" />}
                                             <div className="absolute bottom-1 right-1 bg-black/60 px-1.5 py-0.5 rounded text-[8px] text-white/70">{i + 1}</div>
                                         </div>
@@ -710,6 +805,31 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                 <button onClick={() => setImageSelector({ idx: null })} className="p-2 hover:bg-white/10 rounded-full transition"><X size={24} className="text-white/70" /></button>
                             </div>
 
+                            {/* --- ACTION BAR (New) --- */}
+                            <div className="flex items-center gap-2 px-1">
+                                <button
+                                    onClick={() => setAdminModalOpen(true)}
+                                    className="flex-1 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-[10px] font-bold uppercase tracking-wider text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
+                                >
+                                    <Settings2 size={14} className="text-amber-500" /> Administrar
+                                </button>
+                                <button
+                                    onClick={() => setSearchModalOpen(true)}
+                                    className="flex-1 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-[10px] font-bold uppercase tracking-wider text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
+                                >
+                                    <Search size={14} className="text-sky-500" /> Buscar
+                                </button>
+                                <button
+                                    onClick={async () => {
+                                        const data = await fetch('/api/backgrounds').then(r => r.json());
+                                        if (data.files) setAvailableFiles(data.files);
+                                    }}
+                                    className="flex-1 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-[10px] font-bold uppercase tracking-wider text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
+                                >
+                                    <RefreshCw size={14} className="text-emerald-500" /> Regenerar
+                                </button>
+                            </div>
+
                             {/* ... (Existing Filters) ... */}
                             <div className="flex flex-wrap items-center gap-2 border-t border-white/5 pt-4">
                                 <button
@@ -725,35 +845,38 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                     className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border
                                         ${bgFilter === 'futbol' ? 'bg-sky-500 text-white border-sky-500' : 'bg-sky-500/10 text-sky-400 border-sky-500/20 hover:bg-sky-500/20'}`}
                                 >
-                                    ⚽ Fútbol ({availableFiles.filter(f => f.includes('futbol') && !f.includes('portada')).length})
+                                    ⚽ Fútbol ({availableFiles.filter(f => getFilename(f).includes('futbol') && !getFilename(f).includes('portada')).length})
                                 </button>
                                 <button
                                     onClick={() => { setBgFilter('basket'); setBgTeamSelected(null); }}
                                     className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border
                                         ${bgFilter === 'basket' ? 'bg-orange-500 text-white border-orange-500' : 'bg-orange-500/10 text-orange-400 border-orange-500/20 hover:bg-orange-500/20'}`}
                                 >
-                                    🏀 Basket ({availableFiles.filter(f => f.includes('basket') && !f.includes('portada')).length})
+                                    🏀 Basket ({availableFiles.filter(f => getFilename(f).includes('basket') && !getFilename(f).includes('portada')).length})
                                 </button>
                                 <button
                                     onClick={() => { setBgFilter('portada'); setBgTeamSelected(null); }}
                                     className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border
                                         ${bgFilter === 'portada' ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'}`}
                                 >
-                                    🖼️ Portada ({availableFiles.filter(f => f.includes('portada')).length})
+                                    🖼️ Portada ({availableFiles.filter(f => getFilename(f).includes('portada')).length})
                                 </button>
                                 <button
                                     onClick={() => { setBgFilter('comodin'); setBgTeamSelected(null); }}
                                     className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border
                                         ${bgFilter === 'comodin' ? 'bg-purple-500 text-white border-purple-500' : 'bg-purple-500/10 text-purple-400 border-purple-500/20 hover:bg-purple-500/20'}`}
                                 >
-                                    🃏 Comodín ({availableFiles.filter(f => f.includes('comodin')).length})
+                                    🃏 Comodín ({availableFiles.filter(f => getFilename(f).includes('comodin')).length})
                                 </button>
                                 <button
                                     onClick={() => setBgFilter('equipo')}
                                     className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border
                                         ${bgFilter === 'equipo' ? 'bg-amber-500 text-black border-amber-500' : 'bg-amber-500/10 text-amber-500 border-amber-500/20 hover:bg-amber-500/20'}`}
                                 >
-                                    🛡️ Equipos ({new Set(availableFiles.filter(f => (f.includes('futbol') || f.includes('basket')) && !f.includes('comodin') && !f.includes('portada')).map(f => f.split('-')[2])).size})
+                                    🛡️ Equipos ({new Set(availableFiles.filter(f => {
+                                        const n = getFilename(f);
+                                        return (n.includes('futbol') || n.includes('basket')) && !n.includes('comodin') && !n.includes('portada');
+                                    }).map(f => getFilename(f).split('-')[2])).size})
                                 </button>
                             </div>
 
@@ -779,12 +902,12 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                     <div className="flex flex-wrap gap-1.5 max-h-[120px] overflow-y-auto custom-scrollbar p-1">
                                         {Array.from(new Set(availableFiles
                                             .filter(f => {
-                                                const lower = f.toLowerCase();
+                                                const lower = getFilename(f).toLowerCase();
                                                 const sport = bgSportForTeam === 'futbol' ? 'futbol' : 'basket';
                                                 return lower.startsWith(`bg-${sport}-`) && !lower.includes('comodin') && !lower.includes('portada');
                                             })
                                             .map(f => {
-                                                const parts = f.split('-');
+                                                const parts = getFilename(f).split('-');
                                                 return parts[2] || "";
                                             })
                                             .filter(Boolean)
@@ -812,14 +935,15 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                 {/* ... grid items ... */}
                                 {availableFiles
                                     .filter(f => {
+                                        const fname = getFilename(f);
                                         if (bgFilter === 'all') return true;
-                                        if (bgFilter === 'portada') return f.includes('portada');
-                                        if (bgFilter === 'comodin') return f.includes('comodin');
-                                        if (bgFilter === 'futbol' && !f.includes('portada')) return f.includes('futbol');
-                                        if (bgFilter === 'basket' && !f.includes('portada')) return f.includes('basket');
+                                        if (bgFilter === 'portada') return fname.includes('portada');
+                                        if (bgFilter === 'comodin') return fname.includes('comodin');
+                                        if (bgFilter === 'futbol' && !fname.includes('portada')) return fname.includes('futbol');
+                                        if (bgFilter === 'basket' && !fname.includes('portada')) return fname.includes('basket');
                                         if (bgFilter === 'equipo') {
                                             if (!bgTeamSelected) return false;
-                                            return f.includes(`bg-${bgSportForTeam}-${bgTeamSelected}-`);
+                                            return fname.includes(`bg-${bgSportForTeam}-${bgTeamSelected}-`);
                                         }
                                         return true;
                                     })
@@ -839,10 +963,10 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                                 ${config.bgSelection[imageSelector.idx!] === file ? 'border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.3)] ring-2 ring-amber-500/20' : 'border-white/5 hover:border-white/30'}
                                             `}
                                         >
-                                            <img src={`/backgrounds/${file}`} className="w-full h-full object-cover" loading="lazy" />
+                                            <img src={getImageSrc(file)} className="w-full h-full object-cover" loading="lazy" />
                                             <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/90 via-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <p className="text-[10px] text-white font-mono truncate">
-                                                    {formatTeamName(file.split('-')[2] || file.replace('bg-', '').replace('.png', ''))}
+                                                    {formatTeamName(getFilename(file).split('-')[2] || getFilename(file).replace('bg-', '').replace('.png', ''))}
                                                 </p>
                                             </div>
                                             {config.bgSelection[imageSelector.idx!] === file && (
@@ -870,6 +994,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                 </h3>
                                 <p className="text-xs text-white/50 mt-1">Busca imágenes en internet, guárdalas y úsalas al instante.</p>
                             </div>
+
                             <button onClick={() => setSearchModalOpen(false)} className="p-2 hover:bg-white/10 rounded-full text-white/70"><X size={24} /></button>
                         </div>
 
@@ -889,7 +1014,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                 </button>
                             </div>
 
-                            <div className="flex items-center gap-4 p-3 bg-white/5 rounded-xl border border-white/5">
+                            <div className="flex flex-col md:flex-row md:items-center gap-4 p-3 bg-white/5 rounded-xl border border-white/5">
                                 <span className="text-[10px] font-bold uppercase text-white/50">Guardar como:</span>
                                 <div className="flex gap-2">
                                     {['futbol', 'basket', 'portada', 'comodin'].map(t => (
@@ -902,13 +1027,29 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                         </button>
                                     ))}
                                 </div>
-                                <div className="flex-1">
+                                <div className="flex-1 relative">
                                     <input
                                         value={saveSettings.tag}
-                                        onChange={(e) => setSaveSettings({ ...saveSettings, tag: e.target.value })}
+                                        onChange={handleTagChange}
+                                        onFocus={() => saveSettings.tag.length > 1 && setShowSuggestions(true)}
+                                        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                                         placeholder="Nombre del Equipo (Ej: RealMadrid)"
                                         className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-1 text-xs text-white focus:border-sky-500 outline-none"
                                     />
+                                    {showSuggestions && suggestions.length > 0 && (
+                                        <div className="absolute top-full left-0 right-0 mt-2 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200">
+                                            {suggestions.map((s, i) => (
+                                                <button
+                                                    key={i}
+                                                    onClick={() => selectSuggestion(s)}
+                                                    className="w-full text-left px-3 py-2 text-xs text-white/70 hover:bg-white/10 hover:text-white transition-colors flex items-center gap-2"
+                                                >
+                                                    <Search size={10} className="text-white/30" />
+                                                    <span dangerouslySetInnerHTML={{ __html: s.replace(new RegExp(`(${saveSettings.tag})`, 'gi'), (match) => `<span class="text-sky-400 font-bold">${match}</span>`) }} />
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -973,6 +1114,181 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                     </div>
                 </div>
             )}
+
+            {/* ADMIN MODAL */}
+            {adminModalOpen && (
+                <div className="fixed inset-0 z-[4500] flex items-center justify-center bg-black/90 backdrop-blur p-4">
+                    <div className="bg-[#1a1a1a] border border-white/10 rounded-3xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+                        <div className="p-4 border-b border-white/10 flex justify-between items-center bg-[#1a1a1a]">
+                            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                <Settings2 size={18} className="text-amber-500" /> Administrar Imágenes
+                            </h3>
+                            <button onClick={() => setAdminModalOpen(false)} className="p-2 hover:bg-white/10 rounded-full text-white/70"><X size={20} /></button>
+                        </div>
+
+                        {/* Filters */}
+                        <div className="flex gap-2 p-4 border-b border-white/10 overflow-x-auto">
+                            {['futbol', 'basket', 'portada', 'comodin'].map(t => (
+                                <button
+                                    key={t}
+                                    onClick={() => setAdminFilter(t as any)}
+                                    className={`px-4 py-2 rounded-xl text-xs uppercase font-bold border transition whitespace-nowrap ${adminFilter === t ? 'bg-amber-500 text-black border-amber-500' : 'bg-transparent text-white/40 border-white/10 hover:bg-white/5'}`}
+                                >
+                                    {t}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Grid */}
+                        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                                {availableFiles.filter(f => {
+                                    const n = getFilename(f);
+                                    if (adminFilter === 'futbol') return n.includes('futbol') && !n.includes('comodin');
+                                    if (adminFilter === 'basket') return n.includes('basket') && !n.includes('comodin');
+                                    if (adminFilter === 'portada') return n.includes('portada');
+                                    if (adminFilter === 'comodin') return n.includes('comodin');
+                                    return false;
+                                }).map((file, i) => (
+                                    <div key={i} className="group relative aspect-[9/16] bg-black rounded-lg overflow-hidden border border-white/10">
+                                        <img src={getImageSrc(file)} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition" />
+
+                                        {/* Actions Overlay */}
+                                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2">
+                                            <div className="flex justify-end">
+                                                <button onClick={(e) => { e.stopPropagation(); handleDeleteImage(file); }} className="p-2 bg-red-500/20 text-red-500 rounded-lg hover:bg-red-500 hover:text-white transition">
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
+                                            <div className="text-center">
+                                                <p className="text-[10px] text-white font-mono truncate mb-2">
+                                                    {getFilename(file).split('-')[2] || 'Sin Nombre'}
+                                                </p>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setMoveModal({ open: true, url: file, type: adminFilter, tag: '' }); }}
+                                                    className="w-full py-2 bg-white/10 text-white rounded-lg text-[10px] uppercase font-bold hover:bg-white/20 transition flex items-center justify-center gap-1"
+                                                >
+                                                    <RefreshCw size={10} /> Mover / Renombrar
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MOVE MODAL */}
+            {moveModal.open && (
+                <div className="fixed inset-0 z-[5000] flex items-center justify-center bg-black/90 backdrop-blur p-6 animate-in fade-in duration-200">
+                    <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center gap-2 text-sky-500 border-b border-white/10 pb-2 mb-2">
+                            <RefreshCw size={18} />
+                            <h3 className="text-md font-bold text-white">Mover o Renombrar</h3>
+                        </div>
+
+                        <div className="space-y-3">
+                            <div className="space-y-1">
+                                <label className="text-[10px] uppercase text-white/50">Mover a Sección:</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {['futbol', 'basket', 'portada', 'comodin'].map(t => (
+                                        <button
+                                            key={t}
+                                            onClick={() => setMoveModal({ ...moveModal, type: t as any })}
+                                            className={`px-2 py-2 rounded-lg text-[10px] uppercase font-bold border transition ${moveModal.type === t ? 'bg-sky-500 text-white border-sky-500' : 'bg-transparent text-white/40 border-white/10'}`}
+                                        >
+                                            {t}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-[10px] uppercase text-white/50">Nuevo Nombre (Opcional):</label>
+                                <input
+                                    value={moveModal.tag}
+                                    onChange={(e) => setMoveModal({ ...moveModal, tag: e.target.value })}
+                                    onFocus={() => (moveModal.type === 'futbol' || moveModal.type === 'basket') && setMoveModal({ ...moveModal, tag: moveModal.tag })}
+                                    placeholder="Ej: Barcelona"
+                                    className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:border-sky-500 outline-none"
+                                />
+
+                                {/* Team Selection List (Always visible if Futbol/Basket selected) */}
+                                {(moveModal.type === 'futbol' || moveModal.type === 'basket') && (
+                                    <div className="mt-2 p-2 bg-black/20 rounded-xl border border-white/5 max-h-40 overflow-y-auto custom-scrollbar">
+                                        <p className="text-[9px] uppercase font-bold text-white/30 mb-2 px-1">Seleccionar Equipo Existente:</p>
+                                        <div className="flex flex-wrap gap-1">
+                                            {Array.from(new Set(availableFiles
+                                                .filter(f => getFilename(f).includes(moveModal.type) && !getFilename(f).includes('comodin') && !getFilename(f).includes('portada'))
+                                                .map(f => getFilename(f).split('-')[2]) // Extract team part
+                                                .filter(Boolean)
+                                            )).sort().map(team => (
+                                                <button
+                                                    key={team}
+                                                    onClick={() => setMoveModal({ ...moveModal, tag: team })}
+                                                    className={`px-2 py-1 rounded text-[10px] font-bold border transition
+                                                        ${moveModal.tag === team ? 'bg-sky-500 text-white border-sky-500' : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/10'}`}
+                                                >
+                                                    {formatTeamName(team)}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3 pt-4">
+                            <button
+                                onClick={() => setMoveModal({ ...moveModal, open: false })}
+                                className="flex-1 py-3 bg-white/5 border border-white/10 text-white font-bold uppercase text-xs rounded-xl hover:bg-white/10 transition-colors"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleMoveImage}
+                                className="flex-1 py-3 bg-sky-500 text-white font-bold uppercase text-xs rounded-xl hover:bg-sky-400 transition-colors shadow-lg shadow-sky-500/20"
+                            >
+                                Guardar Cambios
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* CONFIRMATION MODAL */}
+            {confirmModal.show && (
+                <div className="fixed inset-0 z-[5000] flex items-center justify-center bg-black/80 backdrop-blur p-6 animate-in fade-in duration-200">
+                    <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center gap-3 text-sky-500 mb-2">
+                            <Info size={24} className="animate-pulse" />
+                            <h3 className="text-lg font-bold text-white">¿Guardar sin nombre?</h3>
+                        </div>
+                        <p className="text-sm text-white/70 whitespace-pre-line leading-relaxed">
+                            No has escrito ningún nombre para el equipo.
+                            <br /><br />
+                            La imagen se guardará como <b>GENÉRICA</b> y podrías perderla entre tantos archivos.
+                        </p>
+                        <div className="flex gap-3 pt-2">
+                            <button
+                                onClick={() => setConfirmModal({ ...confirmModal, show: false })}
+                                className="flex-1 py-3 bg-white/5 border border-white/10 text-white font-bold uppercase text-xs rounded-xl hover:bg-white/10 transition-colors"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={() => { confirmModal.onConfirm(); setConfirmModal({ ...confirmModal, show: false }); }}
+                                className="flex-1 py-3 bg-sky-500 text-white font-bold uppercase text-xs rounded-xl hover:bg-sky-400 transition-colors shadow-lg shadow-sky-500/20"
+                            >
+                                Guardar Igual
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
 
         </div>
     );
