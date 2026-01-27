@@ -83,6 +83,13 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
     const [collectStatus, setCollectStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [socialStatus, setSocialStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [showControls, setShowControls] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [actionModal, setActionModal] = useState<{
+        show: boolean;
+        title: string;
+        onConfirm: () => void;
+    }>({ show: false, title: '', onConfirm: () => { } });
+
 
     // Header Stats State (Synced with HomeTabs)
     const [headerStats, setHeaderStats] = useState({
@@ -181,9 +188,8 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
         }
     };
 
-    const triggerGitHubAction = async (endpoint: string, payload: any, setStatus: React.Dispatch<any>) => {
-        if (!confirm(`¿Estás seguro de ejecutar esta acción? \n\nEsto iniciará un proceso en segundo plano.`)) return;
-
+    const executeAction = async (endpoint: string, payload: any, setStatus: React.Dispatch<any>) => {
+        setActionModal(prev => ({ ...prev, show: false }));
         setStatus('loading');
         try {
             const res = await fetch(endpoint, {
@@ -194,19 +200,36 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
 
             if (res.ok) {
                 setStatus('success');
-                setTimeout(() => setStatus('idle'), 5000);
+                setSaveNotification({ show: true, type: 'success', message: 'Acción iniciada con éxito' });
+                setTimeout(() => {
+                    setStatus('idle');
+                    setSaveNotification(prev => ({ ...prev, show: false }));
+                }, 5000);
             } else {
                 setStatus('error');
                 const data = await res.json();
-                alert(`Error: ${data.details || data.error || 'Error desconocido'}`);
-                setTimeout(() => setStatus('idle'), 3000);
+                setSaveNotification({ show: true, type: 'error', message: data.details || data.error || 'Error al iniciar' });
+                setTimeout(() => {
+                    setStatus('idle');
+                    setSaveNotification(prev => ({ ...prev, show: false }));
+                }, 5000);
             }
         } catch (e) {
             setStatus('error');
-            console.error(e);
-            alert("Error de red.");
-            setTimeout(() => setStatus('idle'), 3000);
+            setSaveNotification({ show: true, type: 'error', message: 'Error de red' });
+            setTimeout(() => {
+                setStatus('idle');
+                setSaveNotification(prev => ({ ...prev, show: false }));
+            }, 5000);
         }
+    };
+
+    const triggerGitHubAction = (endpoint: string, payload: any, setStatus: React.Dispatch<any>) => {
+        setActionModal({
+            show: true,
+            title: '¿EJECUTAR ACCIÓN?',
+            onConfirm: () => executeAction(endpoint, payload, setStatus)
+        });
     };
 
     // Button 1: Comprobar -> calls /api/admin/trigger-check (triggers update_results_bet.yml)
@@ -297,12 +320,12 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
     // Clear Blacklist Helper (Fetch is handled in main useEffect on mount)
 
     const handleClearBlacklist = async () => {
-        if (!confirm("¿Estás seguro de borrar TODA la lista negra?")) return;
         try {
             await fetch('/api/admin/blacklist', { method: 'DELETE' });
             setBlacklist({});
             setSaveNotification({ show: true, type: 'success', message: 'Lista negra borrada' });
             setTimeout(() => setSaveNotification(prev => ({ ...prev, show: false })), 3000);
+            setShowDeleteConfirm(false);
         } catch (e) {
             alert("Error al borrar.");
         }
@@ -954,7 +977,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
 
                                             <div className="pt-4 border-t border-white/5">
                                                 <button
-                                                    onClick={handleClearBlacklist}
+                                                    onClick={() => setShowDeleteConfirm(true)}
                                                     className="w-full sm:w-auto px-6 py-3 bg-red-600/10 hover:bg-red-600/20 border border-red-500/30 text-red-500 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
                                                 >
                                                     <Trash2 size={16} />
@@ -990,6 +1013,74 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                         </div>
                                     </div>
                                 )}
+
+                                {/* Beautified Confirm Modal */}
+                                {showDeleteConfirm && (
+                                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+                                        <div
+                                            className="absolute inset-0 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300"
+                                            onClick={() => setShowDeleteConfirm(false)}
+                                        />
+                                        <div className="relative bg-zinc-900 border border-white/10 p-8 rounded-3xl max-w-sm w-full shadow-2xl animate-in zoom-in duration-300 text-center">
+                                            <div className="mx-auto w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mb-6 border border-red-500/30">
+                                                <AlertOctagon size={32} className="text-red-500" />
+                                            </div>
+                                            <h3 className="text-2xl font-black text-white mb-3 tracking-tighter">¿ESTÁS SEGURO?</h3>
+                                            <p className="text-white/60 text-sm mb-8 leading-relaxed">
+                                                Vas a borrar <span className="text-white font-bold">TODA</span> la lista negra de este mes. Esta acción no se puede deshacer.
+                                            </p>
+                                            <div className="flex flex-col gap-3">
+                                                <button
+                                                    onClick={handleClearBlacklist}
+                                                    className="w-full bg-red-600 hover:bg-red-500 text-white font-black py-4 rounded-2xl transition-all shadow-lg shadow-red-500/20 active:scale-95"
+                                                >
+                                                    SÍ, BORRAR TODO
+                                                </button>
+                                                <button
+                                                    onClick={() => setShowDeleteConfirm(false)}
+                                                    className="w-full bg-white/5 hover:bg-white/10 text-white font-bold py-4 rounded-2xl transition-all active:scale-95"
+                                                >
+                                                    CANCELAR
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Beautified Action Confirm Modal */}
+                                {actionModal.show && (
+                                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+                                        <div
+                                            className="absolute inset-0 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300"
+                                            onClick={() => setActionModal(prev => ({ ...prev, show: false }))}
+                                        />
+                                        <div className="relative bg-zinc-900 border border-white/10 p-8 rounded-3xl max-w-sm w-full shadow-2xl animate-in zoom-in duration-300 text-center">
+                                            <div className="mx-auto w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mb-6 border border-emerald-500/30">
+                                                <Play size={32} className="text-emerald-500 ml-1" fill="currentColor" />
+                                            </div>
+                                            <h3 className="text-2xl font-black text-white mb-3 tracking-tighter">{actionModal.title}</h3>
+                                            <p className="text-white/60 text-sm mb-8 leading-relaxed">
+                                                ¿Estás seguro de ejecutar esta acción? <br />
+                                                <span className="text-emerald-400 font-bold text-xs uppercase tracking-widest mt-2 block">Iniciará un proceso en segundo plano</span>
+                                            </p>
+                                            <div className="flex flex-col gap-3">
+                                                <button
+                                                    onClick={actionModal.onConfirm}
+                                                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-2xl transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+                                                >
+                                                    SÍ, EJECUTAR AHORA
+                                                </button>
+                                                <button
+                                                    onClick={() => setActionModal(prev => ({ ...prev, show: false }))}
+                                                    className="w-full bg-white/5 hover:bg-white/10 text-white font-bold py-4 rounded-2xl transition-all active:scale-95"
+                                                >
+                                                    CANCELAR
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
                             </div>
                         </main>
                     </div>

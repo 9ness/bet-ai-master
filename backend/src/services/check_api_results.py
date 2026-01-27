@@ -72,7 +72,8 @@ class BlacklistManager:
 
     def _sanitize_pick(self, pick):
         """Creates a safe suffix for the key based on the pick/market."""
-        clean = re.sub(r'[^a-zA-Z0-9]', '_', pick).lower()
+        pick_str = str(pick or "")
+        clean = re.sub(r'[^a-zA-Z0-9]', '_', pick_str).lower()
         return clean[:50]
 
     def is_blacklisted(self, fixture_id, pick, date_str):
@@ -109,7 +110,7 @@ def get_football_result(fixture_id):
     Fetches match details from API-Football.
     """
     url = f"{FOOTBALL_API_URL}?id={fixture_id}"
-    headers = {'x-rapidapi-key': API_KEY}
+    headers = {'x-apisports-key': API_KEY}
     
     try:
         # Use Helper
@@ -129,19 +130,26 @@ def get_football_result(fixture_id):
         goals_home = match["goals"]["home"]
         goals_away = match["goals"]["away"]
         
-        # Extract Stats (Corners, Cards)
+        # Extract Stats (Corners, Cards, Shots)
         corners = None 
         cards = 0
+        total_shots = 0
         stat_found = False
         if match.get("statistics"):
             for team_stats in match["statistics"]:
                 stat_found = True
                 for stat in team_stats.get("statistics", []):
-                    if stat["type"] == "Corner Kicks" and stat["value"] is not None:
+                    s_type = stat.get("type")
+                    s_val = stat.get("value")
+                    if s_val is None: continue
+                    
+                    if s_type == "Corner Kicks":
                         if corners is None: corners = 0
-                        corners += int(stat["value"])
-                    if stat["type"] in ["Yellow Cards", "Red Cards"] and stat["value"] is not None:
-                        cards += int(stat["value"])
+                        corners += int(s_val)
+                    elif s_type in ["Yellow Cards", "Red Cards"]:
+                        cards += int(s_val)
+                    elif s_type == "Total Shots":
+                        total_shots += int(s_val)
         
         if stat_found and corners is None: corners = 0
                         
@@ -150,6 +158,7 @@ def get_football_result(fixture_id):
             "away_score": goals_away,
             "corners": corners,
             "cards": cards,
+            "total_shots": total_shots,
             # We don't necessarily get players here unless we use a specific endpoint or include params
             # But the REMOTE logic assumed it might be here. 
             # We will use explicit player stats call for consistency.
@@ -163,7 +172,7 @@ def get_basketball_result(game_id):
     Fetches match details from API-Basketball.
     """
     url = f"{BASKETBALL_API_URL}?id={game_id}"
-    headers = {'x-rapidapi-key': API_KEY}
+    headers = {'x-apisports-key': API_KEY}
     
     try:
         resp = call_api_with_proxy(url, extra_headers=headers)
@@ -196,7 +205,7 @@ def get_football_player_stats(fixture_id):
     Returns list of players with their stats.
     """
     url = f"{FOOTBALL_API_URL}/players?fixture={fixture_id}"
-    headers = {'x-rapidapi-key': API_KEY}
+    headers = {'x-apisports-key': API_KEY}
     
     try:
         resp = call_api_with_proxy(url, extra_headers=headers)
@@ -252,7 +261,7 @@ def find_player_in_stats(pick_text, players_data):
     # Remove market words
     ignore_words = ["más de", "mas de", "over", "menos de", "under", "remates", "tiros", "shots", "goals", "goles", "asistencias", "assists", "puntos", "points", "rebotes", "rebounds", "a puerta", "on goal", "player", "jugador", "tarjetas", "cards"]
     
-    clean_name = pick_text.lower()
+    clean_name = (pick_text or "").lower()
     # Remove numbers
     clean_name = re.sub(r'\d+(\.\d+)?', '', clean_name)
     
@@ -267,8 +276,8 @@ def find_player_in_stats(pick_text, players_data):
     best_player = None
     
     for p in players_data:
-        p_name = unidecode(p.get("name", "").lower())
-        p_last = unidecode(p.get("lastname", "").lower())
+        p_name = unidecode((p.get("name") or "").lower())
+        p_last = unidecode((p.get("lastname") or "").lower())
         
         target = unidecode(clean_name)
         
@@ -301,14 +310,10 @@ def evaluate_player_prop_merged(pick, target_player, line, prop_type):
     minutes = target_player.get("minutes", 0)
     is_sub = target_player.get("substitute", False)
     
-    # Inactive
-    if minutes == 0:
-        return "VOID", "Inactive (0 min)"
-        
-    # Substitute (Played < 45 min and was SUB) ? 
-    # Remote rule: if is_sub and min_val < 45 -> VOID.
-    if is_sub and minutes < 45:
-        return "VOID", f"Jugó suplente ({minutes}')"
+    # Inactive, not in squad or played very little (Standard rule: if < 45 min -> VOID)
+    if minutes is None or minutes < 45:
+        reason = "No convocado / 0 min" if (minutes is None or minutes == 0) else f"Jugó menos de 45 min ({minutes}')"
+        return "VOID", reason
 
     # STATS CHECK
     current_val = 0
@@ -401,7 +406,7 @@ def check_bets():
 
             # --- PROCESS SELECTIONS ---
             for sel in selections:
-                pick_lower = sel.get("pick", "").lower()
+                pick_lower = (sel.get("pick") or "").lower()
                 is_dc = "doble" in pick_lower or "double" in pick_lower or "1x" in pick_lower or "x2" in pick_lower or "12" in pick_lower
                 
                 if sel.get("status") in ["WON", "LOST", "PUSH", "VOID", "NULA"] and not is_dc:
@@ -455,14 +460,14 @@ def check_bets():
                     continue
                     
                 # --- EVALUATE WIN/LOSS ---
-                pick = sel["pick"].lower()
+                pick = (sel.get("pick") or "").lower()
                 pick = pick.replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o").replace("ú", "u")
                 
                 # EXTRACT TEAM NAMES
                 home_team_clean = ""
                 away_team_clean = ""
                 try:
-                    match_parts = sel.get("match", "").lower().split(" vs ")
+                    match_parts = (sel.get("match") or "").lower().split(" vs ")
                     if len(match_parts) == 2:
                         home_team_clean = match_parts[0].strip()
                         away_team_clean = match_parts[1].strip()
@@ -520,7 +525,7 @@ def check_bets():
                              
                          # Valid -> Compare
                          current_val, stat_label = valid_data
-                         result_str += f" | {current_val} {stat_label} ({target_player.get('name')})"
+                         result_str = f"{current_val} {stat_label} ({target_player.get('name')})"
                          
                          if "más de" in pick or "mas de" in pick or "over" in pick:
                              is_win = current_val > val
@@ -547,36 +552,48 @@ def check_bets():
                              if "1X" in clean or "1X" in pick.upper(): is_win = home_score >= away_score
                              elif "X2" in clean or "X2" in pick.upper(): is_win = away_score >= home_score
                              elif "12" in clean: is_win = home_score != away_score
-                        
-                        # Over/Under
-                        elif "más de" in pick or "mas de" in pick or "over" in pick or "menos de" in pick or "under" in pick:
-                             is_over = "más" in pick or "mas" in pick or "over" in pick
-                             clean_pick = pick.replace("más de", "").replace("over", "").replace("menos de", "").replace("under", "").replace("goles", "").replace("puntos", "").strip()
-                             match_num = re.search(r'\d+(\.\d+)?', clean_pick)
-                             val = float(match_num.group()) if match_num else float(clean_pick.split()[0].replace(",", "."))
-                             
-                             total = home_score + away_score
-                             if is_over: 
-                                 is_win = total > val
-                                 target = math.floor(val) + 1
-                                 diff = total - target
-                             else: 
-                                 is_win = total < val
-                                 target = math.ceil(val) - 1
-                                 diff = target - total
-                             
-                             sign = "+" if diff >= 0 else ""
-                             diff_str = f"{sign}{int(diff)}"
-                             
-                             if sport == "basketball": result_str += f" | {total} | {diff_str} Pts"
-                             else: result_str += f" | {total} | {diff_str}"
-                             
-                        # BTTS
+                        # 2. BTTS
                         elif "ambos marcan" in pick or "btts" in pick:
                              if "sí" in pick or "yes" in pick: is_win = home_score > 0 and away_score > 0
                              else: is_win = home_score == 0 or away_score == 0
                              
-                        # Handicap
+                        # 3. Specialized Over/Under (Corners, Cards, Shots)
+                        elif any(x in pick for x in ["corner", "tarjeta", "card", "tiro", "remate", "shot"]):
+                             is_over = "más" in pick or "mas" in pick or "over" in pick
+                             clean_pick = pick.replace("más de", "").replace("over", "").replace("menos de", "").replace("under", "").strip()
+                             match_num = re.search(r'\d+(\.\d+)?', clean_pick)
+                             val = float(match_num.group()) if match_num else 1.5
+                             
+                             if "córner" in pick or "corner" in pick:
+                                 total = data.get("corners")
+                                 if total is None: raise ValueError("No Corner Data")
+                                 label = "Córners"
+                             elif "tarjeta" in pick or "card" in pick:
+                                 total = data.get("cards")
+                                 if total is None: total = 0
+                                 label = "Tarjetas"
+                             else:
+                                 # Team Shots
+                                 total = data.get("total_shots")
+                                 if total is None: total = 0
+                                 label = "Tiros"
+                             
+                             is_win = total > val if is_over else total < val
+                             result_str = f"{home_score}-{away_score} | {total} {label}"
+
+                        # 4. General Over/Under (Goals, Points)
+                        elif "más de" in pick or "mas de" in pick or "over" in pick or "menos de" in pick or "under" in pick:
+                             is_over = "más" in pick or "mas" in pick or "over" in pick
+                             clean_pick = pick.replace("más de", "").replace("over", "").replace("menos de", "").replace("under", "").replace("goles", "").replace("puntos", "").strip()
+                             match_num = re.search(r'\d+(\.\d+)?', clean_pick)
+                             val = float(match_num.group()) if match_num else 1.5
+                             
+                             total = home_score + away_score
+                             is_win = total > val if is_over else total < val
+                             label = "Puntos" if sport == "basketball" else "Goles"
+                             result_str = f"{home_score}-{away_score} | {total} {label}"
+                             
+                        # 5. Handicap
                         elif "hándicap" in pick or "handicap" in pick or "ah" in pick or re.search(r'(^|\s)[-+]\d+(\.\d+)?', pick):
                              match_num = re.search(r'[-+]?\d*\.?\d+', pick.split(' ')[-1])
                              if not match_num: match_num = re.search(r'[-+]?\d*\.?\d+', pick)
@@ -589,25 +606,20 @@ def check_bets():
                                  target_margin = math.floor(-line) + 1
                                  diff = actual_margin - target_margin
                                  sign = "+" if diff >= 0 else ""
-                                 result_str += f" | {sign}{int(diff)}"
+                                 res_val = f"{sign}{int(diff)}"
+                                 if sport == "basketball": res_val += " Pts"
+                                 result_str += f" | {res_val}"
+
                              elif "visitante" in pick or "away" in pick or "2" in pick.split() or (away_team_clean and away_team_clean in pick):
                                  is_win = (away_score + line) > home_score
                                  actual_margin = away_score - home_score
                                  target_margin = math.floor(-line) + 1
                                  diff = actual_margin - target_margin
                                  sign = "+" if diff >= 0 else ""
-                                 result_str += f" | {sign}{int(diff)}"
-                        
-                        # Corners
-                        elif "córner" in pick or "corner" in pick:
-                            total_corners = data.get("corners")
-                            if total_corners is None: raise ValueError("No Corner Data")
-                            result_str += f" | {total_corners} Crn"
-                            
-                            clean_pick = pick.replace("más de", "").replace("over", "").replace("córners", "").strip()
-                            val = float(clean_pick.split()[0].replace(",", "."))
-                            if "más" in pick or "over" in pick: is_win = total_corners > val
-                            else: is_win = total_corners < val
+                                 res_val = f"{sign}{int(diff)}"
+                                 if sport == "basketball": res_val += " Pts"
+                                 result_str += f" | {res_val}"
+
 
                 except Exception as e:
                     print(f"      [LOGIC-ERROR] Parsing Error for '{pick}': {e}")

@@ -104,7 +104,7 @@ class AIChecker:
                 res = results_map.get(str(sel["fixture_id"]))
                 if res:
                     sel["status"] = res["status"]
-                    pick_text = sel["pick"].lower()
+                    pick_text = (sel.get("pick") or "").lower()
                     if "corners" in pick_text and res.get("corners_total"):
                         sel["result"] = f"Corners: {res['corners_total']}"
                     elif ("tiros" in pick_text or "shots" in pick_text) and res.get("shots_total"):

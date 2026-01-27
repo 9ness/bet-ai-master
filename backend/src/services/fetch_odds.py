@@ -67,7 +67,7 @@ class SportsDataService:
         """
         Realiza la petición usando el cliente centralizado.
         """
-        return call_api(url, params=params)
+        return call_api(url, params=params, extra_headers=self.headers)
 
     def _normalize_key(self, text):
         text = str(text).lower()

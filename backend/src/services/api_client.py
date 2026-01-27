@@ -41,6 +41,9 @@ def call_api(url, method="GET", params=None, data=None, extra_headers=None, time
                 print(f"      [REINTENTO {attempt}/{max_retries}] Conectando a {url}...")
                 time.sleep(2)
 
+            if attempt == 1:
+                print(f"      [PROXY] Requesting {url} via Residential Proxy...")
+            
             response = requests.request(
                 method=method,
                 url=url,
