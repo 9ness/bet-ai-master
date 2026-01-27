@@ -10,7 +10,9 @@
     },
     "dependencies": {
         "@upstash/redis": "^1.36.1",
+        "@vercel/blob": "^2.0.1",
         "clsx": "latest",
+        "g-i-s": "^2.1.7",
         "googleapis": "latest",
         "html2canvas": "^1.4.1",
         "lucide-react": "latest",
@@ -18,6 +20,7 @@
         "react": "latest",
         "react-dom": "latest",
         "recharts": "^3.6.0",
+        "sharp": "^0.34.5",
         "tailwind-merge": "latest",
         "tailwindcss-animate": "^1.0.7"
     },

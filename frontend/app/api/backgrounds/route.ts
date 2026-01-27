@@ -1,22 +1,20 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
+import { list } from '@vercel/blob';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const bgDir = path.join(process.cwd(), 'public', 'backgrounds');
+        // List all blobs (we might want to filter by prefix if needed, but 'list()' gets everything in the store)
+        // Since we only use this store for backgrounds, it's fine.
+        const { blobs } = await list();
 
-        if (!fs.existsSync(bgDir)) {
-            return NextResponse.json({ error: 'Backgrounds directory not found' }, { status: 404 });
-        }
-
-        const files = fs.readdirSync(bgDir).filter(file => {
-            return /\.(png|jpg|jpeg|webp)$/i.test(file);
+        // Return the full URLs
+        return NextResponse.json({
+            files: blobs.map(blob => blob.url)
         });
-
-        return NextResponse.json({ files });
     } catch (error) {
-        console.error('Error reading backgrounds:', error);
+        console.error('Error reading backgrounds from Blob:', error);
         return NextResponse.json({ error: 'Failed to read backgrounds' }, { status: 500 });
     }
 }

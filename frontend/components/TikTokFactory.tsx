@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import html2canvas from 'html2canvas';
-import { Download, Loader2, Settings2, Image as ImageIcon, ChevronRight, ChevronLeft, RefreshCw, Save, ScanEye, X, Copy, Check, LayoutTemplate, Type, Megaphone, Palette, MonitorPlay } from 'lucide-react';
+import { Download, Loader2, Settings2, Image as ImageIcon, ChevronRight, ChevronLeft, RefreshCw, Save, ScanEye, X, Copy, Check, LayoutTemplate, Type, Megaphone, Palette, MonitorPlay, Search } from 'lucide-react';
 import { triggerTouchFeedback } from '@/utils/haptics';
 
 /* 
@@ -96,6 +96,69 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         fetch('/api/social/tiktok').then(res => res.ok ? res.json() : null).then(data => data?.title && setSocialContent(data));
         fetch('/api/backgrounds').then(res => res.json()).then(data => data.files && setAvailableFiles(data.files));
     }, []);
+
+    // --- SEARCH ONLINE STATE ---
+    const [searchModalOpen, setSearchModalOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [saveSettings, setSaveSettings] = useState({ type: 'futbol' as 'futbol' | 'basket' | 'portada' | 'comodin', tag: '' });
+
+
+    // --- ERROR MODAL STATE ---
+    const [errorAlert, setErrorAlert] = useState<{ show: boolean, title: string, msg: string }>({ show: false, title: '', msg: '' });
+
+    const performSearch = async () => {
+        if (!searchQuery.trim()) return;
+        setIsSearching(true);
+        try {
+            const res = await fetch('/api/admin/search-images', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query: searchQuery })
+            });
+            const data = await res.json();
+            if (data.images) setSearchResults(data.images);
+        } catch (e) { console.error(e); }
+        setIsSearching(false);
+    };
+
+    const saveWebImage = async (url: string) => {
+        setIsSearching(true); // Reuse loading state
+        try {
+            const res = await fetch('/api/admin/save-image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    imageUrl: url,
+                    type: saveSettings.type,
+                    tag: saveSettings.tag
+                })
+            });
+
+            if (res.ok) {
+                // Refresh list
+                const data = await fetch('/api/backgrounds').then(r => r.json());
+                if (data.files) setAvailableFiles(data.files);
+                setSearchModalOpen(false);
+            } else {
+                const err = await res.json();
+                setErrorAlert({
+                    show: true,
+                    title: "Imagen Protegida 🛡️",
+                    msg: `Esta web bloquea las descargas externas.\n\nIntenta buscar otra versión de la misma foto o elige un resultado diferente.\n\nDetalle: ${err.error || 'Desconocido'}`
+                });
+            }
+        } catch (e) {
+            console.error(e);
+            setErrorAlert({
+                show: true,
+                title: "Error de Conexión ⚠️",
+                msg: "Hubo un problema al intentar guardar la imagen. Revisa tu conexión o intenta más tarde."
+            });
+        }
+        setIsSearching(false);
+    };
 
     const handleCopyText = (text: string, key: string) => {
         navigator.clipboard.writeText(text).then(() => {
@@ -446,6 +509,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                             <div className="grid grid-cols-3 gap-2 max-h-[50vh] overflow-y-auto custom-scrollbar p-1 mb-4">
                                 {config.bgSelection.map((bg, i) => (<div key={i} className="group relative" onClick={() => setImageSelector({ idx: i })}><div className="aspect-[9/16] rounded-lg overflow-hidden border border-white/10 relative"><img src={`/backgrounds/${bg}`} className="w-full h-full object-cover" alt="bg" /><div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><button className="p-1.5 bg-amber-500 rounded-full text-black hover:scale-110"><RefreshCw size={12} /></button></div></div><p className="text-[8px] text-center text-white/30 mt-1">Slide {i + 1}</p></div>))}
                             </div>
+                            <button onClick={() => setSearchModalOpen(true)} className="w-full mb-2 py-3 bg-sky-500/10 text-sky-500 border border-sky-500/20 rounded-xl text-xs font-bold hover:bg-sky-500/20 transition flex items-center justify-center gap-2"><Search size={14} /> BUSCAR ONLINE</button>
                             <button onClick={() => { setAvailableFiles([...availableFiles]); }} className="w-full py-3 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-xl text-xs font-bold hover:bg-amber-500/20 transition flex items-center justify-center gap-2"><RefreshCw size={14} /> REGENERAR TODOS</button>
                         </div>
                     )}
@@ -455,56 +519,85 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
             {/* === DESKTOP LAYOUT (SPLIT PANE) === */}
             <div className="hidden md:flex w-full max-w-full min-h-[85vh] gap-6 p-6 bg-[#0a0a0a] rounded-3xl border border-white/10 shadow-2xl items-start overflow-visible">
                 {/* LEFT: SETTINGS (Full Height, No Scroll) */}
-                <div className="w-[35%] shrink-0 flex flex-col gap-6">
-                    <div className="flex items-center gap-2 text-white/50 border-b border-white/10 pb-4"><Settings2 size={20} /><h2 className="text-xl font-bold text-white">Configuración</h2></div>
-
-                    {/* GROUP 1: PORTADA */}
-                    <div className="bg-[#121212] border border-white/5 rounded-2xl p-5 space-y-4">
-                        <h3 className="text-sm font-bold text-emerald-400 uppercase tracking-widest flex items-center gap-2"><LayoutTemplate size={16} /> Portada</h3>
-                        <div><label className="text-[10px] text-white/40 font-bold uppercase block mb-1">Título</label><textarea value={config.introTitle} onChange={e => setConfig({ ...config, introTitle: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white text-sm font-bold min-h-[70px] focus:border-emerald-500/50 outline-none" /></div>
-                        <div className="grid grid-cols-2 gap-2">
-                            <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5"><input type="checkbox" checked={config.useFullDate} onChange={(e) => setConfig({ ...config, useFullDate: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-white/60 font-bold">Fecha Larga</span></div>
-                            <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5"><input type="checkbox" checked={config.addHundred} onChange={(e) => { const c = e.target.checked; let val = parseInt(config.introSubtitle.replace(/\D/g, '')) || 0; setConfig({ ...config, addHundred: c, introSubtitle: `+${c ? val * 10 : Math.round(val / 10)} 📈` }) }} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-white/60 font-bold">Cuota x10</span></div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                            <input value={config.introEmoji1} onChange={e => setConfig({ ...config, introEmoji1: e.target.value })} className="bg-black/40 border border-white/10 rounded-lg p-2 text-center text-white" placeholder="Emoji 1" />
-                            <input value={config.introEmoji2} onChange={e => setConfig({ ...config, introEmoji2: e.target.value })} className="bg-black/40 border border-white/10 rounded-lg p-2 text-center text-white" placeholder="Emoji 2" />
-                        </div>
-                        <input value={config.introSubtitle} onChange={e => setConfig({ ...config, introSubtitle: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white text-sm font-bold outline-none focus:border-emerald-500/50" placeholder="Texto Cuota" />
+                {/* LEFT: SETTINGS (Tabbed Sidebar) */}
+                <div className="w-[35%] shrink-0 flex flex-col bg-[#121212] rounded-l-3xl border-r border-white/5 h-full overflow-hidden">
+                    {/* PC TABS */}
+                    <div className="flex items-center gap-1 p-2 border-b border-white/10 bg-black/20 overflow-x-auto scrollbar-hide">
+                        <button onClick={() => setActiveTab('portada')} className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase transition flex flex-col items-center gap-1 ${activeTab === 'portada' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'text-white/40 hover:bg-white/5'}`}>
+                            <LayoutTemplate size={14} /> Portada
+                        </button>
+                        <button onClick={() => setActiveTab('bets')} className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase transition flex flex-col items-center gap-1 ${activeTab === 'bets' || activeTab === 'editor' ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30' : 'text-white/40 hover:bg-white/5'}`}>
+                            <Type size={14} /> Apuestas
+                        </button>
+                        <button onClick={() => setActiveTab('outro')} className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase transition flex flex-col items-center gap-1 ${activeTab === 'outro' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' : 'text-white/40 hover:bg-white/5'}`}>
+                            <Megaphone size={14} /> Cierre
+                        </button>
+                        <button onClick={() => setActiveTab('bg')} className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase transition flex flex-col items-center gap-1 ${activeTab === 'bg' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'text-white/40 hover:bg-white/5'}`}>
+                            <Palette size={14} /> Fondos
+                        </button>
                     </div>
 
-                    {/* GROUP 2: APUESTAS */}
-                    <div className="bg-[#121212] border border-white/5 rounded-2xl p-5 space-y-4">
-                        <h3 className="text-sm font-bold text-sky-400 uppercase tracking-widest flex items-center gap-2"><Type size={16} /> Apuestas ({slideGroups.length})</h3>
-                        <div className="space-y-3">
-                            {slideGroups.map((group, idx) => (
-                                <div key={idx} className="bg-black/30 p-3 rounded-xl border border-white/5 hover:border-sky-500/20">
-                                    <div className="flex gap-2 mb-2"><input value={group.matchDisplay} onChange={e => { const n = [...slideGroups]; n[idx].matchDisplay = e.target.value; setSlideGroups(n) }} className="bg-transparent border-b border-white/10 w-full text-xs font-bold text-sky-300 focus:border-sky-500 outline-none" /><button onClick={() => { const n = [...slideGroups]; n[idx].isFeatured = !n[idx].isFeatured; setSlideGroups(n) }} className={`p-1 rounded ${group.isFeatured ? 'bg-sky-500 text-white' : 'text-white/20'}`}><ScanEye size={12} /></button></div>
-                                    <div className="pl-2 border-l border-white/10 space-y-1">{group.picks.map((p: string, i: number) => <input key={i} value={p} onChange={e => { const n = [...slideGroups]; n[idx].picks[i] = e.target.value; setSlideGroups(n) }} className="bg-transparent w-full text-[10px] text-white/50 focus:text-white outline-none" />)}</div>
+                    {/* PC CONTENT */}
+                    <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-4">
+
+                        {/* PORTADA TAB */}
+                        {activeTab === 'portada' && (
+                            <div className="space-y-4 animate-in fade-in slide-in-from-left-2 duration-300">
+                                <div><label className="text-[10px] text-white/40 font-bold uppercase block mb-1">Título</label><textarea value={config.introTitle} onChange={e => setConfig({ ...config, introTitle: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white text-sm font-bold min-h-[70px] focus:border-emerald-500/50 outline-none" /></div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5"><input type="checkbox" checked={config.useFullDate} onChange={(e) => setConfig({ ...config, useFullDate: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-white/60 font-bold">Fecha Larga</span></div>
+                                    <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5"><input type="checkbox" checked={config.addHundred} onChange={(e) => { const c = e.target.checked; let val = parseInt(config.introSubtitle.replace(/\D/g, '')) || 0; setConfig({ ...config, addHundred: c, introSubtitle: `+${c ? val * 10 : Math.round(val / 10)} 📈` }) }} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-white/60 font-bold">Cuota x10</span></div>
                                 </div>
-                            ))}
-                            {!slideGroups.length && <p className="text-xs text-center text-white/20 py-4">Sin datos</p>}
-                        </div>
-                    </div>
-
-                    {/* GROUP 3: CIERRE */}
-                    <div className="bg-[#121212] border border-white/5 rounded-2xl p-5 space-y-4">
-                        <h3 className="text-sm font-bold text-purple-400 uppercase tracking-widest flex items-center gap-2"><Megaphone size={16} /> Cierre</h3>
-                        <textarea value={config.outroTitle} onChange={e => setConfig({ ...config, outroTitle: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white text-sm font-bold min-h-[60px] focus:border-purple-500/50 outline-none" placeholder="Título Cierre" />
-                        <textarea value={config.outroSub} onChange={e => setConfig({ ...config, outroSub: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white text-sm font-bold min-h-[50px] focus:border-purple-500/50 outline-none" placeholder="Subtítulo" />
-                    </div>
-
-                    {/* GROUP 4: FONDOS */}
-                    <div className="bg-[#121212] border border-white/5 rounded-2xl p-5 space-y-4">
-                        <div className="flex justify-between items-center"><h3 className="text-sm font-bold text-amber-400 uppercase tracking-widest flex items-center gap-2"><Palette size={16} /> Fondos</h3><button onClick={() => smartSelectBackgrounds()} className="text-[10px] font-bold text-amber-500 hover:underline">Regenerar</button></div>
-                        <div className="grid grid-cols-4 gap-2 p-1">
-                            {config.bgSelection.map((bg, i) => (
-                                <div key={i} className="group relative aspect-[9/16] rounded overflow-hidden border border-white/10 cursor-pointer hover:border-amber-500/50 transition" onClick={() => setImageSelector({ idx: i })}>
-                                    <img src={`/backgrounds/${bg}`} className="w-full h-full object-cover" />
-                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center"><RefreshCw size={12} className="text-white" /></div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <input value={config.introEmoji1} onChange={e => setConfig({ ...config, introEmoji1: e.target.value })} className="bg-black/40 border border-white/10 rounded-lg p-2 text-center text-white" placeholder="Emoji 1" />
+                                    <input value={config.introEmoji2} onChange={e => setConfig({ ...config, introEmoji2: e.target.value })} className="bg-black/40 border border-white/10 rounded-lg p-2 text-center text-white" placeholder="Emoji 2" />
                                 </div>
-                            ))}
-                        </div>
+                                <input value={config.introSubtitle} onChange={e => setConfig({ ...config, introSubtitle: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white text-sm font-bold outline-none focus:border-emerald-500/50" placeholder="Texto Cuota" />
+                            </div>
+                        )}
+
+                        {/* BETS TAB (Default if editor) */}
+                        {(activeTab === 'bets' || activeTab === 'editor') && (
+                            <div className="space-y-3 animate-in fade-in slide-in-from-left-2 duration-300">
+                                {slideGroups.map((group, idx) => (
+                                    <div key={idx} className="bg-black/30 p-3 rounded-xl border border-white/5 hover:border-sky-500/20 transition-all">
+                                        <div className="flex gap-2 mb-2"><input value={group.matchDisplay} onChange={e => { const n = [...slideGroups]; n[idx].matchDisplay = e.target.value; setSlideGroups(n) }} className="bg-transparent border-b border-white/10 w-full text-xs font-bold text-sky-300 focus:border-sky-500 outline-none pb-1" /><button onClick={() => { const n = [...slideGroups]; n[idx].isFeatured = !n[idx].isFeatured; setSlideGroups(n) }} className={`p-1 rounded ${group.isFeatured ? 'bg-sky-500 text-white' : 'text-white/20'}`}><ScanEye size={12} /></button></div>
+                                        <div className="pl-2 border-l border-white/10 space-y-1">{group.picks.map((p: string, i: number) => <input key={i} value={p} onChange={e => { const n = [...slideGroups]; n[idx].picks[i] = e.target.value; setSlideGroups(n) }} className="bg-transparent w-full text-[10px] text-white/50 focus:text-white outline-none" />)}</div>
+                                    </div>
+                                ))}
+                                {!slideGroups.length && <p className="text-xs text-center text-white/20 py-4">Sin datos</p>}
+                            </div>
+                        )}
+
+                        {/* OUTRO TAB */}
+                        {activeTab === 'outro' && (
+                            <div className="space-y-4 animate-in fade-in slide-in-from-left-2 duration-300">
+                                <textarea value={config.outroTitle} onChange={e => setConfig({ ...config, outroTitle: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white text-sm font-bold min-h-[60px] focus:border-purple-500/50 outline-none" placeholder="Título Cierre" />
+                                <textarea value={config.outroSub} onChange={e => setConfig({ ...config, outroSub: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white text-sm font-bold min-h-[50px] focus:border-purple-500/50 outline-none" placeholder="Subtítulo" />
+                            </div>
+                        )}
+
+                        {/* BACKGROUNDS TAB */}
+                        {activeTab === 'bg' && (
+                            <div className="space-y-4 animate-in fade-in slide-in-from-left-2 duration-300">
+                                <div className="flex justify-between items-center bg-black/20 p-2 rounded-lg">
+                                    <h3 className="text-xs font-bold text-amber-500 uppercase">Galería</h3>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => setSearchModalOpen(true)} className="px-3 py-1 bg-sky-500/10 text-sky-400 border border-sky-500/20 rounded-md text-[9px] font-bold hover:bg-sky-500/20 flex items-center gap-1"><Search size={10} /> BUSCAR</button>
+                                        <button onClick={() => smartSelectBackgrounds()} className="px-3 py-1 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-md text-[9px] font-bold hover:bg-amber-500/20 flex items-center gap-1"><RefreshCw size={10} /> AUTO</button>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {config.bgSelection.map((bg, i) => (
+                                        <div key={i} className={`group relative aspect-[9/16] rounded-lg overflow-hidden border cursor-pointer transition-all ${imageSelector.idx === i ? 'border-amber-500 ring-2 ring-amber-500/20' : 'border-white/10 hover:border-white/30'}`} onClick={() => setImageSelector({ idx: i })}>
+                                            <img src={`/backgrounds/${bg}`} className="w-full h-full object-cover" />
+                                            {imageSelector.idx === i && <div className="absolute inset-0 bg-amber-500/20" />}
+                                            <div className="absolute bottom-1 right-1 bg-black/60 px-1.5 py-0.5 rounded text-[8px] text-white/70">{i + 1}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -617,7 +710,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                 <button onClick={() => setImageSelector({ idx: null })} className="p-2 hover:bg-white/10 rounded-full transition"><X size={24} className="text-white/70" /></button>
                             </div>
 
-                            {/* --- FILTERS BAR --- */}
+                            {/* ... (Existing Filters) ... */}
                             <div className="flex flex-wrap items-center gap-2 border-t border-white/5 pt-4">
                                 <button
                                     onClick={() => { setBgFilter('all'); setBgTeamSelected(null); }}
@@ -626,6 +719,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                 >
                                     Todas ({availableFiles.length})
                                 </button>
+                                {/* ... other filters ... */}
                                 <button
                                     onClick={() => { setBgFilter('futbol'); setBgTeamSelected(null); }}
                                     className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border
@@ -715,6 +809,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
 
                         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-black/20">
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                {/* ... grid items ... */}
                                 {availableFiles
                                     .filter(f => {
                                         if (bgFilter === 'all') return true;
@@ -731,7 +826,6 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                     .sort((a, b) => {
                                         if (a === config.bgSelection[imageSelector.idx!]) return -1;
                                         if (b === config.bgSelection[imageSelector.idx!]) return 1;
-                                        // Case-insensitive alphabetical sort
                                         return a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true });
                                     }).map((file, i) => (
                                         <div
@@ -746,15 +840,11 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                             `}
                                         >
                                             <img src={`/backgrounds/${file}`} className="w-full h-full object-cover" loading="lazy" />
-
-                                            {/* Overlay Info */}
                                             <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/90 via-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <p className="text-[10px] text-white font-mono truncate">
                                                     {formatTeamName(file.split('-')[2] || file.replace('bg-', '').replace('.png', ''))}
                                                 </p>
                                             </div>
-
-                                            {/* Current Indicator */}
                                             {config.bgSelection[imageSelector.idx!] === file && (
                                                 <div className="absolute top-2 right-2 bg-amber-500 text-black p-1 rounded-full shadow-lg">
                                                     <Check size={12} strokeWidth={4} />
@@ -768,11 +858,128 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                 </div>
             )}
 
+            {/* SEARCH ONLINE MODAL */}
+            {searchModalOpen && (
+                <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-black/90 backdrop-blur p-4">
+                    <div className="bg-[#1a1a1a] border border-white/10 rounded-3xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+                        {/* Header */}
+                        <div className="p-6 border-b border-white/10 flex justify-between items-center bg-[#1a1a1a]">
+                            <div>
+                                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                    <Search size={22} className="text-sky-500" /> Buscador Online
+                                </h3>
+                                <p className="text-xs text-white/50 mt-1">Busca imágenes en internet, guárdalas y úsalas al instante.</p>
+                            </div>
+                            <button onClick={() => setSearchModalOpen(false)} className="p-2 hover:bg-white/10 rounded-full text-white/70"><X size={24} /></button>
+                        </div>
+
+                        {/* Controls */}
+                        <div className="p-6 border-b border-white/10 bg-black/20 space-y-4">
+                            <div className="flex gap-3">
+                                <input
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && performSearch()}
+                                    placeholder="Ej: Real Madrid Vertical Wallpaper..."
+                                    className="flex-1 bg-black/50 border border-white/10 rounded-xl px-4 text-white placeholder:text-white/20 focus:border-sky-500 outline-none"
+                                    autoFocus
+                                />
+                                <button onClick={performSearch} disabled={isSearching} className="px-6 py-3 bg-sky-500 text-white font-bold rounded-xl hover:bg-sky-400 disabled:opacity-50">
+                                    {isSearching ? <Loader2 className="animate-spin" /> : "Buscar"}
+                                </button>
+                            </div>
+
+                            <div className="flex items-center gap-4 p-3 bg-white/5 rounded-xl border border-white/5">
+                                <span className="text-[10px] font-bold uppercase text-white/50">Guardar como:</span>
+                                <div className="flex gap-2">
+                                    {['futbol', 'basket', 'portada', 'comodin'].map(t => (
+                                        <button
+                                            key={t}
+                                            onClick={() => setSaveSettings({ ...saveSettings, type: t as any })}
+                                            className={`px-3 py-1 rounded-lg text-[10px] uppercase font-bold border transition ${saveSettings.type === t ? 'bg-sky-500 text-white border-sky-500' : 'bg-transparent text-white/40 border-white/10'}`}
+                                        >
+                                            {t}
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="flex-1">
+                                    <input
+                                        value={saveSettings.tag}
+                                        onChange={(e) => setSaveSettings({ ...saveSettings, tag: e.target.value })}
+                                        placeholder="Nombre del Equipo (Ej: RealMadrid)"
+                                        className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-1 text-xs text-white focus:border-sky-500 outline-none"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Results */}
+                        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-[#121212]">
+                            {searchResults.length === 0 && !isSearching && (
+                                <div className="h-full flex flex-col items-center justify-center text-white/20 gap-4">
+                                    <Search size={48} />
+                                    <p>Escribe algo para buscar</p>
+                                </div>
+                            )}
+
+                            {isSearching ? (
+                                <div className="h-full flex flex-col items-center justify-center text-sky-500 gap-4">
+                                    <Loader2 size={48} className="animate-spin" />
+                                    <p className="text-white/50 text-xs animate-pulse">Buscando imágenes 4K...</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                    {searchResults.map((img, idx) => (
+                                        <div key={idx} className="group relative aspect-[9/16] bg-black rounded-xl overflow-hidden cursor-pointer border border-white/10 hover:border-sky-500 transition" onClick={() => saveWebImage(img.url)}>
+                                            <img
+                                                src={img.thumbnail || img.url}
+                                                className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition"
+                                                loading="lazy"
+                                                onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = 'none'; }}
+                                            />
+                                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center gap-2 transition-all">
+                                                <Download size={24} className="text-sky-400" />
+                                                <span className="text-[10px] font-bold text-white uppercase tracking-wider">Guardar</span>
+                                            </div>
+                                            <div className="absolute bottom-0 inset-x-0 p-2 bg-gradient-to-t from-black/90 to-transparent">
+                                                <p className="text-[9px] text-white/70 truncate">{img.title}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ERROR ALERT MODAL */}
+            {errorAlert.show && (
+                <div className="fixed inset-0 z-[5000] flex items-center justify-center bg-black/80 backdrop-blur p-6 animate-in fade-in duration-200">
+                    <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center gap-3 text-amber-500 mb-2">
+                            <Megaphone size={24} className="animate-bounce" />
+                            <h3 className="text-lg font-bold text-white">{errorAlert.title}</h3>
+                        </div>
+                        <p className="text-sm text-white/70 whitespace-pre-line leading-relaxed">
+                            {errorAlert.msg}
+                        </p>
+                        <button
+                            onClick={() => setErrorAlert({ ...errorAlert, show: false })}
+                            className="w-full py-3 bg-white text-black font-black uppercase tracking-widest rounded-xl hover:scale-105 transition-transform"
+                        >
+                            Entendido
+                        </button>
+                    </div>
+                </div>
+            )}
+
         </div>
     );
 }
 
 function getImageSrc(bg: string | undefined) {
     if (!bg) return "/backgrounds/bg-portada-1.png";
-    return bg.includes('.') ? `/backgrounds/${bg}` : `/backgrounds/${bg}`;
+    if (bg.startsWith('http')) return bg;
+    return `/backgrounds/${bg}`;
 }
