@@ -118,7 +118,7 @@ class SportsDataService:
             json.dump(all_matches, f, indent=4, ensure_ascii=False)
             
         total_calls = self.calls_football + self.calls_basketball
-        print(f"\n[SUCCESS] Total partidos guardados: {len(all_matches)}")
+        print(f"\n[FINISH] Total partidos guardados: {len(all_matches)}")
         print(f"[CONSUMO] Fútbol: {self.calls_football} | Basket: {self.calls_basketball} | Total: {total_calls}")
         print(f"Archivo: {self.output_file}")
         
@@ -220,6 +220,7 @@ class SportsDataService:
 
         except Exception as e:
             print(f"    [!] Error fetching {sport} for {date_str}: {e}")
+            raise e
 
         return matches_found
 

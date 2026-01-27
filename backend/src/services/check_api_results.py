@@ -881,4 +881,13 @@ def update_monthly_stats(rs, month_str):
     print(f"[STATS] Updated stats:latest")
 
 if __name__ == "__main__":
-    check_bets()
+    try:
+        check_bets()
+    except Exception as e:
+        print(f"[CRITICAL] Check Bets Failed: {e}")
+        # Re-init rs just in case or use global if available (it is inside check_bets, but we need it here)
+        from src.services.redis_service import RedisService
+        _rs = RedisService()
+        if _rs.is_active:
+            _rs.log_status("Check Results", "ERROR", str(e))
+        sys.exit(1)

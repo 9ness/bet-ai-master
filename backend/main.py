@@ -43,7 +43,10 @@ def main():
                 print(f"[CACHE] Saved raw matches to Redis Hash for {today_str}")
 
         if rs.is_active and args.mode in ['all', 'fetch']:
-             rs.log_status("Daily Fetch", "SUCCESS", "Fetch Completed")
+            if matches:
+                 rs.log_status("Daily Fetch", "SUCCESS", "Fetch Completed")
+            else:
+                 rs.log_status("Daily Fetch", "IDLE", "No matches found today")
 
         if not matches and args.mode == 'fetch':
             print("No matches found.")
@@ -84,7 +87,7 @@ def main():
             print("[ERROR] No se obtuvieron recomendaciones de Gemini. Abortando guardado.")
             exit(1) # Fail the workflow if AI fails
 
-    print("\n--- PROCESS COMPLETED SUCCESSFULLY ---")
+    print(f"\n--- PROCESS FINISHED ({args.mode}) ---")
     # print(f"Check results in: {os.path.abspath(os.path.join('data', 'daily_bets.json'))}") # Ya no es la fuente de verdad
 
 if __name__ == "__main__":
@@ -95,6 +98,12 @@ if __name__ == "__main__":
         print(f"[CRITICAL] Main Script Failed: {e}")
         rs = RedisService()
         if rs.is_active: 
-             # Fallback error logging - hard to know which part failed without more context, defaulting to General
-             rs.log_status("Daily Analysis", "ERROR", str(e))
+             # Log correctly based on mode
+             if 'fetch' in str(args.mode):
+                 rs.log_status("Daily Fetch", "ERROR", str(e))
+             elif 'analyze' in str(args.mode):
+                 rs.log_status("Daily Analysis", "ERROR", str(e))
+             else:
+                 # In 'all' mode, we might not know exactly, but usually it's the current active part
+                 rs.log_status("General", "ERROR", str(e))
         exit(1)
