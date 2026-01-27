@@ -197,8 +197,6 @@ class SportsDataService:
                 # Count Odds Call
                 if sport == "football": self.calls_football += 1
                 else: self.calls_basketball += 1
-                
-                if not odds or not any(odds.values()): continue 
                         
                 match_entry = {
                     "sport": sport, 

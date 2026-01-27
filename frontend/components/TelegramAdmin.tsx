@@ -614,6 +614,44 @@ function TelegramCard({
         ? item.mensaje
         : (item.mensaje.includes('🧠') ? item.mensaje.split('🧠')[0].trim() : item.mensaje);
 
+    // Recursive helper to render basic Telegram HTML tags in the preview
+    const renderTelegramHTML: any = (text: string) => {
+        if (!text) return null;
+        // Remove markdown artifacts for preview
+        const clean = text.replace(/\*\*/g, '');
+
+        // Split by supported tags (<b>, <u>, <blockquote>) using [\s\S] to match newlines
+        // Using a more inclusive regex for the split
+        const parts = clean.split(/(<[bu]>[\s\S]*?<\/[bu]>|<blockquote>[\s\S]*?<\/blockquote>)/gi);
+
+        return parts.map((part, i) => {
+            if (!part) return null;
+
+            // Check for tags using regex matching for robustness
+            const bMatch = part.match(/^<b>([\s\S]*)<\/b>$/i);
+            if (bMatch) {
+                return <b key={i} className="font-bold text-white">{renderTelegramHTML(bMatch[1])}</b>;
+            }
+
+            const uMatch = part.match(/^<u>([\s\S]*)<\/u>$/i);
+            if (uMatch) {
+                return <u key={i} className="underline decoration-white/40">{renderTelegramHTML(uMatch[1])}</u>;
+            }
+
+            const qMatch = part.match(/^<blockquote>([\s\S]*)<\/blockquote>$/i);
+            if (qMatch) {
+                return (
+                    <blockquote key={i} className="border-l-2 border-white/20 pl-3 my-2 italic text-gray-400 bg-white/5 py-1 rounded-r-md whitespace-pre-wrap">
+                        {renderTelegramHTML(qMatch[1].trim())}
+                    </blockquote>
+                );
+            }
+
+            // Default text node
+            return <span key={i} className="whitespace-pre-wrap">{part}</span>;
+        });
+    };
+
     return (
         <div className={`relative group p-3 md:p-3 rounded-xl border bg-gradient-to-br transition-all hover:border-opacity-50 ${getCardColor(item.bet_type_key)}`}>
             {/* Header Compact - Now includes Edit Button */}
@@ -671,7 +709,7 @@ function TelegramCard({
             ) : (
                 <div className="relative group/text">
                     <div className="bg-black/20 rounded-lg p-2 font-mono text-[11px] text-gray-300 w-full mb-2 max-h-[140px] overflow-y-auto custom-scrollbar leading-relaxed">
-                        <div className="whitespace-pre-wrap">{displayMessage}</div>
+                        <div>{renderTelegramHTML(displayMessage)}</div>
                     </div>
                 </div>
             )}

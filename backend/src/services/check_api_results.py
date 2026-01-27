@@ -879,6 +879,10 @@ def update_monthly_stats(rs, month_str):
 
     rs.set_data("stats:latest", stats_object)
     print(f"[STATS] Updated stats:latest")
+    
+    # Status Report
+    if rs.is_active:
+        rs.log_status("Check Results", "SUCCESS", "Resultados actualizados correctamente")
 
 if __name__ == "__main__":
     try:

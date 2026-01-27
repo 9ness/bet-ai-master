@@ -57,7 +57,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
 
     // Settings State
     // Control Panel Sub-tabs State
-    const [activeControlTab, setActiveControlTab] = useState<'visibilidad' | 'anuncio' | 'acciones' | 'blacklist'>('visibilidad');
+    const [activeControlTab, setActiveControlTab] = useState<'visibilidad' | 'anuncio' | 'acciones' | 'blacklist'>('acciones');
 
     const [settings, setSettings] = useState({
         show_daily_bets: true,
@@ -166,7 +166,14 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
         fetch('/api/admin/blacklist')
             .then(res => res.json())
             .then(data => {
-                if (data.blacklist) setBlacklist(data.blacklist);
+                if (data.blacklist) {
+                    setBlacklist(data.blacklist);
+                    // Si hay datos en la blacklist, ésta pasa a ser la primera viewbox, 
+                    // así que la activamos por defecto siguiendo la lógica de orderedIds.
+                    if (Object.keys(data.blacklist).length > 0) {
+                        setActiveControlTab('blacklist');
+                    }
+                }
             })
             .catch(err => console.error("Failed to fetch blacklist", err))
             .finally(() => setLoadingBlacklist(false));
@@ -234,22 +241,22 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
 
     // Button 1: Comprobar -> calls /api/admin/trigger-check (triggers update_results_bet.yml)
     const handleCheckBets = () => {
-        triggerGitHubAction('/api/admin/trigger-check', { date: formattedDate }, setCheckStatus);
+        triggerGitHubAction('/api/admin/trigger-check', {}, setCheckStatus);
     };
 
     // Button 2: Recolectar -> calls /api/admin/trigger (triggers daily_bet_update.yml)
     const handleCollect = () => {
-        triggerGitHubAction('/api/admin/trigger', { mode: 'all' }, setCollectStatus);
+        triggerGitHubAction('/api/admin/trigger', { mode: 'fetch' }, setCollectStatus);
     };
 
     // Button 3: Analizar -> calls /api/admin/trigger-analysis (triggers ai_analysis.yml)
     const handleAnalyze = () => {
-        triggerGitHubAction('/api/admin/trigger-analysis', { mode: 'all' }, setAnalyzeStatus);
+        triggerGitHubAction('/api/admin/trigger-analysis', {}, setAnalyzeStatus);
     };
 
     // Button 4: TikTok Social -> calls /api/admin/trigger-social
     const handleSocial = () => {
-        triggerGitHubAction('/api/admin/trigger-social', { mode: 'all' }, setSocialStatus);
+        triggerGitHubAction('/api/admin/trigger-social', {}, setSocialStatus);
     };
 
     const getStatusBadge = (scriptName: string) => {
@@ -479,7 +486,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
             </div>
 
             {/* Navigation Tabs */}
-            <div className="bg-black/80 backdrop-blur-md border-b border-white/5 sticky top-16 z-[90]">
+            <div className="bg-black/80 backdrop-blur-md border-b border-white/5 sticky top-10 z-[90]">
                 <div className="max-w-7xl mx-auto px-2 md:px-4 flex justify-start md:gap-6 overflow-x-auto scrollbar-hide">
                     <button
                         onClick={() => scrollToTab('analysis')}
@@ -595,7 +602,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                             <div className="max-w-3xl mx-auto space-y-8">
 
                                 {/* SUB-TABS NAVIGATION */}
-                                <div className="flex items-center justify-start md:justify-center gap-2 md:gap-4 overflow-x-auto pb-4 scrollbar-hide px-2">
+                                <div className="flex items-center justify-start md:justify-center gap-2 md:gap-4 overflow-x-auto pt-4 pb-4 scrollbar-hide px-2">
                                     {(() => {
                                         const hasBlacklistData = Object.keys(blacklist).length > 0;
 
@@ -615,13 +622,13 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                             const Icon = tab.icon;
                                             return (
                                                 <button
-                                                    key={tab.id}
+                                                    key={`${tab.id}-${activeControlTab === tab.id}`}
                                                     onClick={() => setActiveControlTab(tab.id as any)}
                                                     className={`
                                                         flex flex-col items-center justify-center px-4 md:px-6 py-2 md:py-3 rounded-xl border transition-all min-w-[85px] md:min-w-[120px] hover:scale-105 active:scale-95 duration-200
                                                         ${activeControlTab === tab.id
                                                             ? tab.activeClass
-                                                            : 'bg-black/40 border-white/5 text-white/50 hover:bg-white/10 hover:text-white/80'
+                                                            : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10 hover:text-white/80'
                                                         }
                                                     `}
                                                 >
@@ -906,7 +913,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                                 <div className="flex justify-between items-start">
                                                     <div>
                                                         <h4 className="font-bold text-base text-emerald-400">4º - Comprobador Automático</h4>
-                                                        <p className="text-xs text-white/50 font-mono mt-0.5">update_results_bet.yml</p>
+                                                        <p className="text-xs text-white/50 font-mono mt-0.5">check_results_cron.yml</p>
                                                     </div>
                                                     {checkStatus === 'loading' ? <RefreshCw className="animate-spin text-emerald-500" size={16} /> : getStatusBadge('Check Results')}
                                                 </div>

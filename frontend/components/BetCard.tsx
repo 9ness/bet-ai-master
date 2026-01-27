@@ -648,8 +648,10 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
         } catch { return false; }
     };
 
+    const isResultsPage = pathname?.includes('calendar') || pathname?.includes('resultados') || !!date;
+
     return (
-        <div className={`group relative bg-card border border-border rounded-3xl p-6 transition-all duration-300 hover:shadow-2xl ${config.cardBorder} ${config.cardShadow} ${type === 'value' ? 'scale-105 z-10 shadow-xl' : ''}`}>
+        <div className={`group relative bg-card border border-border rounded-3xl p-6 transition-all duration-300 hover:shadow-2xl ${config.cardBorder} ${config.cardShadow} ${type === 'value' ? 'z-10 shadow-xl' : ''}`}>
             {/* Header Line */}
             <div className={`absolute inset-x-0 top-0 h-1 ${config.headerBg} rounded-t-3xl`} />
 
@@ -722,7 +724,7 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
                 <div className="flex flex-col">
                     <div className="flex items-center gap-2">
                         <h3 className="font-bold text-xl">{config.title}</h3>
-                        {data.reason && (
+                        {data.reason && isResultsPage && (
                             <span title={data.reason}>
                                 <Info size={16} className="text-muted-foreground/50 cursor-help hover:text-muted-foreground transition-colors" />
                             </span>

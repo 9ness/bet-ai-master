@@ -131,31 +131,63 @@ export async function POST(request: Request) {
 
             // Format Analysis Text
             const rawReason = bet.reason || bet.analysis || 'Sin análisis';
-            let formattedReason = rawReason;
 
-            // Smart Split: Split by dot followed by space and Uppercase letter (heuristic for sentence start)
-            // This avoids breaking decimals like "1.5" or "1.25"
-            if (rawReason.length > 30) {
-                // Split by ". " that is followed by an uppercase letter
-                const segments = rawReason.split(/\.(?=\s+[A-ZÁÉÍÓÚÑ])/).map((s: string) => s.trim()).filter((s: string) => s.length > 5);
+            // 1. Pre-process: Clean asterisks and replace technical terms
+            let cleanReason = rawReason.replace(/\*/g, '').replace(/BTTS/gi, 'ambos marcan');
 
-                if (segments.length > 0) {
-                    formattedReason = segments.map((seg: string) => {
-                        // Ensure it ends with dot if it's a sentence
-                        const cleanSeg = seg.replace(/^\.+/, '').trim(); // Remove leading dots
-                        return cleanSeg.endsWith('.') ? `🟢 ${cleanSeg}` : `🟢 ${cleanSeg}.`;
-                    }).join("\n\n");
-                }
+            // 2. Robust Splitting into 3 main blocks (Anchors 1. 2. 3.)
+            // We look for "1. ", "2. ", "3. " at the start of original lines or after a dot/space
+            const pointsRegex = /(?:\n|\r|\. |^)(1\.|2\.|3\.)\s+/g;
+            let matches = [];
+            let match;
+            while ((match = pointsRegex.exec(cleanReason)) !== null) {
+                matches.push({
+                    num: match[1],
+                    index: match.index + (match[0].length - match[1].length - 1), // Adjust to point to the start of "N. "
+                    fullMatchLength: match[0].length
+                });
             }
 
-            // 3. Construct Message
+            // Refined extraction to ensure we don't catch "1.83" indoors
+            // Actually, let's use a simpler logic for split since points are usually well defined
+            const finalLines: string[] = [];
+            let formattedReason = '';
+
+            if (matches.length > 0) {
+                matches.forEach((m, i) => {
+                    const startPos = m.index + m.num.length + 1;
+                    const endPos = (i + 1 < matches.length) ? matches[i + 1].index : cleanReason.length;
+                    let content = cleanReason.substring(startPos, endPos).trim();
+                    if (content) {
+                        content = content.replace(/[\r\n]+/g, ' ').replace(/\s\s+/g, ' ');
+
+                        // Logic to bold the title (up to the colon)
+                        const titleMatch = content.match(/^([^:]+:)(.*)/);
+                        if (titleMatch) {
+                            const title = titleMatch[1];
+                            const rest = titleMatch[2];
+                            finalLines.push(`🟢 <b>${m.num} ${title}</b>${rest}`);
+                        } else {
+                            finalLines.push(`🟢 <b>${m.num}</b> ${content}`);
+                        }
+                    }
+                });
+                formattedReason = finalLines.join("\n\n");
+            } else {
+                formattedReason = `🟢 ${cleanReason.replace(/[\r\n]+/g, ' ').trim()}`;
+            }
+
+            // 3. Stake formatting (ensure integer)
+            const stakeVal = Math.floor(parseFloat(bet.stake) || 1);
+
+            // 4. Construct Message
             const msg = `${leagueText}\n\n` +
                 `${matchesBlock}\n\n` +
-                `📊 Cuota ${bet.total_odd || 1.0}   | 📈 STAKE ${bet.stake || 1}\n` +
+                `📊 Cuota ${bet.total_odd || 1.0}   | 📈 STAKE ${stakeVal}\n` +
                 `🏠 Apuesta realizada en Bet365\n` +
                 `<u>🔞 Apuesta con responsabilidad.</u>\n\n` +
                 `🧠 <b>Análisis de BetAiMaster:</b>\n` +
-                `${formattedReason}`;
+                `<blockquote>${formattedReason}</blockquote>`;
 
             const item = {
                 id: crypto.randomUUID(),

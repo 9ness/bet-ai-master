@@ -28,14 +28,7 @@ export async function POST(request: Request) {
             },
             body: JSON.stringify({
                 ref: ref,
-                inputs: {
-                    // check if workflow actually accepts inputs. If not, this might be ignored or cause error?
-                    // Usually safe to omit if not sure, but let's assume it accepts 'mode' or nothing.
-                    // If it accepts no inputs, passing inputs might fail logic in some GH actions 
-                    // dependent on strict definition, but usually it's fine.
-                    // I will pass nothing for now to be safe, unless I checked the yml (I listed it but didn't read it).
-                    // User said "el botón hará que el github actions se ejecute".
-                }
+                inputs: {}
             })
         });
 

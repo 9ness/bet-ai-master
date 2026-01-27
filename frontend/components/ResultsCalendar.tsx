@@ -175,8 +175,8 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
     const hasDetails = details.length > 0;
     const hasChanges = Object.keys(pendingChanges).length > 0;
 
-    // Helper to get unique ID for selection (legacy compatibility)
-    const getSelId = (detail: any) => detail.fixture_id ? detail.fixture_id.toString() : detail.match;
+    // Helper to get unique ID for selection (using index for backend fallback compatibility and uniqueness)
+    const getSelId = (_detail: any, idx: number) => idx.toString();
 
     const handleLocalResultChange = (id: string, val: string) => {
         setEditedResults(prev => ({ ...prev, [id]: val }));
@@ -192,8 +192,8 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
 
         // 2. Derive Parent Status
         // Merge current details with pending changes
-        const mergedDetails = details.map((d: any) => {
-            const uid = getSelId(d);
+        const mergedDetails = details.map((d: any, idx: number) => {
+            const uid = getSelId(d, idx);
             const s = updatedPending[uid] || d.status || 'PENDING';
             // Normalize
             return s === 'GANADA' ? 'WON' : s === 'PERDIDA' ? 'LOST' : s === 'PENDIENTE' ? 'PENDING' : s === 'NULA' ? 'VOID' : s;
@@ -301,9 +301,9 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
             {/* ... (Header) ... */}
             <div className="flex justify-between items-start mb-2">
                 <span className={`text-xs font-bold uppercase px-2 py-1 rounded-full flex items-center gap-1.5
-                    ${finalType === 'safe' ? 'bg-emerald-500/10 text-emerald-500' :
-                        finalType === 'value' ? 'bg-violet-500/10 text-violet-500' :
-                            'bg-amber-500/10 text-amber-500'}`}>
+                    ${finalType === 'safe' ? 'bg-cyan-500/10 text-cyan-500' :
+                        finalType === 'value' ? 'bg-amber-500/10 text-amber-500' :
+                            'bg-fuchsia-500/10 text-fuchsia-500'}`}>
                     {finalType === 'safe' ? 'SEGURA' : finalType === 'value' ? 'DE VALOR' : finalType}
                     {bet.reason && (
                         <button
@@ -358,7 +358,9 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
             {/* Single Bet Result Display */}
             {(!hasDetails || details.length === 1) && (() => {
                 const single = details[0] || {};
-                const r = editedResults[getSelId(single)] !== undefined ? editedResults[getSelId(single)] : single.result;
+                // Force index 0 for single item
+                const uniqueId = getSelId(single, 0);
+                const r = editedResults[uniqueId] !== undefined ? editedResults[uniqueId] : single.result;
 
                 return ( // Simplified Return
                     <div className="mb-3">
@@ -369,7 +371,7 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
                             <input
                                 type="text"
                                 value={r === 'N/A' ? '' : r}
-                                onChange={(e) => handleLocalResultChange(getSelId(single), e.target.value)}
+                                onChange={(e) => handleLocalResultChange(uniqueId, e.target.value)}
                                 className="w-full bg-black/20 border border-white/5 rounded px-2 py-0.5 text-[10px] font-bold mb-1 focus:ring-1 focus:ring-primary outline-none"
                                 placeholder="Resultado Manual (ej: 2 Shots)"
                             />
@@ -410,7 +412,7 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
                 (expanded || (showSave && hasDetails)) && hasDetails && (
                     <div className="mb-3 space-y-1 bg-background/50 p-2 rounded-lg border border-border/30">
                         {details.map((detail: any, idx: number) => {
-                            const uniqueId = getSelId(detail);
+                            const uniqueId = getSelId(detail, idx);
                             const r = editedResults[uniqueId] !== undefined ? editedResults[uniqueId] : detail.result;
 
                             // ... (status calculations) ...

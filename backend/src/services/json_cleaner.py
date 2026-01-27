@@ -2,18 +2,32 @@ import json
 
 def remove_nulls(d):
     """
-    Elimina recursivamente todas las claves con valores None (null).
-    Útil para reducir el tamaño del JSON enviado a la IA.
+    Elimina recursivamente todas las claves con valores None (null) y cuenta cuántos.
+    Retorna (dato_limpio, total_purgados)
     """
+    purgados = 0
     if isinstance(d, dict):
-        return {
-            k: v for k, v in ((k, remove_nulls(v)) for k, v in d.items())
-            if v is not None
-        }
+        new_dict = {}
+        for k, v in d.items():
+            if v is None:
+                purgados += 1
+                continue
+            v_cleaned, v_purgados = remove_nulls(v)
+            purgados += v_purgados
+            new_dict[k] = v_cleaned
+        return new_dict, purgados
     elif isinstance(d, list):
-        return [v for v in (remove_nulls(v) for v in d) if v is not None]
+        new_list = []
+        for v in d:
+            if v is None:
+                purgados += 1
+                continue
+            v_cleaned, v_purgados = remove_nulls(v)
+            purgados += v_purgados
+            new_list.append(v_cleaned)
+        return new_list, purgados
     else:
-        return d
+        return d, 0
 
 def clean_json_matches(matches):
     """
@@ -41,7 +55,7 @@ def clean_json_matches(matches):
         candidates.append(m)
         
     # 2. Eliminación recursiva de nulls (Efecto "Null Eliminator")
-    cleaned = remove_nulls(candidates)
+    cleaned_data, count_purgados = remove_nulls(candidates)
         
-    print(f"[CLEANER] Original: {len(matches)} | Filtrados: {len(candidates)} | Nulls purgados: OK")
-    return cleaned
+    print(f"[CLEANER] Original: {len(matches)} | Filtrados: {len(candidates)} | Nulls purgados: {count_purgados}")
+    return cleaned_data

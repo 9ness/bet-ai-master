@@ -151,8 +151,11 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         if (displayPick.startsWith("1 ") || displayPick === "1") displayPick = teams[0] || "Local";
         else if (displayPick.startsWith("2 ") || displayPick === "2") displayPick = teams[1] || "Visitante";
         else if (displayPick.startsWith("x ") || displayPick === "x") displayPick = "Empate";
+        else if (displayPick.toLowerCase() === "1x") displayPick = `${teams[0] || "Local"} o Empate`;
+        else if (displayPick.toLowerCase() === "x2") displayPick = `Empate o ${teams[1] || "Visitante"}`;
+        else if (displayPick.toLowerCase() === "12") displayPick = `${teams[0] || "Local"} o ${teams[1] || "Visitante"}`;
         else {
-            displayPick = displayPick.replace(/Apuesta/gi, "").replace(/Gana/gi, "").replace(/\(.*\)/g, "").replace(/\bAH\b/gi, "Hándicap").trim();
+            displayPick = displayPick.replace(/Apuesta/gi, "").replace(/Ganador/gi, "").replace(/Gana/gi, "").replace(/Doble Oportunidad/gi, "").replace(/\(.*\)/g, "").replace(/\bAH\b/gi, "Hándicap").trim();
             displayPick = displayPick.replace(/\blocal\b/gi, teams[0] || "Local").replace(/\bvisitante\b/gi, teams[1] || "Visitante");
 
             // Capitalize first letter
@@ -218,20 +221,48 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                 }
             }
 
-            const getPickIcon = (text: string, sport: string) => {
+            const getPickIcon = (text: string, sport: string, matchTitle: string) => {
                 const t = text.toLowerCase();
+                const m = matchTitle.toLowerCase();
+
+                // 1. Player Props / Basket
                 if (t.includes('puntos') || t.includes('rebotes') || t.includes('asistencias') || sport.includes('basket')) {
                     if (t.includes('puntos')) return '🏀 ';
                 }
+
+                // 2. Props
                 if (t.includes('córners') || t.includes('corners')) return '⛳ ';
                 if (t.includes('tarjetas')) return '🟨 ';
-                if (t.includes('hándicap') || t.includes('handicap')) return '📌 ';
-                if (t.includes('ambos marcan') || t.includes('ambos gol') || t.includes('goles') || t.includes('gol')) return '⚽ ';
 
+                // 3. Shots
                 if (t.includes('remates')) {
                     if (t.includes('totales')) return '🥅 ';
                     return '🎯 ';
                 }
+
+                // 4. Handicap -> Pin
+                if (t.includes('hándicap') || t.includes('handicap')) return '📌 ';
+
+                // 5. BTTS / Goals -> Ball
+                if (t.includes('ambos marcan') || t.includes('ambos gol') || t.includes('ambos equipos') || t.includes('goles') || t.includes('gol')) return '⚽ ';
+
+                // 6. Double Chance Expanded -> Pin
+                // Expanded double chance often contains "o empate", "empate o", or just " o " (for 12: Team A o Team B)
+                if (t.includes('o empate') || t.includes('empate o') || t.includes(' o ')) return '📌 ';
+
+                // Team Name Smart Match
+                const teams = m.split(' vs ').map(tm => tm.trim().toLowerCase());
+
+                // Check if any significant word from team names appears in the pick
+                const isTeamMentioned = teams.some(team => {
+                    const teamWords = team.split(/\s+/).filter(w => w.length > 3);
+                    return teamWords.some(word => t.includes(word));
+                });
+
+                if (isTeamMentioned || t === 'empate' || t.includes('empate')) {
+                    return '✅ ';
+                }
+
                 return '';
             };
 
@@ -256,7 +287,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                         })
                         .join(' ');
 
-                    return `${getPickIcon(formattedPick, g.sport || '')}${formattedPick}`;
+                    return `${getPickIcon(formattedPick, g.sport || '', g.matchDisplay)}${formattedPick}`;
                 }),
                 isFeatured
             };

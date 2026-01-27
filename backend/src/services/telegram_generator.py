@@ -97,23 +97,52 @@ def generate_messages_from_analysis(date_str):
 
         # Format Analysis Text
         raw_reason = bet.get('reason', 'Sin análisis')
-        formatted_reason = raw_reason
+        
+        # 1. Pre-process: Clean asterisks and replace technical terms
+        import re
+        clean_reason = raw_reason.replace('*', '')
+        clean_reason = re.sub(r'BTTS', 'ambos marcan', clean_reason, flags=re.IGNORECASE)
 
-        # Only format if it's a long block of text and likely needs bullet points
-        if len(raw_reason) > 30 and '.' in raw_reason:
-            segments = [s.strip() for s in raw_reason.split('.') if len(s.strip()) > 3]
-            if len(segments) > 0:
-                bullet_lines = []
-                for seg in segments:
-                    line = seg if seg.endswith('.') else f"{seg}."
-                    bullet_lines.append(f"🟢 {line}")
-                formatted_reason = "\n\n".join(bullet_lines)
+        # 2. Extract exactly the 3 main points based on start of line/string
+        # This prevents breaking on 'St.' or decimals like '1.83'
+        segments = re.split(r'(?:\A|\n)\s*([123][\.\)])\s+', clean_reason)
+        
+        if len(segments) > 1:
+            final_lines = []
+            # We skip segments[0] as it's text before the first point (usually empty or noise)
+            for i in range(1, len(segments), 2):
+                num = segments[i]
+                content = segments[i+1].strip() if (i+1) < len(segments) else ""
+                if content:
+                    # Clean up: remove internal newlines to keep each point as a single compact block
+                    content = content.replace('\n', ' ').replace('  ', ' ')
+                    
+                    # Logic to bold the title (up to the colon)
+                    title_match = re.match(r'^([^:]+:)(.*)', content)
+                    if title_match:
+                        title = title_match.group(1)
+                        rest = title_match.group(2)
+                        final_lines.append(f"🟢 <b>{num} {title}</b>{rest}")
+                    else:
+                        final_lines.append(f"🟢 <b>{num}</b> {content}")
+            
+            formatted_reason = "\n\n".join(final_lines)
+        else:
+            # Fallback if no specific points found
+            formatted_reason = f"🟢 {clean_reason.strip().replace('\n', ' ')}"
 
-        # 3. Construct Final Message
+        # 3. Stake formatting (ensure integer)
+        raw_stake = bet.get('stake', 1)
+        try:
+            stake_val = int(float(raw_stake))
+        except:
+            stake_val = raw_stake
+
+        # 4. Construct Final Message
         msg = (
             f"{league_text}\n\n"
             f"{matches_block}\n\n"
-            f"📊 <b>Cuota {bet.get('total_odd', 1.0)}   | 📈 STAKE {bet.get('stake', 1)}</b>\n"
+            f"📊 <b>Cuota {bet.get('total_odd', 1.0)}   | 📈 STAKE {stake_val}</b>\n"
             f"🏠 Apuesta realizada en Bet365\n"
             f"🔞 Apuesta con responsabilidad.\n\n"
             f"🧠 <b>Análisis de BetAiMaster:</b>\n"

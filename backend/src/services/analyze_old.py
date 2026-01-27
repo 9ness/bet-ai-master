@@ -58,9 +58,18 @@ def load_system_prompt(filename="system_prompt_analizador.txt"):
 def analyze():
     print("--- REANALYSIS SCRIPT STARTED (GEMINI NO-SEARCH MODE) ---")
     
+    rs = RedisService()
+    try:
+        _analyze_logic(rs)
+    except Exception as e:
+        print(f"[FATAL] Analysis failed: {e}")
+        if rs.is_active:
+            rs.log_status("Daily Analysis", "ERROR", str(e))
+        raise e
+
+def _analyze_logic(rs):
     # 1. Inicialización
     try:
-        rs = RedisService()
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
             raise ValueError("GEMINI_API_KEY no encontrada")
@@ -72,6 +81,7 @@ def analyze():
         
     except Exception as e:
         print(f"[FATAL] Service Init Failed: {e}")
+        if rs.is_active: rs.log_status("Daily Analysis", "ERROR", f"Init Failed: {e}")
         return
 
     # 2. Obtención de datos
@@ -81,9 +91,15 @@ def analyze():
     
     if not raw_json:
         print(f"[ERROR] No raw matches found for {today_str}.")
+        if rs.is_active: rs.log_status("Daily Analysis", "IDLE", "No hay datos de partidos para hoy")
         return
 
     raw_matches = json.loads(raw_json)
+    if not raw_matches:
+        print(f"[ERROR] Matches list is empty for {today_str}.")
+        if rs.is_active: rs.log_status("Daily Analysis", "IDLE", "La lista de partidos está vacía")
+        return
+        
     print(f"[DATA] Loaded {len(raw_matches)} matches.")
     
     # --- CLEANING STEP ---
@@ -179,6 +195,10 @@ INPUT DATA (MATCHES):
         from src.services.telegram_generator import generate_messages_from_analysis
         generate_messages_from_analysis(today_str)
     except: pass
+
+    # Status Report
+    if rs.is_active: 
+        rs.log_status("Daily Analysis", "SUCCESS", f"Analyzed {len(final_output)} bets")
 
 if __name__ == "__main__":
     analyze()

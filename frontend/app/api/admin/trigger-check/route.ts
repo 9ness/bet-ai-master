@@ -1,48 +1,46 @@
 import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
+    const ghToken = process.env.GH_TOKEN;
+    const owner = "9ness";
+    const repo = "bet-ai-master";
+    const workflowId = "check_results_cron.yml";
+    const ref = "main";
+
+    if (!ghToken) {
+        return NextResponse.json({ error: "Server Configuration Error: GH_TOKEN missing" }, { status: 500 });
+    }
+
     try {
-        const { date } = await request.json();
+        console.log(`[GitHub API] Triggering workflow ${workflowId} for ${owner}/${repo}...`);
 
-        // Repo details
-        const OWNER = '9ness';
-        const REPO = 'bet-ai-master';
-        const WORKFLOW_ID = 'update_results_bet.yml';
-
-        // Log for debugging
-        console.log(`[Admin] Triggering workflow ${WORKFLOW_ID} for ${OWNER}/${REPO}`);
-
-        const response = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/actions/workflows/${WORKFLOW_ID}/dispatches`, {
+        const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/actions/workflows/${workflowId}/dispatches`, {
             method: 'POST',
             headers: {
+                'Authorization': `Bearer ${ghToken}`,
                 'Accept': 'application/vnd.github.v3+json',
-                'Authorization': `token ${process.env.GH_TOKEN || process.env.GITHUB_TOKEN}`,
+                'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                ref: 'main',
-                // Inputs only if the workflow accepts them. Check results script uses --date, 
-                // but workflow file needs 'workflow_dispatch: inputs: ...' to pass them to env or args.
-                // Assuming script defaults to "yesterday" if no date? 
-                // BUT user wants to force check. 
-                // Let's pass 'date' if we can, but if workflow doesn't have it defined, it might warn.
-                // For now, simple dispatch.
-                inputs: {
-                    // If workflow updates later to accept date:
-                    // date: date 
-                }
+                ref: ref,
+                inputs: {}
             })
         });
 
-        if (response.ok) {
-            console.log("[Admin] Workflow triggered successfully.");
-            return NextResponse.json({ success: true, message: "Workflow triggered" });
-        } else {
-            const err = await response.text();
-            console.error(`[Admin] GitHub API Error: ${response.status} - ${err}`);
-            return NextResponse.json({ success: false, error: err }, { status: response.status });
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[GitHub API] Error ${response.status}: ${errorText}`);
+            return NextResponse.json({ error: "GitHub API Refused Trigger", details: errorText }, { status: response.status });
         }
+
+        console.log("[GitHub API] Workflow triggered successfully.");
+        return NextResponse.json({ message: "Workflow Triggered Successfully" });
+
     } catch (error) {
-        console.error("[Admin] Exception triggering workflow:", error);
-        return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
+        console.error('[GitHub API] Network/Execution Error:', error);
+        return NextResponse.json(
+            { error: 'Internal Server Error', details: String(error) },
+            { status: 500 }
+        );
     }
 }

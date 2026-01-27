@@ -23,7 +23,7 @@ export async function POST(request: Request) {
             },
             body: JSON.stringify({
                 ref: ref,
-                // Pass inputs if needed, e.g. force: true
+                inputs: {}
             })
         });
 
