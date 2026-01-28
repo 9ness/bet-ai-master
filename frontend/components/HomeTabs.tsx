@@ -123,54 +123,64 @@ export default function HomeTabs({ settings, predictions, stakazoPredictions, fo
         }
     }, [visibleTabs, activeTab]);
 
-    // 3. Scroll & Swipe Logic (Replaced manual touch handlers)
-    const scrollRef = React.useRef<HTMLDivElement>(null);
+    // 3. Simple Swipe Logic (No Scroll Container)
+    const [touchStart, setTouchStart] = useState<number | null>(null);
+    const [touchEnd, setTouchEnd] = useState<number | null>(null);
+    const [touchStartY, setTouchStartY] = useState<number | null>(null); // To detect vertical scroll
 
-    // Sync Scroll to Active Tab (Bidirectional Sync)
-    const handleScroll = () => {
-        if (!scrollRef.current) return;
-        const scrollLeft = scrollRef.current.scrollLeft;
-        const width = scrollRef.current.clientWidth;
+    // Minimum swipe distance (px)
+    const minSwipeDistance = 50;
 
-        // Find visible index
-        const index = Math.round(scrollLeft / width);
-
-        // Update active tab if changed
-        if (visibleTabs[index] && visibleTabs[index].id !== activeTab) {
-            triggerTouchFeedback(); // Haptic on swipe change
-            setActiveTab(visibleTabs[index].id);
-        }
+    const onTouchStart = (e: React.TouchEvent) => {
+        setTouchEnd(null); // Reset
+        setTouchStart(e.targetTouches[0].clientX);
+        setTouchStartY(e.targetTouches[0].clientY);
     };
 
-    const scrollToTab = (tabId: string) => {
-        triggerTouchFeedback(); // Haptic on click
-        setActiveTab(tabId);
-        const index = visibleTabs.findIndex(t => t.id === tabId);
-        if (scrollRef.current && index >= 0) {
-            scrollRef.current.scrollTo({
-                left: index * scrollRef.current.clientWidth,
-                behavior: 'smooth'
-            });
-        }
+    const onTouchMove = (e: React.TouchEvent) => {
+        setTouchEnd(e.targetTouches[0].clientX);
     };
 
-    // Fix Initial Tab Scroll Position (Mobile)
-    useEffect(() => {
-        if (scrollRef.current && activeTab) {
-            const index = visibleTabs.findIndex(t => t.id === activeTab);
-            if (index > 0) {
-                // Force scroll to active tab position immediately on mount
-                scrollRef.current.scrollTo({
-                    left: index * scrollRef.current.clientWidth,
-                    behavior: 'instant'
-                });
+    const onTouchEnd = () => {
+        if (!touchStart || !touchEnd || !touchStartY) return;
+
+        const distanceX = touchStart - touchEnd;
+        const isLeftSwipe = distanceX > minSwipeDistance;
+        const isRightSwipe = distanceX < -minSwipeDistance;
+
+        // Use a generic valid y distance or check relative X vs Y to ensure horizontal intent
+        // Here we can check if horizontal distance is significantly larger than vertical movement
+        // However, we don't track TouchMove Y here properly without state update which might be laggy.
+        // Simplified: simple X distance check is usually okay if we don't preventDefault.
+
+        // Find current index
+        const currentIndex = visibleTabs.findIndex(t => t.id === activeTab);
+        if (currentIndex === -1) return;
+
+        if (isLeftSwipe) {
+            // Next Tab
+            if (currentIndex < visibleTabs.length - 1) {
+                const nextTab = visibleTabs[currentIndex + 1];
+                triggerTouchFeedback();
+                setActiveTab(nextTab.id);
             }
-            // Now reveal content
-            requestAnimationFrame(() => setIsReady(true));
-        } else {
-            setIsReady(true);
         }
-    }, [activeTab]); // Trigger on activeTab init/change to ensure sync, mainly for initial load.
+
+        if (isRightSwipe) {
+            // Prev Tab
+            if (currentIndex > 0) {
+                const prevTab = visibleTabs[currentIndex - 1];
+                triggerTouchFeedback();
+                setActiveTab(prevTab.id);
+            }
+        }
+    };
+
+    // Simplified Tab Click Handler
+    const scrollToTab = (tabId: string) => {
+        triggerTouchFeedback();
+        setActiveTab(tabId);
+    };
 
     if (visibleTabs.length === 0) {
         return (
@@ -305,8 +315,13 @@ export default function HomeTabs({ settings, predictions, stakazoPredictions, fo
                 </div>
             )}
 
-            {/* CONTENT CONTAINER - DIRECT RENDERING (No Scroll/Swipe to avoid flash) */}
-            <div className="flex-1 w-full animate-in fade-in duration-300">
+            {/* CONTENT CONTAINER - DIRECT RENDERING WITH SWIPE */}
+            <div
+                className="flex-1 w-full animate-in fade-in duration-300 min-h-[50vh]"
+                onTouchStart={onTouchStart}
+                onTouchMove={onTouchMove}
+                onTouchEnd={onTouchEnd}
+            >
                 <div className="w-full max-w-7xl mx-auto px-2 md:px-4 pt-4 pb-0">
                     {activeTab === 'stakazo' && (
                         <div className="animate-in fade-in zoom-in duration-300">
