@@ -5,7 +5,7 @@ const redis = new Redis({
     token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
-export async function getRecommendations() {
+export async function getRecommendations(category = "daily_bets") {
     try {
         // Dynamic Date Calculation (Europe/Madrid) - Unified with Home Page
         const now = new Date();
@@ -19,23 +19,23 @@ export async function getRecommendations() {
             year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Europe/Madrid'
         }).format(yesterdayDate);
 
-        console.log(`[Admin/Utils] Fetching for Date: ${today}`);
+        console.log(`[Admin/Utils] Fetching for Date: ${today}, Category: ${category}`);
 
         // 1. Try Today (Hash)
         const monthToday = today.substring(0, 7);
-        let data: any = await redis.hget(`betai:daily_bets:${monthToday}`, today);
+        let data: any = await redis.hget(`betai:${category}:${monthToday}`, today);
 
         // 2. Try Yesterday (Hash)
         if (!data) {
             console.log(`[Admin/Utils] No data for ${today}, trying ${yesterday}`);
             const monthYesterday = yesterday.substring(0, 7);
-            data = await redis.hget(`betai:daily_bets:${monthYesterday}`, yesterday);
+            data = await redis.hget(`betai:${category}:${monthYesterday}`, yesterday);
         }
 
         // 3. Last Resort: Master Key (Legacy/Mirror)
         if (!data) {
             console.log(`[Admin/Utils] No hash data, checking Master Key...`);
-            data = await redis.get('betai:daily_bets');
+            data = await redis.get(`betai:${category}`);
         }
 
         if (data) {

@@ -13,6 +13,7 @@ export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
         const month = searchParams.get('month'); // YYYY-MM
+        const category = searchParams.get('category') || 'daily_bets'; // Default to legacy
 
         if (!month) {
             return NextResponse.json({ error: 'Month required' }, { status: 400 });
@@ -22,8 +23,15 @@ export async function GET(req: NextRequest) {
         // 2. Fetch Daily History (HGETALL Monthly Hash)
         // Optimized: Single Fetch instead of 30+ Pipeline calls
         const [year, monthStr] = month.split('-');
-        const hashKey = `${prefix}daily_bets:${month}`;
-        const statsHashKey = `betai_stats`; // Changed from betai:stats to betai_stats (underscore) based on user screenshot
+
+        // Dynamic Key Selection based on Category
+        const hashKey = `${prefix}${category}:${month}`;
+
+        // Stats Key Selection
+        let statsHashKey = 'betai_stats'; // Default
+        if (category === 'daily_bets_stakazo') {
+            statsHashKey = 'betai:stats_stakazo';
+        }
 
         // Parallel Fetch: Stats from Hash + Monthly Hash
         const [statsRaw, monthDataRaw] = await Promise.all([
@@ -73,7 +81,7 @@ export async function GET(req: NextRequest) {
 
                 // Normalización de Apuestas (Array vs Dict)
                 let transformedBets: any[] = [];
-                const DEFAULT_STAKES: Record<string, number> = { safe: 6, value: 3, funbet: 1 };
+                const DEFAULT_STAKES: Record<string, number> = { safe: 6, value: 3, funbet: 1, stakazo: 10 };
 
                 if (Array.isArray(dailyCtx.bets)) {
                     // ESTÁNDAR NUEVO: Lista

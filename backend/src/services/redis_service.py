@@ -61,7 +61,7 @@ class RedisService:
             print(f"[Redis] Exception: {e}")
             return None
 
-    def save_daily_bets(self, date_str, bets_data):
+    def save_daily_bets(self, date_str, bets_data, category="daily_bets"):
         if not self.is_active: return
         
         # --- 1. ESTRUCTURA ÚNICA (Full Data) ---
@@ -73,17 +73,18 @@ class RedisService:
             "bets": []
         }
 
-        stakes = { "safe": 6, "value": 3, "funbet": 1 }
+        stakes = { "safe": 6, "value": 3, "funbet": 1, "stakazo": 10 }
 
-        # Transform bets
         # Transform bets
         for data in bets_data:
             if not data: continue
             
-            # Identify Type from the data itself (List item)
+            # Identify Type
             bet_type = data.get("betType", "unknown").lower()
             
-            # Compatibility: Logic for both direct 'selections' or older 'components'
+            # Handle Stakazo Stake Override if needed, or rely on stakes dict
+            # Stakazo bets might come with 'stakazo' as betType or explicitly set param
+            
             original_selections = data.get("selections", data.get("components", []))
             
             # Normalize Selections
@@ -92,22 +93,20 @@ class RedisService:
                 for sel in original_selections:
                     norm_sel = {
                         "fixture_id": sel.get("fixture_id"),
-                        "sport": sel.get("sport", "Football"), # Default
+                        "sport": sel.get("sport", "Football"), 
                         "league": sel.get("league", "Unknown"),
                         "match": sel.get("match", "Unknown vs Unknown"),
                         "time": sel.get("time", "00:00"),
                         "pick": sel.get("pick", ""),
                         "odd": float(sel.get("odd", 0)),
                         "status": "PENDING",
-                        "result": None # Null explicitly
+                        "result": None 
                     }
                     normalized_selections.append(norm_sel)
 
-            # Determine Stake
             stake = float(data.get("stake", stakes.get(bet_type, 1)))
             odd = float(data.get("odd", 0))
 
-            # Build Strict Bet Object
             bet_entry = {
                 "betType": bet_type,
                 "sport": data.get("sport", "Football"),
@@ -116,7 +115,7 @@ class RedisService:
                 "pick": data.get("pick", "Combination"),
                 "stake": stake,
                 "total_odd": odd,
-                "estimated_units": round(stake * (odd - 1), 2) if odd > 1 else 0, # Corrected calc: stake * (odd-1)
+                "estimated_units": round(stake * (odd - 1), 2) if odd > 1 else 0,
                 "reason": data.get("reason", data.get("analysis", "")),
                 "status": "PENDING",
                 "profit": 0, 
@@ -125,16 +124,14 @@ class RedisService:
             full_day_data["bets"].append(bet_entry)
 
         # --- 2. SAVE FULL DATA (Monthly Hash) ---
-        # "Guarda el JSON completo en betai:daily_bets:YYYY-MM -> field YYYY-MM-DD"
         year_month = date_str[:7] # YYYY-MM
-        hash_key = self._get_key(f"daily_bets:{year_month}")
+        # Use dynamic category: daily_bets or daily_bets_stakazo
+        hash_key = self._get_key(f"{category}:{year_month}")
         
         self._send_command("HSET", hash_key, date_str, json.dumps(full_day_data))
-        print(f"[Redis] Guardado FULL MENSUAL OK: {hash_key} -> {date_str}")
+        print(f"[Redis] Guardado FULL ({category}) OK: {hash_key} -> {date_str}")
 
         # --- 3. SMART MIRROR LOGIC (Master Key) ---
-        # "Crea una copia en daily_bets (Legacy View) pero establece como null campos dinámicos"
-        
         import copy
         mirror_data = copy.deepcopy(full_day_data)
         
@@ -149,18 +146,17 @@ class RedisService:
                 sel["result"] = None
                 sel["status"] = None
 
-        # Save Mirror to Master Key
-        master_key = self._get_key("daily_bets")
+        # Save Mirror to Master Key (e.g., "daily_bets" or "daily_bets_stakazo")
+        master_key = self._get_key(category)
         self._send_command("SET", master_key, json.dumps(mirror_data))
         print(f"[Redis] Espejo Inteligente (Nullified) Guardado OK: {master_key}")
 
     # --- SPECIFIC ACCESSORS FOR HASH STRUCT ---
-    def get_daily_bets(self, date_str):
+    def get_daily_bets(self, date_str, category="daily_bets"):
         """ Retrieves bets for a specific date from the Monthly Hash """
         if not self.is_active: return None
         year_month = date_str[:7]
-        hash_key = self._get_key(f"daily_bets:{year_month}")
-        # HGET key field
+        hash_key = self._get_key(f"{category}:{year_month}")
         return self._send_command("HGET", hash_key, date_str)
 
     def save_raw_matches(self, date_str, matches_data):
@@ -178,14 +174,12 @@ class RedisService:
         hash_key = self._get_key(f"raw_matches:{year_month}")
         return self._send_command("HGET", hash_key, date_str)
 
-    def get_month_bets(self, year_month):
+    def get_month_bets(self, year_month, category="daily_bets"):
         """ Get ALL bets for a month (HGETALL) """
         if not self.is_active: return None
-        hash_key = self._get_key(f"daily_bets:{year_month}")
+        hash_key = self._get_key(f"{category}:{year_month}")
         res = self._send_command("HGETALL", hash_key)
         if isinstance(res, list):
-             # Upstash/Redis REST via request sometimes returns [k,v,k,v] list
-             # We need to dict it
              return dict(zip(res[::2], res[1::2]))
         return res
 

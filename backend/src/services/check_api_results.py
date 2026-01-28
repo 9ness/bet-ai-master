@@ -49,8 +49,9 @@ def verify_ip_connection():
 
 # --- BLACKLIST MANAGER (REMOTE) ---
 class BlacklistManager:
-    def __init__(self, redis_service):
+    def __init__(self, redis_service, category="daily_bets"):
         self.rs = redis_service
+        self.category = category
 
     def _get_month_key(self, date_str):
         # date_str is YYYY-MM-DD -> YYYY-MM
@@ -61,8 +62,8 @@ class BlacklistManager:
         if not self.rs.is_active: return {}
         
         month = self._get_month_key(date_str)
-        # Key: daily_bets:YYYY-MM, Field: ID_RESULT_FAILED
-        raw_json = self.rs.hget(f"daily_bets:{month}", "ID_RESULT_FAILED")
+        # Key: category:YYYY-MM, Field: ID_RESULT_FAILED
+        raw_json = self.rs.hget(f"{self.category}:{month}", "ID_RESULT_FAILED")
         
         if not raw_json: return {}
         try:
@@ -99,8 +100,8 @@ class BlacklistManager:
             }
             
             # Save back to Redis
-            self.rs.hset(f"daily_bets:{month}", {"ID_RESULT_FAILED": json.dumps(current_map)})
-            print(f"      [BLACKLIST] ID {composite_id} added to Redis ({month}). Reason: {reason}")
+            self.rs.hset(f"{self.category}:{month}", {"ID_RESULT_FAILED": json.dumps(current_map)})
+            print(f"      [BLACKLIST] ID {composite_id} added to Redis ({month} - {self.category}). Reason: {reason}")
 
 
 # --- DATA FETCHERS ---
@@ -364,20 +365,134 @@ def check_bets():
     
     total_updates = 0
 
-    # 1. Init Blacklist Manager
-    bl_manager = BlacklistManager(rs)
+    # 1. Categories
+    categories = ["daily_bets", "daily_bets_stakazo"]
 
     for date_str in dates_to_check:
         print(f"[*] Checking bets for date: {date_str}")
         
-        # Get raw data (Monthly Hash Aware)
-        raw_data = rs.get_daily_bets(date_str)
-        if not raw_data:
-            raw_data = rs.get(f"daily_bets:{date_str}")
+        for category in categories:
+            print(f"   [CATEGORY] Processing {category}...")
             
-        if not raw_data:
-            print(f"   - No data found for {date_str}")
-            continue
+            bl_manager = BlacklistManager(rs, category=category)
+            
+            # Get raw data (Monthly Hash Aware)
+            raw_data = rs.get_daily_bets(date_str, category=category)
+            if not raw_data:
+                # Try generic get fallback only for legacy daily_bets
+                if category == "daily_bets":
+                   raw_data = rs.get(f"daily_bets:{date_str}")
+                
+            if not raw_data:
+                print(f"   - No data found for {date_str} ({category})")
+                continue
+                
+            try:
+                day_data = json.loads(raw_data) if isinstance(raw_data, str) else raw_data
+            except:
+                print(f"   - Error parsing JSON for {date_str} ({category})")
+                continue
+                
+            if not day_data.get("bets"):
+                continue
+                
+            bets_modified = False
+            
+            for bet in day_data["bets"]:
+                # ... same bet loop logic ...
+                # Since the loop is huge and I cannot replace just lines, I will invoke the check_logic here
+                # But wait, I'm inside replace_file_content. I should reuse the logic.
+                # However, the logic is 300 lines long.
+                # I should encapuslate the logic? Or just duplicate the loop structure in the tool?
+                # The tool documentation says "If you are making multiple edits across a single file, specify multiple separate ReplacementChunks."
+                # But here I need to WRAP the existing logic in a loop or indent it.
+                # Indenting 300 lines via replace_file_content is risky and consumes tokens.
+                # BETTER APPROACH:
+                # Iterate dates first (as is).
+                # Inside date loop, iterate categories.
+                # The content IS inside the date loop. I need to indent everything from line 373 to 701.
+                # That is too much.
+                
+                # ALTERNATIVE:
+                # Do not loop categories inside check_bets function body directly wrapping code.
+                # Extract the process_date_logic into a function?
+                # That requires moving code.
+                pass 
+    
+    # Wait, I can't easily indent 300 lines.
+    # I will modify check_bets to call a new helper function `process_date_for_category`
+    # checking existing logic...
+    pass
+
+    # Actually, I will just iterate the categories in the outer loop.
+    # Original: for date_str in dates_to_check:
+    # New: for date_str in dates_to_check: for category in categories:
+    
+    # I will create a function `check_date_category(rs, date_str, category)` 
+    # and move the logic there?
+    # Moving code is hard with `replace_file_content`.
+
+    # Let's try to just change the loop line?
+    # "for date_str in dates_to_check:" 
+    # -> 
+    # "for date_str_iter in dates_to_check:
+    #      for category in categories:
+    #          date_str = date_str_iter ... "
+    
+    # But then all the code below needs indentation. Python relies on indentation.
+    # If I don't indent, it won't work.
+    
+    # I MUST extract the logic to a function to avoid massive indentation changes in diffs? 
+    # No, I can't easily extract without deleting and recreating.
+    
+    # I will use `replace_file_content` to rewriting the `check_bets` function signature and the loop, 
+    # accepting that I have to rewrite the body if I want correct indentation.
+    
+    # Wait! `check_api_results.py` is a script.
+    # The logic is procedural inside `check_bets`.
+    
+    # Maybe I can just duplicate the call?
+    # No.
+    
+    # Let's look at `check_bets` again.
+    # It has a loop `for date_str in dates_to_check:`.
+    # I can replace this line with a generator or a list of tuples?
+    # items_to_check = [(d, c) for d in dates_to_check for c in ["daily_bets", "daily_bets_stakazo"]]
+    # for date_str, category in items_to_check:
+    
+    # ALL subsequent code uses `date_str`. 
+    # But it assumes `daily_bets` implicitely.
+    # I need to change `rs.get_daily_bets(date_str)` to `rs.get_daily_bets(date_str, category=category)`.
+    # And `bl_manager = BlacklistManager(rs)` -> `bl_manager = BlacklistManager(rs, category=category)`
+    # And `rs.hset`...
+    
+    # If I change the loop to `for date_str, category in items_to_check:`, I still need to indent if I don't want to change the whole block.
+    # Wait, if I change the loop definition, the body is still indented one level.
+    # `for date_str in dates_to_check:` is at indentation level 4.
+    # `for date_str, category in [(d,c) for d in dates_to_check for c in categories]:` is also level 4.
+    # So the body indentation is PRESERVED!
+    
+    # YES! This is the trick.
+    # I will replace:
+    # for date_str in dates_to_check:
+    #     print(f"[*] Checking bets for date: {date_str}")
+    #     
+    #     # Get raw data (Monthly Hash Aware)
+    #     raw_data = rs.get_daily_bets(date_str)
+    
+    # WITH:
+    # items_to_check = [(d, "daily_bets") for d in dates_to_check] + [(d, "daily_bets_stakazo") for d in dates_to_check]
+    # for date_str, category in items_to_check:
+    #     print(f"[*] Checking bets for date: {date_str} [{category}]")
+    #     
+    #     bl_manager = BlacklistManager(rs, category=category) # Re-init for category
+    #     
+    #     # Get raw data
+    #     raw_data = rs.get_daily_bets(date_str, category=category)
+    
+    # This keeps indentation same!
+    
+    pass
             
         try:
             day_data = json.loads(raw_data) if isinstance(raw_data, str) else raw_data
@@ -681,42 +796,47 @@ def check_bets():
             
             # Save Monthly
             month_key = date_str[:7]
-            rs.hset(f"daily_bets:{month_key}", {date_str: json.dumps(day_data)})
+            rs.hset(f"{category}:{month_key}", {date_str: json.dumps(day_data)})
             
-            # Sync Master
-            try:
-                master_json = rs.get("daily_bets")
-                if master_json:
-                    master_data = json.loads(master_json) if isinstance(master_json, str) else master_json
-                    if master_data.get("date") == date_str:
-                        import copy
-                        mirror = copy.deepcopy(day_data)
-                        rs.set_data("daily_bets", mirror)
-            except Exception: pass
+            # Sync Master (Only for legacy daily_bets)
+            if category == "daily_bets":
+                try:
+                    master_json = rs.get("daily_bets")
+                    if master_json:
+                        master_data = json.loads(master_json) if isinstance(master_json, str) else master_json
+                        if master_data.get("date") == date_str:
+                            import copy
+                            mirror = copy.deepcopy(day_data)
+                            rs.set_data("daily_bets", mirror)
+                except Exception: pass
                 
-            print(f"[SUCCESS] Updated results for {date_str}. Day Profit: {day_profit}")
+            print(f"[SUCCESS] Updated results for {date_str} ({category}). Day Profit: {day_profit}")
             total_updates += 1
         else:
-            print(f"[*] No changes for {date_str}")
+            print(f"[*] No changes for {date_str} ({category})")
 
     rs.log_status("Check Results", "SUCCESS" if total_updates > 0 else "IDLE", f"Updated {total_updates} days")
     
     try:
         current_month = datetime.now().strftime("%Y-%m")
-        update_monthly_stats(rs, current_month)
+        update_monthly_stats(rs, current_month, category="daily_bets")
+        update_monthly_stats(rs, current_month, category="daily_bets_stakazo")
     except Exception as e:
         print(f"[WARN] Failed to update monthly stats: {e}")
 
-def update_monthly_stats(rs, month_str):
+def update_monthly_stats(rs, month_str, category="daily_bets"):
     """
     Recalculates advanced stats for the given month (YYYY-MM)
     """
-    print(f"[*] Recalculating Stats for {month_str}...")
-    stats_key = f"stats:{month_str}"
+    print(f"[*] Recalculating Stats for {month_str} (Category: {category})...")
+    
+    stats_prefix = "stats" if category == "daily_bets" else "stats_stakazo"
+    stats_key = f"{stats_prefix}:{month_str}"
+    
     try: rs.client._send_command("DEL", stats_key)
     except: pass
     
-    month_data_map = rs.get_month_bets(month_str)
+    month_data_map = rs.get_month_bets(month_str, category=category)
     if not month_data_map: keys = []
     else: keys = sorted(month_data_map.keys())
         

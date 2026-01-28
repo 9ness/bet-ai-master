@@ -59,9 +59,27 @@ export default async function Home() {
         betsData = await redis.get(`betai:daily_bets:${yesterday}`);
     }
 
+    // --- STAKAZO FETCHING (Parallel) ---
+    // Fetch Stakazo data following similar logic (Priority: Today -> Yesterday -> Master? No, just keys)
+    // Actually Master key for Stakazo is "daily_bets_stakazo" (if we set it in redis_service)
+    let stakazoData: any = await redis.get('betai:daily_bets_stakazo');
+
+    if (!stakazoData) {
+        stakazoData = await redis.get(`betai:daily_bets_stakazo:${today}`);
+    }
+    if (!stakazoData) {
+        stakazoData = await redis.get(`betai:daily_bets_stakazo:${yesterday}`);
+    }
+
     const [settings] = await Promise.all([
         getSettings()
     ]);
+
+    // Inject Stakazo Visibility (From Env or Redis)
+    // We assume getSettings pulls from Redis, but we fallback to Env if missing/false? 
+    // User wants hierarchy. Let's force Env if Redis is silent or merge.
+    // Actually, getSettings returns defaults.
+    // Let's attach flags to settings object
 
     // Data format
     const data = betsData;
@@ -107,6 +125,7 @@ export default async function Home() {
             <HomeTabs
                 settings={settings}
                 predictions={predictions}
+                stakazoPredictions={stakazoData?.bets}
                 formattedDate={formattedDate}
                 isMock={isMock}
             />

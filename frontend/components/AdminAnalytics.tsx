@@ -67,7 +67,7 @@ const StatCard = ({ title, value, subtext, icon: Icon, colorTheme = 'gray', tool
 };
 
 
-export default function AdminAnalytics() {
+export default function AdminAnalytics({ showStakazoToggle = false }: { showStakazoToggle?: boolean }) {
     const [data, setData] = useState<any[]>([]);
     const [stats, setStats] = useState<any>(null);
     const [loading, setLoading] = useState(true);
@@ -76,6 +76,8 @@ export default function AdminAnalytics() {
 
     // TAB STATES ('resumen', 'evolucion', 'desglose')
     const [activeTab, setActiveTab] = useState<'resumen' | 'evolucion' | 'desglose'>('resumen');
+    // STAKAZO SWITCH
+    const [category, setCategory] = useState("daily_bets");
 
     const fetchData = async () => {
         setLoading(true); // Reset loading
@@ -85,7 +87,7 @@ export default function AdminAnalytics() {
             const month = currentDate.getMonth();
             const monthStr = `${year}-${(month + 1).toString().padStart(2, '0')}`;
 
-            const res = await fetch(`/api/admin/history?month=${monthStr}`);
+            const res = await fetch(`/api/admin/history?month=${monthStr}&category=${category}`);
             const json = await res.json();
 
             if (json.stats) {
@@ -130,7 +132,7 @@ export default function AdminAnalytics() {
 
     useEffect(() => {
         fetchData();
-    }, [currentDate]);
+    }, [currentDate, category]);
 
     // Helpers
     const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
@@ -189,8 +191,28 @@ export default function AdminAnalytics() {
             {/* Header with Selector */}
             <div className="text-center mb-4 relative z-10 pt-4">
                 <h2 className="text-3xl md:text-4xl font-black mb-3 tracking-tighter">
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-500">Rendimiento</span> <span className="text-white drop-shadow-[0_2px_10px_rgba(255,255,255,0.2)]">Mensual</span>
+                    <span className={`text-transparent bg-clip-text bg-gradient-to-r ${category === 'daily_bets_stakazo' ? 'from-amber-400 to-orange-500' : 'from-emerald-400 to-teal-500'}`}>Rendimiento</span> <span className="text-white drop-shadow-[0_2px_10px_rgba(255,255,255,0.2)]">Mensual</span>
                 </h2>
+
+                {/* CATEGORY SWITCH */}
+                {showStakazoToggle && (
+                    <div className="flex justify-center mb-6">
+                        <div className="flex bg-black/40 p-1 rounded-full border border-white/10 scale-90 md:scale-100">
+                            <button
+                                onClick={() => setCategory('daily_bets')}
+                                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${category === 'daily_bets' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'text-muted-foreground hover:text-white'}`}
+                            >
+                                STANDARD
+                            </button>
+                            <button
+                                onClick={() => setCategory('daily_bets_stakazo')}
+                                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1 ${category === 'daily_bets_stakazo' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'text-muted-foreground hover:text-white'}`}
+                            >
+                                <Trophy size={12} /> STAKAZO
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 <div className="flex flex-col md:flex-row justify-center items-center gap-4 relative mb-6">
                     {/* MONTH SELECTOR */}

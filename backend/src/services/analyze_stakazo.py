@@ -15,7 +15,7 @@ from src.services.redis_service import RedisService
 from src.services.bet_formatter import BetFormatter
 from src.services.json_cleaner import clean_json_matches
 
-def load_system_prompt(filename="system_prompt_analizador.txt"):
+def load_system_prompt(filename="system_prompt_analizador_stakazo.txt"):
     """Carga el prompt maestro desde la carpeta del proyecto."""
     try:
         # Intentar rutas relativas comunes
@@ -178,27 +178,36 @@ INPUT DATA (MATCHES):
     except:
         final_output = valid_bets
 
-    # Calcular cuotas finales
+    # Calcular cuotas finales y validar Stake
     for bet in final_output:
         odds = [float(s.get("odd", 1.0)) for s in bet.get("selections", [])]
         if odds:
             bet["total_odd"] = round(math.prod(odds), 2)
-            bt = bet.get("betType", "safe").lower()
-            bet["stake"] = 6 if "safe" in bt else (3 if "value" in bt else 1)
-            bet["estimated_units"] = round(bet["stake"] * (bet["total_odd"] - 1), 2)
+            
+            # Si la IA no ha puesto stake (o es 0), aplicamos defaults.
+            # Pero para Stakazo, la IA DEBE haber puesto entre 10 y 50.
+            if not bet.get("stake"):
+                bt = bet.get("betType", "safe").lower()
+                if "stakazo" in bt:
+                    bet["stake"] = 10 # Default mínimo si falla la IA
+                else:
+                    bet["stake"] = 6 if "safe" in bt else (3 if "value" in bt else 1)
+            
+            bet["estimated_units"] = round(float(bet["stake"]) * (bet["total_odd"] - 1), 2)
 
-    rs.save_daily_bets(today_str, final_output)
-    print(f"[SUCCESS] Saved {len(final_output)} bets to Redis.")
+    # GUARDADO: Usamos la categoría 'daily_bets_stakazo' para no mezclar con las apuestas normales
+    rs.save_daily_bets(today_str, final_output, category="daily_bets_stakazo")
+    print(f"[SUCCESS] Saved {len(final_output)} Stakazo bets to Redis (Category: daily_bets_stakazo).")
 
-    # Telegram
-    try:
-        from src.services.telegram_generator import generate_messages_from_analysis
-        generate_messages_from_analysis(today_str)
-    except: pass
+    # Telegram (DESACTIVADO PARA STAKAZO - EVITAR INTERFERENCIA)
+    # try:
+    #     from src.services.telegram_generator import generate_messages_from_analysis
+    #     # generate_messages_from_analysis(today_str) 
+    # except: pass
 
     # Status Report
     if rs.is_active: 
-        rs.log_status("Daily Analysis", "SUCCESS", f"Analyzed {len(final_output)} bets")
+        rs.log_status("Stakazo Analysis", "SUCCESS", f"Analyzed {len(final_output)} bets")
 
 if __name__ == "__main__":
     analyze()

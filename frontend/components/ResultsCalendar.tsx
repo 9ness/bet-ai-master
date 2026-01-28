@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, RefreshCw, Check, X, CircleCheck, CircleX, Clock, ChevronDown, Save, Loader2, TrendingUp, MinusCircle, Info, ChevronUp } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, RefreshCw, Check, X, CircleCheck, CircleX, Clock, ChevronDown, Save, Loader2, TrendingUp, MinusCircle, Info, ChevronUp, Trophy } from 'lucide-react';
 import FormattedReason from './FormattedReason';
 
 // --- FLAG MAPPINGS (Mirrored from BetCard.tsx) ---
@@ -557,13 +557,15 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
     );
 };
 
-export default function ResultsCalendar() {
+export default function ResultsCalendar({ showStakazoToggle = false }: { showStakazoToggle?: boolean }) {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [stats, setStats] = useState<MonthStats | null>(null);
     const [history, setHistory] = useState<Record<string, DayHistory>>({});
     const [loading, setLoading] = useState(false);
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const [isAdmin, setIsAdmin] = useState(false);
+    // STAKAZO SWITCH
+    const [category, setCategory] = useState("daily_bets");
 
 
     // LOCAL MUTABLE STATE FOR MODAL
@@ -662,7 +664,7 @@ export default function ResultsCalendar() {
             }
         }
         fetchData();
-    }, [currentDate]);
+    }, [currentDate, category]); // Added category dependency
 
     // ... (keep handleTriggerCheck, fetchData, nextMonth, prevMonth, renderDay)
 
@@ -677,7 +679,8 @@ export default function ResultsCalendar() {
         setLoading(true);
         try {
             const monthStr = `${year}-${(month + 1).toString().padStart(2, '0')}`;
-            const res = await fetch(`/api/admin/history?month=${monthStr}`);
+            // Pass category
+            const res = await fetch(`/api/admin/history?month=${monthStr}&category=${category}`);
             const data = await res.json();
 
             setStats(data.stats);
@@ -777,11 +780,30 @@ export default function ResultsCalendar() {
     return (
         <div className="w-full max-w-7xl mx-auto px-4 pt-0 md:px-8 space-y-4 mb-4">
             {/* Header */}
-            <div className="text-center mb-6 relative z-10">
+            <div className="text-center mb-6 relative z-10 flex flex-col items-center">
                 <h2 className="text-3xl md:text-4xl font-black mb-3 tracking-tighter">
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400">Resultados</span> <span className="text-white drop-shadow-[0_2px_10px_rgba(255,255,255,0.2)]">Históricos</span>
+                    <span className={`text-transparent bg-clip-text bg-gradient-to-r ${category === 'daily_bets_stakazo' ? 'from-amber-400 to-orange-500' : 'from-violet-400 to-fuchsia-400'}`}>Resultados</span> <span className="text-white drop-shadow-[0_2px_10px_rgba(255,255,255,0.2)]">Históricos</span>
                 </h2>
-                <div className="w-24 h-1.5 bg-gradient-to-r from-violet-500 to-fuchsia-500 rounded-full mx-auto mb-2 animate-pulse" />
+                <div className={`w-24 h-1.5 bg-gradient-to-r ${category === 'daily_bets_stakazo' ? 'from-amber-500 to-orange-500' : 'from-violet-500 to-fuchsia-500'} rounded-full mx-auto mb-4 animate-pulse`} />
+
+                {/* CATEGORY SWITCH */}
+                {showStakazoToggle && (
+                    <div className="flex bg-black/40 p-1 rounded-full border border-white/10 mb-4 scale-90 md:scale-100">
+                        <button
+                            onClick={() => setCategory('daily_bets')}
+                            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${category === 'daily_bets' ? 'bg-fuchsia-500 text-white shadow-lg shadow-fuchsia-500/20' : 'text-muted-foreground hover:text-white'}`}
+                        >
+                            STANDARD
+                        </button>
+                        <button
+                            onClick={() => setCategory('daily_bets_stakazo')}
+                            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1 ${category === 'daily_bets_stakazo' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'text-muted-foreground hover:text-white'}`}
+                        >
+                            <Trophy size={12} /> STAKAZO
+                        </button>
+                    </div>
+                )}
+
                 <p className="text-muted-foreground/80 font-medium max-w-xl mx-auto text-sm md:text-base leading-relaxed">
                     Transparencia total. Sin filtros.
                 </p>

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Lock, ArrowRight, RefreshCw, LayoutDashboard, DownloadCloud, BrainCircuit, ClipboardCheck, Activity as ActivityIcon, AlertTriangle, Database, ChevronDown, ChevronUp, Home, Play, Clock, PlayCircle, AlertOctagon, Trash2 } from 'lucide-react';
+import { Lock, ArrowRight, RefreshCw, LayoutDashboard, DownloadCloud, BrainCircuit, ClipboardCheck, Activity as ActivityIcon, AlertTriangle, Database, ChevronDown, ChevronUp, Home, Play, Clock, PlayCircle, AlertOctagon, Trash2, Trophy } from 'lucide-react';
 import { triggerTouchFeedback } from '@/utils/haptics';
 import Link from 'next/link';
 import { verifyAdminPassword } from './actions';
@@ -58,6 +58,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
     // Settings State
     // Control Panel Sub-tabs State
     const [activeControlTab, setActiveControlTab] = useState<'visibilidad' | 'anuncio' | 'acciones' | 'blacklist'>('acciones');
+    const [visibilidadMode, setVisibilidadMode] = useState<'standard' | 'stakazo'>('standard');
 
     const [settings, setSettings] = useState({
         show_daily_bets: true,
@@ -67,7 +68,12 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
         show_tiktok: false,
         show_announcement: false,
         announcement_text: "",
-        announcement_type: "info"
+        announcement_type: "info",
+        // STAKAZO GRANULAR SETTINGS
+        show_stakazo_menu: false,
+        show_stakazo_alert: false,
+        show_stakazo_calendar: false,
+        show_stakazo_analytics: false
     });
     const [savingSettings, setSavingSettings] = useState(false);
     const [lastRun, setLastRun] = useState<{ date: string, status: string, message: string, script: string } | null>(null);
@@ -80,6 +86,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
     const [fetchStatus, setFetchStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [analyzeStatus, setAnalyzeStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [checkStatus, setCheckStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+    const [stakazoStatus, setStakazoStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [collectStatus, setCollectStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [socialStatus, setSocialStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [showControls, setShowControls] = useState(false);
@@ -120,7 +127,11 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                         show_tiktok: data.show_tiktok ?? false,
                         show_announcement: data.show_announcement ?? false,
                         announcement_text: data.announcement_text ?? "",
-                        announcement_type: data.announcement_type ?? "info"
+                        announcement_type: data.announcement_type ?? "info",
+                        show_stakazo_menu: data.show_stakazo_menu ?? false,
+                        show_stakazo_alert: data.show_stakazo_alert ?? false,
+                        show_stakazo_calendar: data.show_stakazo_calendar ?? false,
+                        show_stakazo_analytics: data.show_stakazo_analytics ?? false
                     });
                     if (data.last_run) setLastRun(data.last_run);
                     if (data.scripts_status) setScriptsStatus(data.scripts_status);
@@ -252,6 +263,11 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
     // Button 3: Analizar -> calls /api/admin/trigger-analysis (triggers ai_analysis.yml)
     const handleAnalyze = () => {
         triggerGitHubAction('/api/admin/trigger-analysis', {}, setAnalyzeStatus);
+    };
+
+    // Button 3.5: Analizar Stakazo -> calls /api/admin/trigger-stakazo-analysis
+    const handleStakazoAnalyze = () => {
+        triggerGitHubAction('/api/admin/trigger-stakazo-analysis', {}, setStakazoStatus);
     };
 
     // Button 4: TikTok Social -> calls /api/admin/trigger-social
@@ -565,14 +581,14 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                     {/* Tab 2: Calendar */}
                     <div className="w-full shrink-0 snap-start active:cursor-grabbing">
                         <main className="max-w-7xl mx-auto px-4 pt-8 pb-0">
-                            <ResultsCalendar />
+                            <ResultsCalendar showStakazoToggle={true} />
                         </main>
                     </div>
 
                     {/* Tab 3: Analytics */}
                     <div className="w-full shrink-0 snap-start active:cursor-grabbing h-full">
                         <main className="max-w-7xl mx-auto px-4 py-8">
-                            <AdminAnalytics />
+                            <AdminAnalytics showStakazoToggle={true} />
                         </main>
                     </div>
 
@@ -651,96 +667,198 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                             <LayoutDashboard size={64} />
                                         </div>
 
-                                        <h3 className="text-xl font-bold flex items-center gap-2 border-b border-white/5 pb-4 text-white">
-                                            <LayoutDashboard className="text-fuchsia-500" size={24} />
-                                            Visibilidad (Home)
-                                        </h3>
+                                        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-white/5 pb-4">
+                                            <h3 className="text-xl font-bold flex items-center gap-2 text-white">
+                                                {visibilidadMode === 'standard' ? (
+                                                    <LayoutDashboard className="text-fuchsia-500" size={24} />
+                                                ) : (
+                                                    <Trophy className="text-amber-500" size={24} />
+                                                )}
+                                                Visibilidad {visibilidadMode === 'standard' ? '(Home)' : '(Stakazo)'}
+                                            </h3>
 
-                                        <div className="space-y-6 relative z-10">
-                                            {/* Item 1 */}
-                                            <div className="flex items-center justify-between p-4 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
-                                                <div>
-                                                    <h4 className="font-bold text-sm md:text-base text-white">Mostrar Apuestas Diarias</h4>
-                                                    <p className="text-xs text-white/50 mt-1">Habilita las 3 tarjetas de predicción en la Home.</p>
-                                                </div>
-                                                <label className="relative inline-flex items-center cursor-pointer">
-                                                    <input
-                                                        type="checkbox"
-                                                        className="sr-only peer"
-                                                        checked={settings.show_daily_bets}
-                                                        onChange={(e) => setSettings({ ...settings, show_daily_bets: e.target.checked })}
-                                                    />
-                                                    <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-fuchsia-600"></div>
-                                                </label>
+                                            {/* MODE TOGGLE */}
+                                            <div className="flex bg-black/40 p-1 rounded-lg border border-white/10">
+                                                <button
+                                                    onClick={() => setVisibilidadMode('standard')}
+                                                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-2 ${visibilidadMode === 'standard' ? 'bg-white/10 text-white shadow-lg' : 'text-white/40 hover:text-white/70'}`}
+                                                >
+                                                    <LayoutDashboard size={14} />
+                                                    STANDARD
+                                                </button>
+                                                <button
+                                                    onClick={() => setVisibilidadMode('stakazo')}
+                                                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-2 ${visibilidadMode === 'stakazo' ? 'bg-amber-500/20 text-amber-500 border border-amber-500/20 shadow-lg' : 'text-white/40 hover:text-white/70'}`}
+                                                >
+                                                    <Trophy size={14} />
+                                                    STAKAZO
+                                                </button>
                                             </div>
+                                        </div>
 
-                                            {/* Item 2 */}
-                                            <div className="flex items-center justify-between p-4 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
-                                                <div>
-                                                    <h4 className="font-bold text-sm md:text-base text-white">Mostrar Calendario</h4>
-                                                    <p className="text-xs text-white/50 mt-1">Muestra el calendario de resultados históricos al público.</p>
-                                                </div>
-                                                <label className="relative inline-flex items-center cursor-pointer">
-                                                    <input
-                                                        type="checkbox"
-                                                        className="sr-only peer"
-                                                        checked={settings.show_calendar}
-                                                        onChange={(e) => setSettings({ ...settings, show_calendar: e.target.checked })}
-                                                    />
-                                                    <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-fuchsia-600"></div>
-                                                </label>
-                                            </div>
+                                        <div className="space-y-6 relative z-10 transition-all duration-300">
+                                            {/* STANDARD CONTENT */}
+                                            {visibilidadMode === 'standard' && (
+                                                <div className="space-y-6 animate-in fade-in slide-in-from-left-4 duration-300">
+                                                    {/* Item 1 */}
+                                                    <div className="flex items-center justify-between p-4 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
+                                                        <div>
+                                                            <h4 className="font-bold text-sm md:text-base text-white">Mostrar Apuestas Diarias</h4>
+                                                            <p className="text-xs text-white/50 mt-1">Habilita las 3 tarjetas de predicción en la Home.</p>
+                                                        </div>
+                                                        <label className="relative inline-flex items-center cursor-pointer">
+                                                            <input
+                                                                type="checkbox"
+                                                                className="sr-only peer"
+                                                                checked={settings.show_daily_bets}
+                                                                onChange={(e) => setSettings({ ...settings, show_daily_bets: e.target.checked })}
+                                                            />
+                                                            <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-fuchsia-600"></div>
+                                                        </label>
+                                                    </div>
 
-                                            {/* Item 3 */}
-                                            <div className="flex items-center justify-between p-4 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
-                                                <div>
-                                                    <h4 className="font-bold text-sm md:text-base text-white">Mostrar Analítica</h4>
-                                                    <p className="text-xs text-white/50 mt-1">Muestra las gráficas de rendimiento (Beta) al público.</p>
-                                                </div>
-                                                <label className="relative inline-flex items-center cursor-pointer">
-                                                    <input
-                                                        type="checkbox"
-                                                        className="sr-only peer"
-                                                        checked={settings.show_analytics}
-                                                        onChange={(e) => setSettings({ ...settings, show_analytics: e.target.checked })}
-                                                    />
-                                                    <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-fuchsia-600"></div>
-                                                </label>
-                                            </div>
+                                                    {/* Item 2 */}
+                                                    <div className="flex items-center justify-between p-4 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
+                                                        <div>
+                                                            <h4 className="font-bold text-sm md:text-base text-white">Mostrar Calendario</h4>
+                                                            <p className="text-xs text-white/50 mt-1">Muestra el calendario de resultados históricos al público.</p>
+                                                        </div>
+                                                        <label className="relative inline-flex items-center cursor-pointer">
+                                                            <input
+                                                                type="checkbox"
+                                                                className="sr-only peer"
+                                                                checked={settings.show_calendar}
+                                                                onChange={(e) => setSettings({ ...settings, show_calendar: e.target.checked })}
+                                                            />
+                                                            <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-fuchsia-600"></div>
+                                                        </label>
+                                                    </div>
 
-                                            {/* Item Telegram */}
-                                            <div className="flex items-center justify-between p-4 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
-                                                <div>
-                                                    <h4 className="font-bold text-sm md:text-base text-white">Mostrar Telegram</h4>
-                                                    <p className="text-xs text-white/50 mt-1">Muestra la pestaña de Telegram en la Home (Pública).</p>
-                                                </div>
-                                                <label className="relative inline-flex items-center cursor-pointer">
-                                                    <input
-                                                        type="checkbox"
-                                                        className="sr-only peer"
-                                                        checked={settings.show_telegram}
-                                                        onChange={(e) => setSettings({ ...settings, show_telegram: e.target.checked })}
-                                                    />
-                                                    <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sky-500"></div>
-                                                </label>
-                                            </div>
+                                                    {/* Item 3 */}
+                                                    <div className="flex items-center justify-between p-4 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
+                                                        <div>
+                                                            <h4 className="font-bold text-sm md:text-base text-white">Mostrar Analítica</h4>
+                                                            <p className="text-xs text-white/50 mt-1">Muestra las gráficas de rendimiento (Beta) al público.</p>
+                                                        </div>
+                                                        <label className="relative inline-flex items-center cursor-pointer">
+                                                            <input
+                                                                type="checkbox"
+                                                                className="sr-only peer"
+                                                                checked={settings.show_analytics}
+                                                                onChange={(e) => setSettings({ ...settings, show_analytics: e.target.checked })}
+                                                            />
+                                                            <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-fuchsia-600"></div>
+                                                        </label>
+                                                    </div>
 
-                                            {/* Item TikTok (Admin Only) */}
-                                            <div className="flex items-center justify-between p-4 bg-black/20 rounded-xl border border-white/5 border-l-4 border-l-fuchsia-500 hover:border-white/10 transition-colors">
-                                                <div>
-                                                    <h4 className="font-bold text-sm md:text-base text-fuchsia-400">Mostrar TikTok Factory</h4>
-                                                    <p className="text-xs text-white/50 mt-1">Habilita el generador de contenido (Solo visible en Admin).</p>
+                                                    {/* Item Telegram */}
+                                                    <div className="flex items-center justify-between p-4 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
+                                                        <div>
+                                                            <h4 className="font-bold text-sm md:text-base text-white">Mostrar Telegram</h4>
+                                                            <p className="text-xs text-white/50 mt-1">Muestra la pestaña de Telegram en la Home (Pública).</p>
+                                                        </div>
+                                                        <label className="relative inline-flex items-center cursor-pointer">
+                                                            <input
+                                                                type="checkbox"
+                                                                className="sr-only peer"
+                                                                checked={settings.show_telegram}
+                                                                onChange={(e) => setSettings({ ...settings, show_telegram: e.target.checked })}
+                                                            />
+                                                            <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sky-500"></div>
+                                                        </label>
+                                                    </div>
+
+                                                    {/* Item TikTok (Admin Only) */}
+                                                    <div className="flex items-center justify-between p-4 bg-black/20 rounded-xl border border-white/5 border-l-4 border-l-fuchsia-500 hover:border-white/10 transition-colors">
+                                                        <div>
+                                                            <h4 className="font-bold text-sm md:text-base text-fuchsia-400">Mostrar TikTok Factory</h4>
+                                                            <p className="text-xs text-white/50 mt-1">Habilita el generador de contenido (Solo visible en Admin).</p>
+                                                        </div>
+                                                        <label className="relative inline-flex items-center cursor-pointer">
+                                                            <input
+                                                                type="checkbox"
+                                                                className="sr-only peer"
+                                                                checked={settings.show_tiktok}
+                                                                onChange={(e) => setSettings({ ...settings, show_tiktok: e.target.checked })}
+                                                            />
+                                                            <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-fuchsia-600"></div>
+                                                        </label>
+                                                    </div>
                                                 </div>
-                                                <label className="relative inline-flex items-center cursor-pointer">
-                                                    <input
-                                                        type="checkbox"
-                                                        className="sr-only peer"
-                                                        checked={settings.show_tiktok}
-                                                        onChange={(e) => setSettings({ ...settings, show_tiktok: e.target.checked })}
-                                                    />
-                                                    <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-fuchsia-600"></div>
-                                                </label>
-                                            </div>
+                                            )}
+
+                                            {/* STAKAZO CONTENT */}
+                                            {visibilidadMode === 'stakazo' && (
+                                                <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                                                    {/* STAKAZO MENU */}
+                                                    <div className="flex items-center justify-between p-4 bg-amber-500/5 rounded-xl border border-amber-500/10 hover:border-amber-500/20 transition-colors">
+                                                        <div>
+                                                            <h4 className="font-bold text-sm md:text-base text-amber-500">Pestaña "Stakazo"</h4>
+                                                            <p className="text-xs text-white/50 mt-1">Muestra la pestaña dedicada de Stakazo en la Home.</p>
+                                                        </div>
+                                                        <label className="relative inline-flex items-center cursor-pointer">
+                                                            <input
+                                                                type="checkbox"
+                                                                className="sr-only peer"
+                                                                checked={settings.show_stakazo_menu}
+                                                                onChange={(e) => setSettings({ ...settings, show_stakazo_menu: e.target.checked })}
+                                                            />
+                                                            <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                                                        </label>
+                                                    </div>
+
+                                                    {/* STAKAZO ALERT */}
+                                                    <div className="flex items-center justify-between p-4 bg-amber-500/5 rounded-xl border border-amber-500/10 hover:border-amber-500/20 transition-colors">
+                                                        <div>
+                                                            <h4 className="font-bold text-sm md:text-base text-amber-500">Alerta Global (Banner)</h4>
+                                                            <p className="text-xs text-white/50 mt-1">Muestra el banner llamativo "STAKAZO DISPONIBLE".</p>
+                                                        </div>
+                                                        <label className="relative inline-flex items-center cursor-pointer">
+                                                            <input
+                                                                type="checkbox"
+                                                                className="sr-only peer"
+                                                                checked={settings.show_stakazo_alert}
+                                                                onChange={(e) => setSettings({ ...settings, show_stakazo_alert: e.target.checked })}
+                                                            />
+                                                            <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                                                        </label>
+                                                    </div>
+
+                                                    {/* STAKAZO CALENDAR */}
+                                                    <div className="flex items-center justify-between p-4 bg-amber-500/5 rounded-xl border border-amber-500/10 hover:border-amber-500/20 transition-colors">
+                                                        <div>
+                                                            <h4 className="font-bold text-sm md:text-base text-amber-500">Calendario Stakazo</h4>
+                                                            <p className="text-xs text-white/50 mt-1">Habilita el toggle Stakazo en el Calendario Histórico.</p>
+                                                        </div>
+                                                        <label className="relative inline-flex items-center cursor-pointer">
+                                                            <input
+                                                                type="checkbox"
+                                                                className="sr-only peer"
+                                                                checked={settings.show_stakazo_calendar}
+                                                                onChange={(e) => setSettings({ ...settings, show_stakazo_calendar: e.target.checked })}
+                                                            />
+                                                            <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                                                        </label>
+                                                    </div>
+
+                                                    {/* STAKAZO ANALYTICS */}
+                                                    <div className="flex items-center justify-between p-4 bg-amber-500/5 rounded-xl border border-amber-500/10 hover:border-amber-500/20 transition-colors">
+                                                        <div>
+                                                            <h4 className="font-bold text-sm md:text-base text-amber-500">Analítica Stakazo</h4>
+                                                            <p className="text-xs text-white/50 mt-1">Habilita el toggle Stakazo en el Panel de Estadísticas.</p>
+                                                        </div>
+                                                        <label className="relative inline-flex items-center cursor-pointer">
+                                                            <input
+                                                                type="checkbox"
+                                                                className="sr-only peer"
+                                                                checked={settings.show_stakazo_analytics}
+                                                                onChange={(e) => setSettings({ ...settings, show_stakazo_analytics: e.target.checked })}
+                                                            />
+                                                            <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 )}
@@ -874,6 +992,36 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                                         onClick={handleAnalyze}
                                                         disabled={analyzeStatus === 'loading'}
                                                         className="px-4 py-2 bg-fuchsia-600/20 hover:bg-fuchsia-600/40 border border-fuchsia-500/50 text-fuchsia-400 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 disabled:opacity-50"
+                                                    >
+                                                        <Play size={12} fill="currentColor" />
+                                                        Ejecutar Ahora
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* 2º B - Analizador STAKAZO */}
+                                            <div className="p-4 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-colors flex flex-col gap-3">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <h4 className="font-bold text-base text-amber-400 flex items-center gap-2">
+                                                            2º B - Analizador STAKAZO
+                                                            <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/30">PREMIUM</span>
+                                                        </h4>
+                                                        <p className="text-xs text-white/50 font-mono mt-0.5">ai_analysis_stakazo.yml</p>
+                                                    </div>
+                                                    {stakazoStatus === 'loading' ? <RefreshCw className="animate-spin text-amber-500" size={16} /> : getStatusBadge('Stakazo Analysis')}
+                                                </div>
+
+                                                <div className="flex items-center gap-2 text-xs text-white/60 bg-white/5 p-2 rounded-lg">
+                                                    <Clock size={14} className="text-white/40" />
+                                                    <span>Se ejecuta después del 2º estándar</span>
+                                                </div>
+
+                                                <div className="flex justify-end mt-2">
+                                                    <button
+                                                        onClick={handleStakazoAnalyze}
+                                                        disabled={stakazoStatus === 'loading'}
+                                                        className="px-4 py-2 bg-amber-600/20 hover:bg-amber-600/40 border border-amber-500/50 text-amber-400 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 disabled:opacity-50"
                                                     >
                                                         <Play size={12} fill="currentColor" />
                                                         Ejecutar Ahora
