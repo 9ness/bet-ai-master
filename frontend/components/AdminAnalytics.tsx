@@ -254,8 +254,6 @@ export default function AdminAnalytics({ showStakazoToggle = false }: { showStak
                         {/* 1. PROFIT */}
                         {/* 1. PROFIT */}
                         <StatCard
-                            title={category === 'daily_bets_stakazo' ? "Unknown Profit" : "Profit"}
-                            // Wait, title should be static or dynamic? I'll keep it simple.
                             title="Profit"
                             value={
                                 <span className="inline-flex items-center gap-2">
