@@ -83,7 +83,7 @@ type PickDetail = {
 };
 
 type BetResult = {
-    type: 'safe' | 'value' | 'funbet';
+    type: 'safe' | 'value' | 'funbet' | 'stakazo';
     stake: number;
     total_odd: number;
     status: 'WON' | 'LOST' | 'PENDING' | 'UNKNOWN' | 'GANADA' | 'PERDIDA' | 'PENDIENTE';

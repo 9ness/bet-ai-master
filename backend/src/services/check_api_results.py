@@ -373,88 +373,24 @@ def check_bets():
 
     for date_str, category in check_queue:
         # Protect individual category processing so one failure doesn't stop others
-        try:
-            print(f"[*] Checking bets for date: {date_str} [Category: {category}]")
+        print(f"[*] Checking bets for date: {date_str} [Category: {category}]")
+        
+        bl_manager = BlacklistManager(rs, category=category)
+        
+        # Get raw data (Monthly Hash Aware)
+        raw_data = rs.get_daily_bets(date_str, category=category)
+        if not raw_data and category == "daily_bets":
+             # Fallback for legacy
+             raw_data = rs.get(f"daily_bets:{date_str}")
             
-            bl_manager = BlacklistManager(rs, category=category)
-            
-            # Get raw data (Monthly Hash Aware)
-            raw_data = rs.get_daily_bets(date_str, category=category)
-            if not raw_data and category == "daily_bets":
-                 # Fallback for legacy
-                 raw_data = rs.get(f"daily_bets:{date_str}")
-                
-            if not raw_data:
-                print(f"   - No data found for {date_str} ({category})")
-                continue
-                
-            try:
-                day_data = json.loads(raw_data) if isinstance(raw_data, str) else raw_data
-            except Exception as e:
-                print(f"   - Error parsing JSON for {date_str} ({category}): {e}")
-                continue
-                
-            if not day_data.get("bets"):
-                continue
-                
-            bets_modified = False
-            
-            for bet in day_data["bets"]:
-
-    
-    # I will use `replace_file_content` to rewriting the `check_bets` function signature and the loop, 
-    # accepting that I have to rewrite the body if I want correct indentation.
-    
-    # Wait! `check_api_results.py` is a script.
-    # The logic is procedural inside `check_bets`.
-    
-    # Maybe I can just duplicate the call?
-    # No.
-    
-    # Let's look at `check_bets` again.
-    # It has a loop `for date_str in dates_to_check:`.
-    # I can replace this line with a generator or a list of tuples?
-    # items_to_check = [(d, c) for d in dates_to_check for c in ["daily_bets", "daily_bets_stakazo"]]
-    # for date_str, category in items_to_check:
-    
-    # ALL subsequent code uses `date_str`. 
-    # But it assumes `daily_bets` implicitely.
-    # I need to change `rs.get_daily_bets(date_str)` to `rs.get_daily_bets(date_str, category=category)`.
-    # And `bl_manager = BlacklistManager(rs)` -> `bl_manager = BlacklistManager(rs, category=category)`
-    # And `rs.hset`...
-    
-    # If I change the loop to `for date_str, category in items_to_check:`, I still need to indent if I don't want to change the whole block.
-    # Wait, if I change the loop definition, the body is still indented one level.
-    # `for date_str in dates_to_check:` is at indentation level 4.
-    # `for date_str, category in [(d,c) for d in dates_to_check for c in categories]:` is also level 4.
-    # So the body indentation is PRESERVED!
-    
-    # YES! This is the trick.
-    # I will replace:
-    # for date_str in dates_to_check:
-    #     print(f"[*] Checking bets for date: {date_str}")
-    #     
-    #     # Get raw data (Monthly Hash Aware)
-    #     raw_data = rs.get_daily_bets(date_str)
-    
-    # WITH:
-    # items_to_check = [(d, "daily_bets") for d in dates_to_check] + [(d, "daily_bets_stakazo") for d in dates_to_check]
-    # for date_str, category in items_to_check:
-    #     print(f"[*] Checking bets for date: {date_str} [{category}]")
-    #     
-    #     bl_manager = BlacklistManager(rs, category=category) # Re-init for category
-    #     
-    #     # Get raw data
-    #     raw_data = rs.get_daily_bets(date_str, category=category)
-    
-    # This keeps indentation same!
-    
-    pass
+        if not raw_data:
+            print(f"   - No data found for {date_str} ({category})")
+            continue
             
         try:
             day_data = json.loads(raw_data) if isinstance(raw_data, str) else raw_data
-        except:
-            print(f"   - Error parsing JSON for {date_str}")
+        except Exception as e:
+            print(f"   - Error parsing JSON for {date_str} ({category}): {e}")
             continue
             
         if not day_data.get("bets"):
