@@ -305,75 +305,62 @@ export default function HomeTabs({ settings, predictions, stakazoPredictions, fo
                 </div>
             )}
 
-            {/* HORIZONTAL SCROLL SNAP CONTAINER */}
-            <div
-                ref={scrollRef}
-                className={`flex-1 w-full flex md:block overflow-x-auto md:overflow-visible snap-x md:snap-none snap-mandatory scrollbar-hide items-start transition-opacity duration-300 ${isReady ? 'opacity-100' : 'opacity-0'}`}
-                style={{ scrollBehavior: 'smooth' }}
-                onScroll={handleScroll}
-            >
-                {visibleTabs.map(tab => (
-                    <div
-                        key={tab.id}
-                        className={`min-w-full w-full snap-start flex-shrink-0 md:flex-shrink ${activeTab === tab.id ? 'md:block' : 'md:hidden'}`}
-                        style={{ willChange: 'transform' }}
-                    >
-                        <div className="w-full max-w-7xl mx-auto px-2 md:px-4 pt-4 pb-0">
-                            {tab.id === 'stakazo' && (
-                                <div className="animate-in fade-in duration-500">
-                                    <div className="mb-4 p-5 rounded-3xl bg-gradient-to-br from-[#080808] to-[#1a1a1a] border border-amber-500/20 text-center relative overflow-hidden shadow-lg group">
-                                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-600 via-yellow-400 to-amber-600 opacity-80" />
-                                        <div className="absolute -right-6 -top-6 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl pointer-events-none group-hover:bg-amber-500/20 transition-all duration-500" />
+            {/* CONTENT CONTAINER - DIRECT RENDERING (No Scroll/Swipe to avoid flash) */}
+            <div className="flex-1 w-full animate-in fade-in duration-300">
+                <div className="w-full max-w-7xl mx-auto px-2 md:px-4 pt-4 pb-0">
+                    {activeTab === 'stakazo' && (
+                        <div className="animate-in fade-in zoom-in duration-300">
+                            <div className="mb-4 p-5 rounded-3xl bg-gradient-to-br from-[#080808] to-[#1a1a1a] border border-amber-500/20 text-center relative overflow-hidden shadow-lg group">
+                                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-600 via-yellow-400 to-amber-600 opacity-80" />
+                                <div className="absolute -right-6 -top-6 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl pointer-events-none group-hover:bg-amber-500/20 transition-all duration-500" />
 
-                                        <h3 className="text-white font-black text-xl md:text-2xl tracking-tighter flex items-center justify-center gap-2 mb-2 drop-shadow-md">
-                                            <Trophy size={22} className="text-amber-400 fill-amber-400/20 animate-pulse" />
-                                            <span className="bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 bg-clip-text text-transparent">
-                                                INVERSIÓN DE ALTA FIDELIDAD
-                                            </span>
-                                        </h3>
-                                        <p className="text-sm text-gray-400 font-medium max-w-lg mx-auto leading-relaxed">
-                                            Selección de máxima confianza basada en la explotación de ineficiencias críticas del mercado.
-                                        </p>
-                                        <p className="text-xs text-amber-400/90 font-serif italic mt-3 tracking-wide animate-pulse">
-                                            ✨ Acceso Premium gratuito por tiempo limitado ✨
-                                        </p>
-                                    </div>
-                                    <DailyPredictions predictions={stakazoPredictions} isAdmin={false} hideHeader={true} />
-                                </div>
-                            )}
-
-                            {tab.id === 'daily_bets' && (
-                                <div className="animate-in fade-in duration-500">
-                                    <DailyPredictions predictions={predictions} isAdmin={false} />
-                                </div>
-                            )}
-
-                            {tab.id === 'calendar' && (
-                                <div className="animate-in fade-in duration-500">
-                                    <ResultsCalendar showStakazoToggle={settings.show_stakazo_calendar} />
-                                </div>
-                            )}
-
-                            {tab.id === 'analytics' && (
-                                <div className="animate-in fade-in duration-500">
-                                    <AdminAnalytics showStakazoToggle={settings.show_stakazo_analytics} />
-                                </div>
-                            )}
-
-                            {tab.id === 'telegram' && (
-                                <div className="animate-in fade-in duration-500">
-                                    <TelegramAdmin />
-                                </div>
-                            )}
-
-                            {tab.id === 'tiktok' && (
-                                <div className="animate-in fade-in duration-500">
-                                    <TikTokFactory formattedDate={formattedDate} predictions={predictions} />
-                                </div>
-                            )}
+                                <h3 className="text-white font-black text-xl md:text-2xl tracking-tighter flex items-center justify-center gap-2 mb-2 drop-shadow-md">
+                                    <Trophy size={22} className="text-amber-400 fill-amber-400/20 animate-pulse" />
+                                    <span className="bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 bg-clip-text text-transparent">
+                                        INVERSIÓN DE ALTA FIDELIDAD
+                                    </span>
+                                </h3>
+                                <p className="text-sm text-gray-400 font-medium max-w-lg mx-auto leading-relaxed">
+                                    Selección de máxima confianza basada en la explotación de ineficiencias críticas del mercado.
+                                </p>
+                                <p className="text-xs text-amber-400/90 font-serif italic mt-3 tracking-wide animate-pulse">
+                                    ✨ Acceso Premium gratuito por tiempo limitado ✨
+                                </p>
+                            </div>
+                            <DailyPredictions predictions={stakazoPredictions} isAdmin={false} hideHeader={true} />
                         </div>
-                    </div>
-                ))}
+                    )}
+
+                    {activeTab === 'daily_bets' && (
+                        <div className="animate-in fade-in zoom-in duration-300">
+                            <DailyPredictions predictions={predictions} isAdmin={false} />
+                        </div>
+                    )}
+
+                    {activeTab === 'calendar' && (
+                        <div className="animate-in fade-in zoom-in duration-300">
+                            <ResultsCalendar showStakazoToggle={settings.show_stakazo_calendar} />
+                        </div>
+                    )}
+
+                    {activeTab === 'analytics' && (
+                        <div className="animate-in fade-in zoom-in duration-300">
+                            <AdminAnalytics showStakazoToggle={settings.show_stakazo_analytics} />
+                        </div>
+                    )}
+
+                    {activeTab === 'telegram' && (
+                        <div className="animate-in fade-in zoom-in duration-300">
+                            <TelegramAdmin />
+                        </div>
+                    )}
+
+                    {activeTab === 'tiktok' && (
+                        <div className="animate-in fade-in zoom-in duration-300">
+                            <TikTokFactory formattedDate={formattedDate} predictions={predictions} />
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );
