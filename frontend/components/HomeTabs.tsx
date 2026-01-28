@@ -54,6 +54,14 @@ export default function HomeTabs({ settings, predictions, stakazoPredictions, fo
     // 2. State for Active Tab
     const [activeTab, setActiveTab] = useState(visibleTabs.length > 0 ? visibleTabs.find(t => t.id === 'daily_bets')?.id || visibleTabs[0].id : '');
 
+    // Layout Flash Prevention: Only show content when scroll is synced
+    // If active tab is first (index 0), we are ready immediately. Otherwise wait for scroll effect.
+    const [isReady, setIsReady] = useState(() => {
+        if (visibleTabs.length === 0) return true;
+        const initialTab = visibleTabs.find(t => t.id === 'daily_bets')?.id || visibleTabs[0].id;
+        return initialTab === visibleTabs[0].id; // Ready only if first tab is target
+    });
+
     // Header Stats State (unchanged)
     const [headerStats, setHeaderStats] = useState({
         profit: 0,
@@ -145,6 +153,24 @@ export default function HomeTabs({ settings, predictions, stakazoPredictions, fo
             });
         }
     };
+
+    // Fix Initial Tab Scroll Position (Mobile)
+    useEffect(() => {
+        if (scrollRef.current && activeTab) {
+            const index = visibleTabs.findIndex(t => t.id === activeTab);
+            if (index > 0) {
+                // Force scroll to active tab position immediately on mount
+                scrollRef.current.scrollTo({
+                    left: index * scrollRef.current.clientWidth,
+                    behavior: 'instant'
+                });
+            }
+            // Now reveal content
+            requestAnimationFrame(() => setIsReady(true));
+        } else {
+            setIsReady(true);
+        }
+    }, [activeTab]); // Trigger on activeTab init/change to ensure sync, mainly for initial load.
 
     if (visibleTabs.length === 0) {
         return (
@@ -282,7 +308,7 @@ export default function HomeTabs({ settings, predictions, stakazoPredictions, fo
             {/* HORIZONTAL SCROLL SNAP CONTAINER */}
             <div
                 ref={scrollRef}
-                className="flex-1 w-full flex md:block overflow-x-auto md:overflow-visible snap-x md:snap-none snap-mandatory scrollbar-hide items-start"
+                className={`flex-1 w-full flex md:block overflow-x-auto md:overflow-visible snap-x md:snap-none snap-mandatory scrollbar-hide items-start transition-opacity duration-300 ${isReady ? 'opacity-100' : 'opacity-0'}`}
                 style={{ scrollBehavior: 'smooth' }}
                 onScroll={handleScroll}
             >
