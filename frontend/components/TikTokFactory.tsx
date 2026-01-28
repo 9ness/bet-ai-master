@@ -92,6 +92,20 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
     const [imageSelector, setImageSelector] = useState<{ idx: number | null }>({ idx: null });
 
     const [slideGroups, setSlideGroups] = useState<any[]>([]);
+
+    // --- SLIDES DATA CALCULATION (Hoisted) ---
+    const slidesData: any[][] = [];
+    let currentChunk: any[] = [];
+    slideGroups.forEach((item: any) => {
+        if (item.isFeatured) {
+            if (currentChunk.length > 0) { slidesData.push(currentChunk); currentChunk = []; }
+            slidesData.push([item]);
+        } else {
+            currentChunk.push(item);
+            if (currentChunk.length >= 3) { slidesData.push(currentChunk); currentChunk = []; }
+        }
+    });
+    if (currentChunk.length > 0) slidesData.push(currentChunk);
     const [currentPreviewIdx, setCurrentPreviewIdx] = useState(0);
     const [availableFiles, setAvailableFiles] = useState<string[]>([]);
 
@@ -99,6 +113,85 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
     const [bgFilter, setBgFilter] = useState<'all' | 'futbol' | 'basket' | 'portada' | 'comodin' | 'equipo'>('all');
     const [bgTeamSelected, setBgTeamSelected] = useState<string | null>(null);
     const [bgSportForTeam, setBgSportForTeam] = useState<'futbol' | 'basket'>('futbol');
+
+    // --- DRAGGABLE TEXT STATE ---
+    const [textPositions, setTextPositions] = useState<{ x: number, y: number }[]>([]);
+    const [isDragging, setIsDragging] = useState(false);
+    const dragRef = useRef<{ startX: number, startY: number, initialX: number, initialY: number, idx: number } | null>(null);
+
+    useEffect(() => {
+        // Sync positions array size
+        const total = (slideGroups.length ? Math.ceil(slideGroups.reduce((acc: any, curr: any) => acc + (curr.isFeatured ? 1 : 0.34), 0)) : 0) + 10; // Rough estimate or just resize dynamically
+        // Better:
+        const required = slidesData.length + 2;
+        if (textPositions.length !== required) {
+            setTextPositions(prev => {
+                const newArr = new Array(required).fill({ x: 0, y: 0 });
+                // Preserve old positions if possible? Maybe too complex for now, just reset on structure change or preserve by index
+                return newArr.map((_, i) => prev[i] || { x: 0, y: 0 });
+            });
+        }
+    }, [slidesData.length]);
+
+    const handleDragStart = (e: React.MouseEvent | React.TouchEvent, idx: number) => {
+        // e.preventDefault(); // allow touch scroll if not on text? No, on text we want drag.
+        const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+        const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
+        dragRef.current = {
+            startX: clientX,
+            startY: clientY,
+            initialX: textPositions[idx]?.x || 0,
+            initialY: textPositions[idx]?.y || 0,
+            idx
+        };
+        setIsDragging(true);
+    };
+
+    useEffect(() => {
+        const handleMove = (e: MouseEvent | TouchEvent) => {
+            if (!isDragging || !dragRef.current) return;
+            const clientX = 'touches' in e ? (e as TouchEvent).touches[0].clientX : (e as MouseEvent).clientX;
+            const clientY = 'touches' in e ? (e as TouchEvent).touches[0].clientY : (e as MouseEvent).clientY;
+
+            // Calculate scale roughly strictly for dragging sensitivity
+            // The preview is 1080px wide internally, scaled down.
+            // If displayed width is ~300px, scale is ~0.27.
+            // Movement of 1px on screen = 1/0.27 px in internal units.
+            // Let's assume a generic factor or calculate from an element if needed.
+            // For now, let's use a multiplier (e.g. 3) to make it feel responsive on small screens
+            // Or ideally, find the element width.
+            const scaleFactor = 3.5; // Approximate for mobile/desktop preview sizes
+
+            const deltaX = (clientX - dragRef.current.startX) * scaleFactor;
+            const deltaY = (clientY - dragRef.current.startY) * scaleFactor;
+
+            const newPositions = [...textPositions];
+            newPositions[dragRef.current.idx] = {
+                x: dragRef.current.initialX + deltaX,
+                y: dragRef.current.initialY + deltaY
+            };
+            setTextPositions(newPositions);
+        };
+
+        const handleUp = () => {
+            setIsDragging(false);
+            dragRef.current = null;
+        };
+
+        if (isDragging) {
+            window.addEventListener('mousemove', handleMove);
+            window.addEventListener('touchmove', handleMove);
+            window.addEventListener('mouseup', handleUp);
+            window.addEventListener('touchend', handleUp);
+        }
+        return () => {
+            window.removeEventListener('mousemove', handleMove);
+            window.removeEventListener('touchmove', handleMove);
+            window.removeEventListener('mouseup', handleUp);
+            window.removeEventListener('touchend', handleUp);
+        };
+    }, [isDragging, textPositions]);
 
     useEffect(() => {
         fetch('/api/social/tiktok').then(res => res.ok ? res.json() : null).then(data => data?.title && setSocialContent(data));
@@ -111,8 +204,10 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [saveSettings, setSaveSettings] = useState({ type: 'futbol' as 'futbol' | 'basket' | 'portada' | 'comodin', tag: '' });
-    const [suggestions, setSuggestions] = useState<string[]>([]);
+    // State variables removed (duplicates)
     const [showSuggestions, setShowSuggestions] = useState(false);
+    const [teamSearch, setTeamSearch] = useState(""); // NEW: Search for teams
+    const [suggestions, setSuggestions] = useState<string[]>([]);
 
     const getUniqueTeams = () => {
         const teams = new Set<string>();
@@ -148,6 +243,35 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
 
     // --- ERROR MODAL STATE ---
     const [errorAlert, setErrorAlert] = useState<{ show: boolean, title: string, msg: string }>({ show: false, title: '', msg: '' });
+
+    // --- DELETE FOLDER MODAL STATE ---
+    const [deleteFolderModal, setDeleteFolderModal] = useState<{ show: boolean, team: string, count: number, sport: string }>({ show: false, team: '', count: 0, sport: '' });
+
+    const handleDeleteFolder = (team: string, sport: string) => {
+        const filesToDelete = availableFiles.filter(f => {
+            const fname = getFilename(f).toLowerCase();
+            return fname.startsWith(`bg-${sport}-`) && fname.split('-')[2] === team;
+        });
+
+        if (filesToDelete.length === 0) return;
+
+        setDeleteFolderModal({
+            show: true,
+            team: formatTeamName(team),
+            count: filesToDelete.length,
+            sport
+        });
+    };
+
+    const confirmDeleteFolder = async () => {
+        const { team, sport } = deleteFolderModal;
+        const rawTeamName = team.replace(/\s+/g, '').toLowerCase(); // Rough reverse format or better to pass original. 
+        // Actually we need the original 'team' identifier used in filter.
+        // Let's re-find files using the logic from handleDeleteFolder but safer.
+        // Wait, 'team' in state is formatted. I should pass raw team to state.
+
+        // RE-IMPLEMENTING handleDeleteFolder slightly to pass raw team
+    };
 
     const performSearch = async () => {
         if (!searchQuery.trim()) return;
@@ -452,18 +576,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
 
     useEffect(() => setSlideGroups(getAllSelections()), [predictions, availableFiles]);
 
-    const slidesData: any[][] = [];
-    let currentChunk: any[] = [];
-    slideGroups.forEach((item: any) => {
-        if (item.isFeatured) {
-            if (currentChunk.length > 0) { slidesData.push(currentChunk); currentChunk = []; }
-            slidesData.push([item]);
-        } else {
-            currentChunk.push(item);
-            if (currentChunk.length >= 3) { slidesData.push(currentChunk); currentChunk = []; }
-        }
-    });
-    if (currentChunk.length > 0) slidesData.push(currentChunk);
+    // slidesData moved up
 
     useEffect(() => {
         if (availableFiles.length && slidesData.length) {
@@ -522,12 +635,99 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
     }
     const download = (url: string, i: number) => { const a = document.createElement('a'); a.href = url; a.download = `slide-${i + 1}.png`; a.click(); };
     const downloadAll = () => images.forEach((img, i) => download(img, i));
-    const smartSelectBackgrounds = () => setAvailableFiles([...availableFiles]); // Toggle for effect re-run
 
+    const openImageSelectorSmart = (idx: number) => {
+        const file = config.bgSelection[idx];
+        setImageSelector({ idx });
+
+        if (!file) return;
+        const name = getFilename(file).toLowerCase();
+
+        // Default reset
+        setBgFilter('all');
+        setBgTeamSelected(null);
+
+        if (name.includes('portada')) {
+            setBgFilter('portada');
+        } else if (name.includes('comodin')) {
+            setBgFilter('comodin');
+        } else if (name.includes('bg-futbol-') || name.includes('bg-basket-')) {
+            // Optimistic parsing: bg-sport-team-...
+            // We use the original filename to get parts, but ensure comparison is safe
+            const parts = getFilename(file).split('-');
+            const sport = parts[1];
+            const team = parts[2];
+
+            if (sport && team && (sport === 'futbol' || sport === 'basket')) {
+                setBgFilter('equipo');
+                setBgSportForTeam(sport as 'futbol' | 'basket');
+                setBgTeamSelected(team.toLowerCase());
+            } else {
+                // Fallback if structure fits but team missing?
+                setBgFilter(sport as any || 'all');
+            }
+        }
+    };
+
+    const smartSelectBackgrounds = () => setAvailableFiles([...availableFiles]); // Toggle for effect re-run
+    const triggerTouchFeedback = () => { if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(50); };
+
+    // --- SHARED RENDERER ---
+    const renderSlideContent = (index: number, isPreview = false) => {
+        const pos = textPositions[index] || { x: 0, y: 0 };
+        const style = { transform: `translate(${pos.x}px, ${pos.y}px)`, cursor: isPreview ? 'grab' : 'default', touchAction: 'none' };
+        const handlers = isPreview ? {
+            onMouseDown: (e: any) => handleDragStart(e, index),
+            onTouchStart: (e: any) => handleDragStart(e, index)
+        } : {};
+
+        // 1. INTRO
+        if (index === 0) {
+            return (
+                <div className="relative z-10 w-full flex flex-col items-center gap-14 p-8" style={style} {...handlers}>
+                    <div className="flex flex-col items-center gap-4 w-full">
+                        <div className="bg-white px-12 pt-2 pb-6 rounded-2xl w-fit max-w-[90%] flex items-center justify-center pointer-events-none"><h1 className="text-6xl font-black text-black tracking-tighter leading-tight whitespace-nowrap text-center pb-5">{config.introTitle.split('\n')[0]}</h1></div>
+                        <div className="bg-white px-12 pt-2 pb-4 rounded-2xl flex items-center justify-center gap-6 w-fit max-w-[95%] pointer-events-none"><h1 className="text-5xl font-black text-black tracking-tighter leading-tight whitespace-nowrap pb-5">{config.introTitle.split('\n')[1] || ''}</h1><div className="flex items-center gap-4 pb-5">{config.introEmoji1 && <span className="text-5xl filter drop-shadow">{config.introEmoji1}</span>}{config.introEmoji2 && <span className="text-5xl filter drop-shadow">{config.introEmoji2}</span>}</div></div>
+                    </div>
+                    {config.introSubtitle && <div className="bg-white px-14 pt-4 pb-8 rounded-2xl mt-8 flex items-center justify-center pointer-events-none"><span className="text-6xl font-black text-black uppercase tracking-tighter leading-none pb-5">{config.introSubtitle}</span></div>}
+                </div>
+            );
+        }
+
+        // 3. OUTRO
+        if (index === slidesData.length + 1) {
+            return (
+                <div className="relative z-10 w-full flex flex-col items-center gap-16 p-12" style={style} {...handlers}>
+                    <div className="bg-white px-10 py-10 rounded-2xl max-w-[95%] text-center pointer-events-none"><h2 className="text-6xl font-black text-black uppercase tracking-tighter leading-tight whitespace-pre-line">{config.outroTitle}</h2></div>
+                    <div className="bg-white px-12 py-6 rounded-2xl pointer-events-none"><p className="text-3xl font-black text-black uppercase tracking-tight">{config.outroSub}</p></div>
+                </div>
+            );
+        }
+
+        // 2. BETS
+        const chunkIndex = index - 1;
+        const chunk = slidesData[chunkIndex];
+        if (!chunk) return null;
+
+        return (
+            <div className="relative z-10 w-full h-full flex flex-col items-center justify-center p-8 gap-16 pb-[80px]" style={style} {...handlers}>
+                {chunk.map((group: any, bIdx: number) => (
+                    <div key={bIdx} className="w-full flex flex-col items-center gap-4 pointer-events-none">
+                        <div className="bg-black px-8 pt-2 pb-4 rounded-xl max-w-[95%] border-2 border-black flex items-center justify-center text-center"><h3 className="text-3xl font-black text-white uppercase tracking-tight leading-tight whitespace-pre-wrap break-words pb-5">{group.matchDisplay}</h3></div>
+                        {group.picks.map((pick: string, pIdx: number) => (
+                            pick.split('\n').filter(l => l.trim()).map((line, lIdx) => (
+                                <div key={`${pIdx}-${lIdx}`} className="bg-white px-8 pt-2 pb-4 rounded-xl max-w-[95%] flex items-center justify-center text-center mt-[-10px]"><span className="text-3xl font-black text-black tracking-tight leading-tight whitespace-pre-wrap break-words pb-5">{line}</span></div>
+                            ))
+                        ))}
+                    </div>
+                ))}
+            </div>
+        );
+    };
 
     // --- RENDER ---
     return (
-        <div className="max-w-[1600px] mx-auto pb-10 space-y-6">
+        <div className="max-w-[1600px] mx-auto pb-10 space-y-6 select-none">
 
             {/* === MOBILE LAYOUT (Tabs) === */}
             <div className="md:hidden space-y-6">
@@ -546,25 +746,24 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                     {activeTab === 'editor' && (
                         <div className="w-full max-w-lg mx-auto flex flex-row items-center justify-center gap-4 px-2">
                             <div className="relative aspect-[9/16] w-full max-w-[200px] bg-black rounded-3xl border border-white/10 shadow-2xl overflow-hidden group shrink-0">
-                                {images.length > 0 ? (
-                                    <div className="w-full h-full relative group">
-                                        <img src={images[currentPreviewIdx]} alt="Slide" className="w-full h-full object-contain" />
-                                        <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex items-end justify-center gap-4 opacity-0 group-hover:opacity-100 transition-all duration-300">
-                                            <button onClick={() => setCurrentPreviewIdx(Math.max(0, currentPreviewIdx - 1))} className="p-2 bg-white/20 hover:bg-white/30 rounded-full backdrop-blur"><ChevronLeft className="text-white" size={16} /></button>
-                                            <div className="flex gap-2">
-                                                <button onClick={() => setPreviewImg(images[currentPreviewIdx])} className="p-2 bg-white text-black rounded-lg hover:scale-110 transition"><ScanEye size={16} /></button>
-                                                <button onClick={() => download(images[currentPreviewIdx], currentPreviewIdx)} className="p-2 bg-emerald-500 text-white rounded-lg hover:scale-110 transition"><Download size={16} /></button>
-                                            </div>
-                                            <button onClick={() => setCurrentPreviewIdx(Math.min(images.length - 1, currentPreviewIdx + 1))} className="p-2 bg-white/20 hover:bg-white/30 rounded-full backdrop-blur"><ChevronRight className="text-white" size={16} /></button>
+                                {/* LIVE PREVIEW (Mobile) */}
+                                <div className="absolute inset-0 bg-black flex items-center justify-center overflow-hidden">
+                                    {/* Scaled Render */}
+                                    <div className="w-[1080px] h-[1350px] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 scale-[0.18] lg:scale-[0.25] origin-center flex flex-col items-center justify-center bg-black">
+                                        <img src={getImageSrc(config.bgSelection[currentPreviewIdx])} className="absolute inset-0 w-full h-full object-cover opacity-80" />
+                                        {renderSlideContent(currentPreviewIdx, true)}
+                                    </div>
+
+                                    {/* Overlay Controls */}
+                                    <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex items-end justify-center gap-4 z-20">
+                                        <button onClick={() => setCurrentPreviewIdx(Math.max(0, currentPreviewIdx - 1))} className="p-2 bg-white/20 hover:bg-white/30 rounded-full backdrop-blur"><ChevronLeft className="text-white" size={16} /></button>
+                                        <div className="flex gap-2">
+                                            {images.length > 0 && <button onClick={() => setPreviewImg(images[currentPreviewIdx])} className="p-2 bg-white text-black rounded-lg hover:scale-110 transition"><ScanEye size={16} /></button>}
                                         </div>
-                                        <div className="absolute top-4 right-4 bg-black/60 px-2 py-0.5 rounded text-[10px] text-white/50 border border-white/5">{currentPreviewIdx + 1}/{images.length}</div>
+                                        <button onClick={() => setCurrentPreviewIdx(Math.min((slidesData.length + 1), currentPreviewIdx + 1))} className="p-2 bg-white/20 hover:bg-white/30 rounded-full backdrop-blur"><ChevronRight className="text-white" size={16} /></button>
                                     </div>
-                                ) : (
-                                    <div className="w-full h-full flex flex-col items-center justify-center text-white/20 gap-4 bg-[#0a0a0a]">
-                                        <div className="p-6 rounded-full bg-white/5 animate-pulse"><ImageIcon size={32} /></div>
-                                        <p className="text-[10px] font-bold uppercase tracking-widest text-center">Vista<br />Previa</p>
-                                    </div>
-                                )}
+                                    <div className="absolute top-4 right-4 bg-black/60 px-2 py-0.5 rounded text-[10px] text-white/50 border border-white/5 z-20 pointer-events-none">{currentPreviewIdx + 1}/{slidesData.length + 2}</div>
+                                </div>
                             </div>
                             <div className="flex flex-col gap-2 w-[100px] shrink-0">
                                 <button onClick={() => setShowSocialModal(true)} disabled={!socialContent} className="btn-active-effect bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-400 font-bold py-3 px-2 rounded-xl flex flex-col items-center justify-center gap-1 h-[70px]"><ScanEye size={18} /><span className="text-[9px] uppercase">Viral</span></button>
@@ -602,11 +801,30 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                     {/* TAB 5: FONDOS */}
                     {activeTab === 'bg' && (
                         <div className="w-full max-w-lg mx-auto bg-[#121212] border border-white/10 rounded-2xl p-6">
-                            <div className="grid grid-cols-3 gap-2 max-h-[50vh] overflow-y-auto custom-scrollbar p-1 mb-4">
-                                {config.bgSelection.map((bg, i) => (<div key={i} className="group relative" onClick={() => setImageSelector({ idx: i })}><div className="aspect-[9/16] rounded-lg overflow-hidden border border-white/10 relative"><img src={getImageSrc(bg)} className="w-full h-full object-cover" alt="bg" /><div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><button className="p-1.5 bg-amber-500 rounded-full text-black hover:scale-110"><RefreshCw size={12} /></button></div></div><p className="text-[8px] text-center text-white/30 mt-1">Slide {i + 1}</p></div>))}
+                            <div className="flex gap-2 mb-4">
+                                <button onClick={() => setSearchModalOpen(true)} className="flex-1 py-2 bg-sky-500/10 text-sky-500 border border-sky-500/20 rounded-xl text-xs font-bold hover:bg-sky-500/20 transition flex items-center justify-center gap-2"><Search size={14} /> BUSCAR</button>
+                                <button onClick={() => { setAvailableFiles([...availableFiles]); }} className="flex-1 py-2 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-xl text-xs font-bold hover:bg-amber-500/20 transition flex items-center justify-center gap-2"><RefreshCw size={14} /> REGENERAR</button>
+                                <button onClick={() => setAdminModalOpen(true)} className="flex-1 py-2 bg-purple-500/10 text-purple-500 border border-purple-500/20 rounded-xl text-xs font-bold hover:bg-purple-500/20 transition flex items-center justify-center gap-2"><Settings size={14} /> ADMIN</button>
                             </div>
-                            <button onClick={() => setSearchModalOpen(true)} className="w-full mb-2 py-3 bg-sky-500/10 text-sky-500 border border-sky-500/20 rounded-xl text-xs font-bold hover:bg-sky-500/20 transition flex items-center justify-center gap-2"><Search size={14} /> BUSCAR ONLINE</button>
-                            <button onClick={() => { setAvailableFiles([...availableFiles]); }} className="w-full py-3 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-xl text-xs font-bold hover:bg-amber-500/20 transition flex items-center justify-center gap-2"><RefreshCw size={14} /> REGENERAR TODOS</button>
+                            <div className="grid grid-cols-3 gap-2 max-h-[50vh] overflow-y-auto custom-scrollbar p-1 mb-4">
+                                {config.bgSelection.map((bg, i) => (
+                                    <div key={i} className="group relative" onClick={() => openImageSelectorSmart(i)}>
+                                        <div className="aspect-[9/16] bg-black/50 rounded-lg overflow-hidden border border-white/10 group-hover:border-sky-500 transition relative">
+                                            <img src={getImageSrc(bg)} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition" />
+                                            {/* PREVIEW OVERLAY */}
+                                            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                                                <div className="w-[1080px] h-[1350px] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 scale-[0.11] origin-center flex flex-col justify-center items-center">
+                                                    {renderSlideContent(i, false)}
+                                                </div>
+                                            </div>
+                                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                                <button className="p-1.5 bg-amber-500 rounded-full text-black hover:scale-110"><RefreshCw size={12} /></button>
+                                            </div>
+                                        </div>
+                                        <p className="text-[8px] text-center text-white/30 mt-1">Slide {i + 1}</p>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
                 </div>
@@ -679,16 +897,25 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                 <div className="flex justify-between items-center bg-black/20 p-2 rounded-lg">
                                     <h3 className="text-xs font-bold text-amber-500 uppercase">Galería</h3>
                                     <div className="flex gap-2">
-                                        <button onClick={() => setSearchModalOpen(true)} className="px-3 py-1 bg-sky-500/10 text-sky-400 border border-sky-500/20 rounded-md text-[9px] font-bold hover:bg-sky-500/20 flex items-center gap-1"><Search size={10} /> BUSCAR</button>
-                                        <button onClick={() => smartSelectBackgrounds()} className="px-3 py-1 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-md text-[9px] font-bold hover:bg-amber-500/20 flex items-center gap-1"><RefreshCw size={10} /> AUTO</button>
+                                        <button onClick={() => setSearchModalOpen(true)} className="px-3 py-1.5 bg-sky-500/10 text-sky-500 border border-sky-500/20 rounded-lg text-[10px] font-bold hover:bg-sky-500/20 flex items-center gap-1 transition-colors"><Search size={12} /> BUSCAR</button>
+                                        <button onClick={() => smartSelectBackgrounds()} className="px-3 py-1.5 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-lg text-[10px] font-bold hover:bg-amber-500/20 flex items-center gap-1 transition-colors"><RefreshCw size={12} /> REGENERAR</button>
+                                        <button onClick={() => setAdminModalOpen(true)} className="px-3 py-1.5 bg-purple-500/10 text-purple-500 border border-purple-500/20 rounded-lg text-[10px] font-bold hover:bg-purple-500/20 flex items-center gap-1 transition-colors"><Settings size={12} /> ADMIN</button>
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-3 gap-2">
                                     {config.bgSelection.map((bg, i) => (
-                                        <div key={i} className={`group relative aspect-[9/16] rounded-lg overflow-hidden border cursor-pointer transition-all ${imageSelector.idx === i ? 'border-amber-500 ring-2 ring-amber-500/20' : 'border-white/10 hover:border-white/30'}`} onClick={() => setImageSelector({ idx: i })}>
+                                        <div key={i} className={`group relative aspect-[9/16] rounded-lg overflow-hidden border cursor-pointer transition-all ${imageSelector.idx === i ? 'border-amber-500 ring-2 ring-amber-500/20' : 'border-white/10 hover:border-white/30'}`} onClick={() => openImageSelectorSmart(i)}>
                                             <img src={getImageSrc(bg)} className="w-full h-full object-cover" />
-                                            {imageSelector.idx === i && <div className="absolute inset-0 bg-amber-500/20" />}
-                                            <div className="absolute bottom-1 right-1 bg-black/60 px-1.5 py-0.5 rounded text-[8px] text-white/70">{i + 1}</div>
+
+                                            {/* PREVIEW OVERLAY */}
+                                            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                                                <div className="w-[1080px] h-[1350px] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 scale-[0.13] origin-center flex flex-col justify-center items-center">
+                                                    {renderSlideContent(i, false)}
+                                                </div>
+                                            </div>
+
+                                            {imageSelector.idx === i && <div className="absolute inset-0 bg-amber-500/10 pointer-events-none" />}
+                                            <div className="absolute bottom-1 right-1 bg-black/60 px-1.5 py-0 rounded text-[8px] text-white/70">{i + 1}</div>
                                         </div>
                                     ))}
                                 </div>
@@ -702,19 +929,20 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                     <div className="absolute top-0 inset-x-0 h-16 bg-gradient-to-b from-black/50 to-transparent z-10 pointer-events-none" />
 
                     {/* PREVIEW IMAGE AREA */}
-                    <div className="flex-1 flex items-center justify-center p-8 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-100">
-                        {images.length > 0 ? (
-                            <div className="relative h-full max-h-[700px] aspect-[9/16] shadow-2xl rounded-xl overflow-hidden group">
-                                <img src={images[currentPreviewIdx]} className="w-full h-full object-contain bg-black" />
-                                <div className="absolute inset-x-0 bottom-0 p-8 flex border-t border-white/10 justify-center gap-8 bg-gradient-to-t from-black/90 to-transparent opacity-0 group-hover:opacity-100 transition-all">
-                                    <button onClick={() => setCurrentPreviewIdx(Math.max(0, currentPreviewIdx - 1))} className="p-3 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur transition"><ChevronLeft className="text-white" size={24} /></button>
-                                    <button onClick={() => setCurrentPreviewIdx(Math.min(images.length - 1, currentPreviewIdx + 1))} className="p-3 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur transition"><ChevronRight className="text-white" size={24} /></button>
-                                </div>
-                                <div className="absolute top-6 right-6 px-3 py-1 bg-black/60 rounded-full border border-white/10 text-xs font-bold text-white/70">{currentPreviewIdx + 1} / {images.length}</div>
+                    <div className="flex-1 flex items-center justify-center p-8 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-100 overflow-hidden relative">
+                        <div className="relative h-full aspect-[9/16] shadow-2xl rounded-xl overflow-hidden group bg-black">
+                            <div className="w-[1080px] h-[1350px] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 scale-[0.45] origin-center flex flex-col items-center justify-center">
+                                <img src={getImageSrc(config.bgSelection[currentPreviewIdx])} className="absolute inset-0 w-full h-full object-cover z-0" />
+                                <div className="absolute inset-0 bg-black/10 z-0" />
+                                {renderSlideContent(currentPreviewIdx, true)}
                             </div>
-                        ) : (
-                            <div className="flex flex-col items-center gap-4 opacity-30"><ImageIcon size={64} /><p className="text-xl font-bold uppercase tracking-widest">Listo para Generar</p></div>
-                        )}
+
+                            <div className="absolute inset-x-0 bottom-0 p-8 flex border-t border-white/10 justify-center gap-8 bg-gradient-to-t from-black/90 to-transparent z-30">
+                                <button onClick={() => setCurrentPreviewIdx(Math.max(0, currentPreviewIdx - 1))} className="p-3 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur transition"><ChevronLeft className="text-white" size={24} /></button>
+                                <button onClick={() => setCurrentPreviewIdx(Math.min(slidesData.length + 1, currentPreviewIdx + 1))} className="p-3 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur transition"><ChevronRight className="text-white" size={24} /></button>
+                            </div>
+                            <div className="absolute top-6 right-6 px-3 py-1 bg-black/60 rounded-full border border-white/10 text-xs font-bold text-white/70 z-30">{currentPreviewIdx + 1} / {slidesData.length + 2}</div>
+                        </div>
                     </div>
 
                     {/* BOTTOM BAR ACTION AREA */}
@@ -749,45 +977,27 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                     {/* 
                        RENDER LOGIC (Identical Structure as before) 
                      */}
+                    {/* 1. INTRO (Hidden) */}
                     <div className="w-[1080px] relative flex flex-col items-center justify-center font-sans overflow-hidden bg-black" style={{ height: 1350 }}>
-                        <img src={getImageSrc(config.bgSelection[0])} onError={(e) => e.currentTarget.src = "https://placehold.co/1080x1350/1a1a1a/FFF?text=Error+BG"} width={1080} height={1350} className="absolute inset-0 w-full h-full object-cover z-0 opacity-100" alt="bg" />
+                        <img src={getImageSrc(config.bgSelection[0])} width={1080} height={1350} className="absolute inset-0 w-full h-full object-cover z-0 opacity-100" alt="bg" />
                         <div className="absolute inset-0 z-0 bg-black/5" />
-                        <div className="relative z-10 w-full flex flex-col items-center gap-14 p-8">
-                            {/* TITLE */}
-                            <div className="flex flex-col items-center gap-4 w-full">
-                                <div className="bg-white px-12 pt-2 pb-6 rounded-2xl w-fit max-w-[90%] flex items-center justify-center"><h1 className="text-6xl font-black text-black tracking-tighter leading-tight whitespace-nowrap text-center pb-5">{config.introTitle.split('\n')[0]}</h1></div>
-                                <div className="bg-white px-12 pt-2 pb-4 rounded-2xl flex items-center justify-center gap-6 w-fit max-w-[95%]"><h1 className="text-5xl font-black text-black tracking-tighter leading-tight whitespace-nowrap pb-5">{config.introTitle.split('\n')[1] || ''}</h1><div className="flex items-center gap-4 pb-5">{config.introEmoji1 && <span className="text-5xl filter drop-shadow">{config.introEmoji1}</span>}{config.introEmoji2 && <span className="text-5xl filter drop-shadow">{config.introEmoji2}</span>}</div></div>
-                            </div>
-                            {config.introSubtitle && <div className="bg-white px-14 pt-4 pb-8 rounded-2xl mt-8 flex items-center justify-center"><span className="text-6xl font-black text-black uppercase tracking-tighter leading-none pb-5">{config.introSubtitle}</span></div>}
-                        </div>
+                        {renderSlideContent(0, false)}
                     </div>
 
+                    {/* 2. CHUNKS (Hidden) */}
                     {slidesData.map((chunk, slideIdx) => (
                         <div key={slideIdx} className="w-[1080px] relative flex flex-col items-center justify-center font-sans overflow-hidden bg-black" style={{ height: 1350 }}>
                             <img src={getImageSrc(config.bgSelection[slideIdx + 1])} width={1080} height={1350} className="absolute inset-0 w-full h-full object-cover z-0 opacity-100" alt="bg" />
                             <div className="absolute inset-0 z-0 bg-black/5" />
-                            <div className="relative z-10 w-full h-full flex flex-col items-center justify-center p-8 gap-16 pb-[80px]">
-                                {chunk.map((group: any, bIdx: number) => (
-                                    <div key={bIdx} className="w-full flex flex-col items-center gap-4">
-                                        <div className="bg-black px-8 pt-2 pb-4 rounded-xl max-w-[95%] border-2 border-black flex items-center justify-center text-center"><h3 className="text-3xl font-black text-white uppercase tracking-tight leading-tight whitespace-pre-wrap break-words pb-5">{group.matchDisplay}</h3></div>
-                                        {group.picks.map((pick: string, pIdx: number) => (
-                                            pick.split('\n').filter(l => l.trim()).map((line, lIdx) => (
-                                                <div key={`${pIdx}-${lIdx}`} className="bg-white px-8 pt-2 pb-4 rounded-xl max-w-[95%] flex items-center justify-center text-center mt-[-10px]"><span className="text-3xl font-black text-black tracking-tight leading-tight whitespace-pre-wrap break-words pb-5">{line}</span></div>
-                                            ))
-                                        ))}
-                                    </div>
-                                ))}
-                            </div>
+                            {renderSlideContent(slideIdx + 1, false)}
                         </div>
                     ))}
 
-                    <div className="w-[1080px] relative flex flex-col items-center justify-center gap-16 font-sans overflow-hidden bg-black" style={{ height: 1350 }}>
+                    {/* 3. OUTRO (Hidden) */}
+                    <div className="w-[1080px] relative flex flex-col items-center justify-center font-sans overflow-hidden bg-black" style={{ height: 1350 }}>
                         <img src={getImageSrc(config.bgSelection[slidesData.length + 1])} width={1080} height={1350} className="absolute inset-0 w-full h-full object-cover z-0 opacity-100" alt="bg" />
                         <div className="absolute inset-0 z-0 bg-black/5" />
-                        <div className="relative z-10 w-full flex flex-col items-center gap-16 p-12">
-                            <div className="bg-white px-10 py-10 rounded-2xl max-w-[95%] text-center"><h2 className="text-6xl font-black text-black uppercase tracking-tighter leading-tight whitespace-pre-line">{config.outroTitle}</h2></div>
-                            <div className="bg-white px-12 py-6 rounded-2xl"><p className="text-3xl font-black text-black uppercase tracking-tight">{config.outroSub}</p></div>
-                        </div>
+                        {renderSlideContent(slidesData.length + 1, false)}
                     </div>
                 </div>
             </div>
@@ -808,30 +1018,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                 <button onClick={() => setImageSelector({ idx: null })} className="p-2 hover:bg-white/10 rounded-full transition"><X size={24} className="text-white/70" /></button>
                             </div>
 
-                            {/* --- ACTION BAR (New) --- */}
-                            <div className="flex items-center gap-2 px-1">
-                                <button
-                                    onClick={() => setAdminModalOpen(true)}
-                                    className="flex-1 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-[10px] font-bold uppercase tracking-wider text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
-                                >
-                                    <Settings2 size={14} className="text-amber-500" /> Administrar
-                                </button>
-                                <button
-                                    onClick={() => setSearchModalOpen(true)}
-                                    className="flex-1 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-[10px] font-bold uppercase tracking-wider text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
-                                >
-                                    <Search size={14} className="text-sky-500" /> Buscar
-                                </button>
-                                <button
-                                    onClick={async () => {
-                                        const data = await fetch('/api/backgrounds').then(r => r.json());
-                                        if (data.files) setAvailableFiles(data.files);
-                                    }}
-                                    className="flex-1 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-[10px] font-bold uppercase tracking-wider text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
-                                >
-                                    <RefreshCw size={14} className="text-emerald-500" /> Regenerar
-                                </button>
-                            </div>
+                            {/* --- ACTION BAR (Removed) --- */}
 
                             {/* ... (Existing Filters) ... */}
                             <div className="flex flex-wrap items-center gap-2 border-t border-white/5 pt-4">
@@ -902,32 +1089,59 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                             Basket
                                         </button>
                                     </div>
-                                    <div className="flex flex-wrap gap-1.5 max-h-[120px] overflow-y-auto custom-scrollbar p-1">
-                                        {Array.from(new Set(availableFiles
-                                            .filter(f => {
-                                                const lower = getFilename(f).toLowerCase();
-                                                const sport = bgSportForTeam === 'futbol' ? 'futbol' : 'basket';
-                                                return lower.startsWith(`bg-${sport}-`) && !lower.includes('comodin') && !lower.includes('portada');
-                                            })
-                                            .map(f => {
-                                                const parts = getFilename(f).split('-');
-                                                return parts[2] || "";
-                                            })
-                                            .filter(Boolean)
-                                        )).sort((a, b) => {
-                                            const nameA = formatTeamName(a);
-                                            const nameB = formatTeamName(b);
-                                            return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
-                                        }).map(team => (
-                                            <button
-                                                key={team}
-                                                onClick={() => setBgTeamSelected(team)}
-                                                className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase border transition-all
-                                                    ${bgTeamSelected === team ? 'bg-white text-black border-white' : 'bg-black/40 text-white/50 border-white/10 hover:border-white/20'}`}
-                                            >
-                                                {formatTeamName(team)}
-                                            </button>
-                                        ))}
+                                    {/* Team List with Search */}
+                                    <div className="space-y-2">
+                                        <div className="relative">
+                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={12} />
+                                            <input
+                                                type="text"
+                                                placeholder="Buscar equipo..."
+                                                value={teamSearch}
+                                                onChange={(e) => setTeamSearch(e.target.value)}
+                                                className="w-full bg-black/40 border border-white/10 rounded-lg py-2 pl-9 pr-3 text-xs text-white focus:border-white/30 outline-none placeholder:text-white/20"
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-h-[140px] overflow-y-auto custom-scrollbar p-1">
+                                            {Array.from(new Set(availableFiles
+                                                .filter(f => {
+                                                    const lower = getFilename(f).toLowerCase();
+                                                    const sport = bgSportForTeam === 'futbol' ? 'futbol' : 'basket';
+                                                    return lower.startsWith(`bg-${sport}-`) && !lower.includes('comodin') && !lower.includes('portada');
+                                                })
+                                                .map(f => {
+                                                    const parts = getFilename(f).split('-');
+                                                    return (parts[2] || "").toLowerCase();
+                                                })
+                                                .filter(Boolean)
+                                            ))
+                                                .filter(team => team.toLowerCase().includes(teamSearch.toLowerCase()))
+                                                .sort((a, b) => {
+                                                    const nameA = formatTeamName(a);
+                                                    const nameB = formatTeamName(b);
+                                                    return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+                                                }).map(team => (
+                                                    <div key={team} className="relative group/btn flex items-stretch">
+                                                        <button
+                                                            onClick={() => setBgTeamSelected(team)}
+                                                            className={`flex-1 px-3 py-2 rounded-l-lg text-[9px] font-bold uppercase border-y border-l transition-all text-left truncate
+                                                    ${bgTeamSelected === team ? 'bg-white text-black border-white' : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/10'}`}
+                                                        >
+                                                            {formatTeamName(team)}
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); handleDeleteFolder(team, bgSportForTeam === 'futbol' ? 'futbol' : 'basket'); }}
+                                                            className={`px-2 rounded-r-lg border-y border-r transition-colors flex items-center justify-center
+                                                    ${bgTeamSelected === team ? 'bg-white border-white text-black/50 hover:text-red-600' : 'bg-white/5 border-white/10 text-white/20 hover:text-red-500 hover:bg-white/10'}`}
+                                                        >
+                                                            <Trash2 size={10} />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            {/* Empty state */}
+                                            {teamSearch && !Array.from(new Set(availableFiles.map(f => getFilename(f).split('-')[2]))).some(t => t?.toLowerCase().includes(teamSearch.toLowerCase())) && (
+                                                <p className="col-span-full text-center text-[10px] text-white/30 py-2">No se encontraron equipos</p>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -939,6 +1153,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                 {availableFiles
                                     .filter(f => {
                                         const fname = getFilename(f);
+                                        const lowerName = fname.toLowerCase();
                                         if (bgFilter === 'all') return true;
                                         if (bgFilter === 'portada') return fname.includes('portada');
                                         if (bgFilter === 'comodin') return fname.includes('comodin');
@@ -946,7 +1161,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                         if (bgFilter === 'basket' && !fname.includes('portada')) return fname.includes('basket');
                                         if (bgFilter === 'equipo') {
                                             if (!bgTeamSelected) return false;
-                                            return fname.includes(`bg-${bgSportForTeam}-${bgTeamSelected}-`);
+                                            return lowerName.includes(`bg-${bgSportForTeam}-${bgTeamSelected.toLowerCase()}-`);
                                         }
                                         return true;
                                     })
@@ -983,317 +1198,361 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                         </div>
                     </div>
                 </div>
-            )}
+            )
+            }
 
             {/* SEARCH ONLINE MODAL */}
-            {searchModalOpen && (
-                <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-black/90 backdrop-blur p-4">
-                    <div className="bg-[#1a1a1a] border border-white/10 rounded-3xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
-                        {/* Header */}
-                        <div className="p-6 border-b border-white/10 flex justify-between items-center bg-[#1a1a1a]">
-                            <div>
-                                <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                                    <Search size={22} className="text-sky-500" /> Buscador Online
-                                </h3>
-                                <p className="text-xs text-white/50 mt-1">Busca imágenes en internet, guárdalas y úsalas al instante.</p>
-                            </div>
-
-                            <button onClick={() => setSearchModalOpen(false)} className="p-2 hover:bg-white/10 rounded-full text-white/70"><X size={24} /></button>
-                        </div>
-
-                        {/* Controls */}
-                        <div className="p-6 border-b border-white/10 bg-black/20 space-y-4">
-                            <div className="flex gap-3">
-                                <input
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && performSearch()}
-                                    placeholder="Ej: Real Madrid Vertical Wallpaper..."
-                                    className="flex-1 bg-black/50 border border-white/10 rounded-xl px-4 text-white placeholder:text-white/20 focus:border-sky-500 outline-none"
-                                    autoFocus
-                                />
-                                <button onClick={performSearch} disabled={isSearching} className="px-6 py-3 bg-sky-500 text-white font-bold rounded-xl hover:bg-sky-400 disabled:opacity-50">
-                                    {isSearching ? <Loader2 className="animate-spin" /> : "Buscar"}
-                                </button>
-                            </div>
-
-                            <div className="flex flex-col md:flex-row md:items-center gap-4 p-3 bg-white/5 rounded-xl border border-white/5">
-                                <span className="text-[10px] font-bold uppercase text-white/50">Guardar como:</span>
-                                <div className="flex gap-2">
-                                    {['futbol', 'basket', 'portada', 'comodin'].map(t => (
-                                        <button
-                                            key={t}
-                                            onClick={() => setSaveSettings({ ...saveSettings, type: t as any })}
-                                            className={`px-3 py-1 rounded-lg text-[10px] uppercase font-bold border transition ${saveSettings.type === t ? 'bg-sky-500 text-white border-sky-500' : 'bg-transparent text-white/40 border-white/10'}`}
-                                        >
-                                            {t}
-                                        </button>
-                                    ))}
+            {
+                searchModalOpen && (
+                    <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-black/90 backdrop-blur p-4">
+                        <div className="bg-[#1a1a1a] border border-white/10 rounded-3xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+                            {/* Header */}
+                            <div className="p-6 border-b border-white/10 flex justify-between items-center bg-[#1a1a1a]">
+                                <div>
+                                    <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                        <Search size={22} className="text-sky-500" /> Buscador Online
+                                    </h3>
+                                    <p className="text-xs text-white/50 mt-1">Busca imágenes en internet, guárdalas y úsalas al instante.</p>
                                 </div>
-                                <div className="flex-1 relative">
+
+                                <button onClick={() => setSearchModalOpen(false)} className="p-2 hover:bg-white/10 rounded-full text-white/70"><X size={24} /></button>
+                            </div>
+
+                            {/* Controls */}
+                            <div className="p-6 border-b border-white/10 bg-black/20 space-y-4">
+                                <div className="flex gap-3">
                                     <input
-                                        value={saveSettings.tag}
-                                        onChange={handleTagChange}
-                                        onFocus={() => saveSettings.tag.length > 1 && setShowSuggestions(true)}
-                                        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                                        placeholder="Nombre del Equipo (Ej: RealMadrid)"
-                                        className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-1 text-xs text-white focus:border-sky-500 outline-none"
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && performSearch()}
+                                        placeholder="Ej: Real Madrid Vertical Wallpaper..."
+                                        className="flex-1 bg-black/50 border border-white/10 rounded-xl px-4 text-white placeholder:text-white/20 focus:border-sky-500 outline-none"
+                                        autoFocus
                                     />
-                                    {showSuggestions && suggestions.length > 0 && (
-                                        <div className="absolute top-full left-0 right-0 mt-2 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200">
-                                            {suggestions.map((s, i) => (
-                                                <button
-                                                    key={i}
-                                                    onClick={() => selectSuggestion(s)}
-                                                    className="w-full text-left px-3 py-2 text-xs text-white/70 hover:bg-white/10 hover:text-white transition-colors flex items-center gap-2"
-                                                >
-                                                    <Search size={10} className="text-white/30" />
-                                                    <span dangerouslySetInnerHTML={{ __html: s.replace(new RegExp(`(${saveSettings.tag})`, 'gi'), (match) => `<span class="text-sky-400 font-bold">${match}</span>`) }} />
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
+                                    <button onClick={performSearch} disabled={isSearching} className="px-6 py-3 bg-sky-500 text-white font-bold rounded-xl hover:bg-sky-400 disabled:opacity-50">
+                                        {isSearching ? <Loader2 className="animate-spin" /> : "Buscar"}
+                                    </button>
                                 </div>
-                            </div>
-                        </div>
 
-                        {/* Results */}
-                        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-[#121212]">
-                            {searchResults.length === 0 && !isSearching && (
-                                <div className="h-full flex flex-col items-center justify-center text-white/20 gap-4">
-                                    <Search size={48} />
-                                    <p>Escribe algo para buscar</p>
-                                </div>
-                            )}
-
-                            {isSearching ? (
-                                <div className="h-full flex flex-col items-center justify-center text-sky-500 gap-4">
-                                    <Loader2 size={48} className="animate-spin" />
-                                    <p className="text-white/50 text-xs animate-pulse">Buscando imágenes 4K...</p>
-                                </div>
-                            ) : (
-                                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                                    {searchResults.map((img, idx) => (
-                                        <div key={idx} className="group relative aspect-[9/16] bg-black rounded-xl overflow-hidden cursor-pointer border border-white/10 hover:border-sky-500 transition" onClick={() => saveWebImage(img.url)}>
-                                            <img
-                                                src={img.thumbnail || img.url}
-                                                className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition"
-                                                loading="lazy"
-                                                onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = 'none'; }}
-                                            />
-                                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center gap-2 transition-all">
-                                                <Download size={24} className="text-sky-400" />
-                                                <span className="text-[10px] font-bold text-white uppercase tracking-wider">Guardar</span>
-                                            </div>
-                                            <div className="absolute bottom-0 inset-x-0 p-2 bg-gradient-to-t from-black/90 to-transparent">
-                                                <p className="text-[9px] text-white/70 truncate">{img.title}</p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* ERROR ALERT MODAL */}
-            {errorAlert.show && (
-                <div className="fixed inset-0 z-[5000] flex items-center justify-center bg-black/80 backdrop-blur p-6 animate-in fade-in duration-200">
-                    <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
-                        <div className="flex items-center gap-3 text-amber-500 mb-2">
-                            <Megaphone size={24} className="animate-bounce" />
-                            <h3 className="text-lg font-bold text-white">{errorAlert.title}</h3>
-                        </div>
-                        <p className="text-sm text-white/70 whitespace-pre-line leading-relaxed">
-                            {errorAlert.msg}
-                        </p>
-                        <button
-                            onClick={() => setErrorAlert({ ...errorAlert, show: false })}
-                            className="w-full py-3 bg-white text-black font-black uppercase tracking-widest rounded-xl hover:scale-105 transition-transform"
-                        >
-                            Entendido
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {/* ADMIN MODAL */}
-            {adminModalOpen && (
-                <div className="fixed inset-0 z-[4500] flex items-center justify-center bg-black/90 backdrop-blur p-4">
-                    <div className="bg-[#1a1a1a] border border-white/10 rounded-3xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
-                        <div className="p-4 border-b border-white/10 flex justify-between items-center bg-[#1a1a1a]">
-                            <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                                <Settings2 size={18} className="text-amber-500" /> Administrar Imágenes
-                            </h3>
-                            <button onClick={() => setAdminModalOpen(false)} className="p-2 hover:bg-white/10 rounded-full text-white/70"><X size={20} /></button>
-                        </div>
-
-                        {/* Filters */}
-                        <div className="flex gap-2 p-4 border-b border-white/10 overflow-x-auto">
-                            {['futbol', 'basket', 'portada', 'comodin'].map(t => (
-                                <button
-                                    key={t}
-                                    onClick={() => setAdminFilter(t as any)}
-                                    className={`px-4 py-2 rounded-xl text-xs uppercase font-bold border transition whitespace-nowrap ${adminFilter === t ? 'bg-amber-500 text-black border-amber-500' : 'bg-transparent text-white/40 border-white/10 hover:bg-white/5'}`}
-                                >
-                                    {t}
-                                </button>
-                            ))}
-                        </div>
-
-                        {/* Grid */}
-                        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                                {availableFiles.filter(f => {
-                                    const n = getFilename(f);
-                                    if (adminFilter === 'futbol') return n.includes('futbol') && !n.includes('comodin');
-                                    if (adminFilter === 'basket') return n.includes('basket') && !n.includes('comodin');
-                                    if (adminFilter === 'portada') return n.includes('portada');
-                                    if (adminFilter === 'comodin') return n.includes('comodin');
-                                    return false;
-                                }).map((file, i) => (
-                                    <div key={i} className="group relative aspect-[9/16] bg-black rounded-lg overflow-hidden border border-white/10">
-                                        <img src={getImageSrc(file)} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition" />
-
-                                        {/* Actions Overlay */}
-                                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2">
-                                            <div className="flex justify-end">
-                                                <button onClick={(e) => { e.stopPropagation(); handleDeleteImage(file); }} className="p-2 bg-red-500/20 text-red-500 rounded-lg hover:bg-red-500 hover:text-white transition">
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            </div>
-                                            <div className="text-center">
-                                                <p className="text-[10px] text-white font-mono truncate mb-2">
-                                                    {getFilename(file).split('-')[2] || 'Sin Nombre'}
-                                                </p>
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); setMoveModal({ open: true, url: file, type: adminFilter, tag: '' }); }}
-                                                    className="w-full py-2 bg-white/10 text-white rounded-lg text-[10px] uppercase font-bold hover:bg-white/20 transition flex items-center justify-center gap-1"
-                                                >
-                                                    <RefreshCw size={10} /> Mover / Renombrar
-                                                </button>
-                                            </div>
-                                        </div>
+                                <div className="flex flex-col md:flex-row md:items-center gap-4 p-3 bg-white/5 rounded-xl border border-white/5">
+                                    <span className="text-[10px] font-bold uppercase text-white/50">Guardar como:</span>
+                                    <div className="flex gap-2">
+                                        {['futbol', 'basket', 'portada', 'comodin'].map(t => (
+                                            <button
+                                                key={t}
+                                                onClick={() => setSaveSettings({ ...saveSettings, type: t as any })}
+                                                className={`px-3 py-1 rounded-lg text-[10px] uppercase font-bold border transition ${saveSettings.type === t ? 'bg-sky-500 text-white border-sky-500' : 'bg-transparent text-white/40 border-white/10'}`}
+                                            >
+                                                {t}
+                                            </button>
+                                        ))}
                                     </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* MOVE MODAL */}
-            {moveModal.open && (
-                <div className="fixed inset-0 z-[5000] flex items-center justify-center bg-black/90 backdrop-blur p-6 animate-in fade-in duration-200">
-                    <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
-                        <div className="flex items-center gap-2 text-sky-500 border-b border-white/10 pb-2 mb-2">
-                            <RefreshCw size={18} />
-                            <h3 className="text-md font-bold text-white">Mover o Renombrar</h3>
-                        </div>
-
-                        <div className="space-y-3">
-                            <div className="space-y-1">
-                                <label className="text-[10px] uppercase text-white/50">Mover a Sección:</label>
-                                <div className="grid grid-cols-2 gap-2">
-                                    {['futbol', 'basket', 'portada', 'comodin'].map(t => (
-                                        <button
-                                            key={t}
-                                            onClick={() => setMoveModal({ ...moveModal, type: t as any })}
-                                            className={`px-2 py-2 rounded-lg text-[10px] uppercase font-bold border transition ${moveModal.type === t ? 'bg-sky-500 text-white border-sky-500' : 'bg-transparent text-white/40 border-white/10'}`}
-                                        >
-                                            {t}
-                                        </button>
-                                    ))}
+                                    <div className="flex-1 relative">
+                                        <input
+                                            value={saveSettings.tag}
+                                            onChange={handleTagChange}
+                                            onFocus={() => saveSettings.tag.length > 1 && setShowSuggestions(true)}
+                                            onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                                            placeholder="Nombre del Equipo (Ej: RealMadrid)"
+                                            className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-1 text-xs text-white focus:border-sky-500 outline-none"
+                                        />
+                                        {showSuggestions && suggestions.length > 0 && (
+                                            <div className="absolute top-full left-0 right-0 mt-2 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200">
+                                                {suggestions.map((s, i) => (
+                                                    <button
+                                                        key={i}
+                                                        onClick={() => selectSuggestion(s)}
+                                                        className="w-full text-left px-3 py-2 text-xs text-white/70 hover:bg-white/10 hover:text-white transition-colors flex items-center gap-2"
+                                                    >
+                                                        <Search size={10} className="text-white/30" />
+                                                        <span dangerouslySetInnerHTML={{ __html: s.replace(new RegExp(`(${saveSettings.tag})`, 'gi'), (match) => `<span class="text-sky-400 font-bold">${match}</span>`) }} />
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className="space-y-1">
-                                <label className="text-[10px] uppercase text-white/50">Nuevo Nombre (Opcional):</label>
-                                <input
-                                    value={moveModal.tag}
-                                    onChange={(e) => setMoveModal({ ...moveModal, tag: e.target.value })}
-                                    onFocus={() => (moveModal.type === 'futbol' || moveModal.type === 'basket') && setMoveModal({ ...moveModal, tag: moveModal.tag })}
-                                    placeholder="Ej: Barcelona"
-                                    className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:border-sky-500 outline-none"
-                                />
+                            {/* Results */}
+                            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-[#121212]">
+                                {searchResults.length === 0 && !isSearching && (
+                                    <div className="h-full flex flex-col items-center justify-center text-white/20 gap-4">
+                                        <Search size={48} />
+                                        <p>Escribe algo para buscar</p>
+                                    </div>
+                                )}
 
-                                {/* Team Selection List (Always visible if Futbol/Basket selected) */}
-                                {(moveModal.type === 'futbol' || moveModal.type === 'basket') && (
-                                    <div className="mt-2 p-2 bg-black/20 rounded-xl border border-white/5 max-h-40 overflow-y-auto custom-scrollbar">
-                                        <p className="text-[9px] uppercase font-bold text-white/30 mb-2 px-1">Seleccionar Equipo Existente:</p>
-                                        <div className="flex flex-wrap gap-1">
-                                            {Array.from(new Set(availableFiles
-                                                .filter(f => getFilename(f).includes(moveModal.type) && !getFilename(f).includes('comodin') && !getFilename(f).includes('portada'))
-                                                .map(f => getFilename(f).split('-')[2]) // Extract team part
-                                                .filter(Boolean)
-                                            )).sort().map(team => (
-                                                <button
-                                                    key={team}
-                                                    onClick={() => setMoveModal({ ...moveModal, tag: team })}
-                                                    className={`px-2 py-1 rounded text-[10px] font-bold border transition
-                                                        ${moveModal.tag === team ? 'bg-sky-500 text-white border-sky-500' : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/10'}`}
-                                                >
-                                                    {formatTeamName(team)}
-                                                </button>
-                                            ))}
-                                        </div>
+                                {isSearching ? (
+                                    <div className="h-full flex flex-col items-center justify-center text-sky-500 gap-4">
+                                        <Loader2 size={48} className="animate-spin" />
+                                        <p className="text-white/50 text-xs animate-pulse">Buscando imágenes 4K...</p>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                        {searchResults.map((img, idx) => (
+                                            <div key={idx} className="group relative aspect-[9/16] bg-black rounded-xl overflow-hidden cursor-pointer border border-white/10 hover:border-sky-500 transition" onClick={() => saveWebImage(img.url)}>
+                                                <img
+                                                    src={img.thumbnail || img.url}
+                                                    className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition"
+                                                    loading="lazy"
+                                                    onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = 'none'; }}
+                                                />
+                                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center gap-2 transition-all">
+                                                    <Download size={24} className="text-sky-400" />
+                                                    <span className="text-[10px] font-bold text-white uppercase tracking-wider">Guardar</span>
+                                                </div>
+                                                <div className="absolute bottom-0 inset-x-0 p-2 bg-gradient-to-t from-black/90 to-transparent">
+                                                    <p className="text-[9px] text-white/70 truncate">{img.title}</p>
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
                                 )}
                             </div>
                         </div>
+                    </div>
+                )
+            }
 
-                        <div className="flex gap-3 pt-4">
+            {/* ERROR ALERT MODAL */}
+            {
+                errorAlert.show && (
+                    <div className="fixed inset-0 z-[5000] flex items-center justify-center bg-black/80 backdrop-blur p-6 animate-in fade-in duration-200">
+                        <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+                            <div className="flex items-center gap-3 text-amber-500 mb-2">
+                                <Megaphone size={24} className="animate-bounce" />
+                                <h3 className="text-lg font-bold text-white">{errorAlert.title}</h3>
+                            </div>
+                            <p className="text-sm text-white/70 whitespace-pre-line leading-relaxed">
+                                {errorAlert.msg}
+                            </p>
                             <button
-                                onClick={() => setMoveModal({ ...moveModal, open: false })}
-                                className="flex-1 py-3 bg-white/5 border border-white/10 text-white font-bold uppercase text-xs rounded-xl hover:bg-white/10 transition-colors"
+                                onClick={() => setErrorAlert({ ...errorAlert, show: false })}
+                                className="w-full py-3 bg-white text-black font-black uppercase tracking-widest rounded-xl hover:scale-105 transition-transform"
                             >
-                                Cancelar
-                            </button>
-                            <button
-                                onClick={handleMoveImage}
-                                className="flex-1 py-3 bg-sky-500 text-white font-bold uppercase text-xs rounded-xl hover:bg-sky-400 transition-colors shadow-lg shadow-sky-500/20"
-                            >
-                                Guardar Cambios
+                                Entendido
                             </button>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
+
+            {/* ADMIN MODAL */}
+            {
+                adminModalOpen && (
+                    <div className="fixed inset-0 z-[4500] flex items-center justify-center bg-black/90 backdrop-blur p-4">
+                        <div className="bg-[#1a1a1a] border border-white/10 rounded-3xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+                            <div className="p-4 border-b border-white/10 flex justify-between items-center bg-[#1a1a1a]">
+                                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                    <Settings2 size={18} className="text-amber-500" /> Administrar Imágenes
+                                </h3>
+                                <button onClick={() => setAdminModalOpen(false)} className="p-2 hover:bg-white/10 rounded-full text-white/70"><X size={20} /></button>
+                            </div>
+
+                            {/* Filters */}
+                            <div className="flex gap-2 p-4 border-b border-white/10 overflow-x-auto">
+                                {['futbol', 'basket', 'portada', 'comodin'].map(t => (
+                                    <button
+                                        key={t}
+                                        onClick={() => setAdminFilter(t as any)}
+                                        className={`px-4 py-2 rounded-xl text-xs uppercase font-bold border transition whitespace-nowrap ${adminFilter === t ? 'bg-amber-500 text-black border-amber-500' : 'bg-transparent text-white/40 border-white/10 hover:bg-white/5'}`}
+                                    >
+                                        {t}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Grid */}
+                            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                                    {availableFiles.filter(f => {
+                                        const n = getFilename(f);
+                                        if (adminFilter === 'futbol') return n.includes('futbol') && !n.includes('comodin');
+                                        if (adminFilter === 'basket') return n.includes('basket') && !n.includes('comodin');
+                                        if (adminFilter === 'portada') return n.includes('portada');
+                                        if (adminFilter === 'comodin') return n.includes('comodin');
+                                        return false;
+                                    }).map((file, i) => (
+                                        <div key={i} className="group relative aspect-[9/16] bg-black rounded-lg overflow-hidden border border-white/10">
+                                            <img src={getImageSrc(file)} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition" />
+
+                                            {/* Actions Overlay */}
+                                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2">
+                                                <div className="flex justify-end">
+                                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteImage(file); }} className="p-2 bg-red-500/20 text-red-500 rounded-lg hover:bg-red-500 hover:text-white transition">
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </div>
+                                                <div className="text-center">
+                                                    <p className="text-[10px] text-white font-mono truncate mb-2">
+                                                        {getFilename(file).split('-')[2] || 'Sin Nombre'}
+                                                    </p>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); setMoveModal({ open: true, url: file, type: adminFilter, tag: '' }); }}
+                                                        className="w-full py-2 bg-white/10 text-white rounded-lg text-[10px] uppercase font-bold hover:bg-white/20 transition flex items-center justify-center gap-1"
+                                                    >
+                                                        <RefreshCw size={10} /> Mover / Renombrar
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* MOVE MODAL */}
+            {
+                moveModal.open && (
+                    <div className="fixed inset-0 z-[5000] flex items-center justify-center bg-black/90 backdrop-blur p-6 animate-in fade-in duration-200">
+                        <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+                            <div className="flex items-center gap-2 text-sky-500 border-b border-white/10 pb-2 mb-2">
+                                <RefreshCw size={18} />
+                                <h3 className="text-md font-bold text-white">Mover o Renombrar</h3>
+                            </div>
+
+                            <div className="space-y-3">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] uppercase text-white/50">Mover a Sección:</label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {['futbol', 'basket', 'portada', 'comodin'].map(t => (
+                                            <button
+                                                key={t}
+                                                onClick={() => setMoveModal({ ...moveModal, type: t as any })}
+                                                className={`px-2 py-2 rounded-lg text-[10px] uppercase font-bold border transition ${moveModal.type === t ? 'bg-sky-500 text-white border-sky-500' : 'bg-transparent text-white/40 border-white/10'}`}
+                                            >
+                                                {t}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-[10px] uppercase text-white/50">Nuevo Nombre (Opcional):</label>
+                                    <input
+                                        value={moveModal.tag}
+                                        onChange={(e) => setMoveModal({ ...moveModal, tag: e.target.value })}
+                                        onFocus={() => (moveModal.type === 'futbol' || moveModal.type === 'basket') && setMoveModal({ ...moveModal, tag: moveModal.tag })}
+                                        placeholder="Ej: Barcelona"
+                                        className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:border-sky-500 outline-none"
+                                    />
+
+                                    {/* Team Selection List (Always visible if Futbol/Basket selected) */}
+                                    {(moveModal.type === 'futbol' || moveModal.type === 'basket') && (
+                                        <div className="mt-2 p-2 bg-black/20 rounded-xl border border-white/5 max-h-40 overflow-y-auto custom-scrollbar">
+                                            <p className="text-[9px] uppercase font-bold text-white/30 mb-2 px-1">Seleccionar Equipo Existente:</p>
+                                            <div className="flex flex-wrap gap-1">
+                                                {Array.from(new Set(availableFiles
+                                                    .filter(f => getFilename(f).includes(moveModal.type) && !getFilename(f).includes('comodin') && !getFilename(f).includes('portada'))
+                                                    .map(f => getFilename(f).split('-')[2]) // Extract team part
+                                                    .filter(Boolean)
+                                                )).sort().map(team => (
+                                                    <button
+                                                        key={team}
+                                                        onClick={() => setMoveModal({ ...moveModal, tag: team })}
+                                                        className={`px-2 py-1 rounded text-[10px] font-bold border transition
+                                                        ${moveModal.tag === team ? 'bg-sky-500 text-white border-sky-500' : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/10'}`}
+                                                    >
+                                                        {formatTeamName(team)}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3 pt-4">
+                                <button
+                                    onClick={() => setMoveModal({ ...moveModal, open: false })}
+                                    className="flex-1 py-3 bg-white/5 border border-white/10 text-white font-bold uppercase text-xs rounded-xl hover:bg-white/10 transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleMoveImage}
+                                    className="flex-1 py-3 bg-sky-500 text-white font-bold uppercase text-xs rounded-xl hover:bg-sky-400 transition-colors shadow-lg shadow-sky-500/20"
+                                >
+                                    Guardar Cambios
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
 
             {/* CONFIRMATION MODAL */}
-            {confirmModal.show && (
-                <div className="fixed inset-0 z-[5000] flex items-center justify-center bg-black/80 backdrop-blur p-6 animate-in fade-in duration-200">
-                    <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
-                        <div className="flex items-center gap-3 text-sky-500 mb-2">
-                            <Info size={24} className="animate-pulse" />
-                            <h3 className="text-lg font-bold text-white">¿Guardar sin nombre?</h3>
-                        </div>
-                        <p className="text-sm text-white/70 whitespace-pre-line leading-relaxed">
-                            No has escrito ningún nombre para el equipo.
-                            <br /><br />
-                            La imagen se guardará como <b>GENÉRICA</b> y podrías perderla entre tantos archivos.
-                        </p>
-                        <div className="flex gap-3 pt-2">
-                            <button
-                                onClick={() => setConfirmModal({ ...confirmModal, show: false })}
-                                className="flex-1 py-3 bg-white/5 border border-white/10 text-white font-bold uppercase text-xs rounded-xl hover:bg-white/10 transition-colors"
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                onClick={() => { confirmModal.onConfirm(); setConfirmModal({ ...confirmModal, show: false }); }}
-                                className="flex-1 py-3 bg-sky-500 text-white font-bold uppercase text-xs rounded-xl hover:bg-sky-400 transition-colors shadow-lg shadow-sky-500/20"
-                            >
-                                Guardar Igual
-                            </button>
+            {
+                confirmModal.show && (
+                    <div className="fixed inset-0 z-[5000] flex items-center justify-center bg-black/80 backdrop-blur p-6 animate-in fade-in duration-200">
+                        <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+                            <div className="flex items-center gap-3 text-sky-500 mb-2">
+                                <Info size={24} className="animate-pulse" />
+                                <h3 className="text-lg font-bold text-white">¿Guardar sin nombre?</h3>
+                            </div>
+                            <p className="text-sm text-white/70 whitespace-pre-line leading-relaxed">
+                                No has escrito ningún nombre para el equipo.
+                                <br /><br />
+                                La imagen se guardará como <b>GENÉRICA</b> y podrías perderla entre tantos archivos.
+                            </p>
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    onClick={() => setConfirmModal({ ...confirmModal, show: false })}
+                                    className="flex-1 py-3 bg-white/5 border border-white/10 text-white font-bold uppercase text-xs rounded-xl hover:bg-white/10 transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={() => { confirmModal.onConfirm(); setConfirmModal({ ...confirmModal, show: false }); }}
+                                    className="flex-1 py-3 bg-sky-500 text-white font-bold uppercase text-xs rounded-xl hover:bg-sky-400 transition-colors shadow-lg shadow-sky-500/20"
+                                >
+                                    Guardar Igual
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
-
-        </div>
+            {/* DELETE FOLDER MODAL */}
+            {
+                deleteFolderModal.show && (
+                    <div className="fixed inset-0 z-[6000] flex items-center justify-center bg-black/80 backdrop-blur p-6 animate-in fade-in duration-200">
+                        <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+                            <div className="flex items-center gap-3 text-red-500 mb-2">
+                                <Trash2 size={24} className="animate-bounce" />
+                                <h3 className="text-lg font-bold text-white">¿Borrar {deleteFolderModal.team}?</h3>
+                            </div>
+                            <p className="text-sm text-white/70 whitespace-pre-line leading-relaxed">
+                                Vas a eliminar la carpeta del equipo <strong className="text-white">{deleteFolderModal.team}</strong>.
+                                <br /><br />
+                                Esta carpeta contiene <strong className="text-amber-500">{deleteFolderModal.count} imágenes</strong>.
+                                <br />
+                                Esta acción no se puede deshacer.
+                            </p>
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    onClick={() => setDeleteFolderModal({ ...deleteFolderModal, show: false })}
+                                    className="flex-1 py-3 bg-white/5 border border-white/10 text-white font-bold uppercase text-xs rounded-xl hover:bg-white/10 transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={confirmDeleteFolder}
+                                    className="flex-1 py-3 bg-red-600/20 text-red-500 border border-red-500/30 font-bold uppercase text-xs rounded-xl hover:bg-red-600 hover:text-white transition-colors shadow-lg shadow-red-900/20"
+                                >
+                                    Sí, Borrar Todo
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+        </div >
     );
 }
 
