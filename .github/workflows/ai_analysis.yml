@@ -30,4 +30,4 @@ jobs:
         REDIS_URL: ${{ secrets.REDIS_URL }}
         REDIS_TOKEN: ${{ secrets.REDIS_TOKEN }}
       run: |
-        python backend/src/services/analyze_old.py
+        python backend/src/services/analyze.py
