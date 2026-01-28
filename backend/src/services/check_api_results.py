@@ -365,23 +365,24 @@ def check_bets():
     
     total_updates = 0
 
-    # 1. Categories
-    categories = ["daily_bets", "daily_bets_stakazo"]
+    # 1. Categories and Dates Queue
+    check_queue = []
+    for d in dates_to_check:
+        check_queue.append((d, "daily_bets"))
+        check_queue.append((d, "daily_bets_stakazo"))
 
-    for date_str in dates_to_check:
-        print(f"[*] Checking bets for date: {date_str}")
-        
-        for category in categories:
-            print(f"   [CATEGORY] Processing {category}...")
+    for date_str, category in check_queue:
+        # Protect individual category processing so one failure doesn't stop others
+        try:
+            print(f"[*] Checking bets for date: {date_str} [Category: {category}]")
             
             bl_manager = BlacklistManager(rs, category=category)
             
             # Get raw data (Monthly Hash Aware)
             raw_data = rs.get_daily_bets(date_str, category=category)
-            if not raw_data:
-                # Try generic get fallback only for legacy daily_bets
-                if category == "daily_bets":
-                   raw_data = rs.get(f"daily_bets:{date_str}")
+            if not raw_data and category == "daily_bets":
+                 # Fallback for legacy
+                 raw_data = rs.get(f"daily_bets:{date_str}")
                 
             if not raw_data:
                 print(f"   - No data found for {date_str} ({category})")
@@ -389,8 +390,8 @@ def check_bets():
                 
             try:
                 day_data = json.loads(raw_data) if isinstance(raw_data, str) else raw_data
-            except:
-                print(f"   - Error parsing JSON for {date_str} ({category})")
+            except Exception as e:
+                print(f"   - Error parsing JSON for {date_str} ({category}): {e}")
                 continue
                 
             if not day_data.get("bets"):
@@ -399,51 +400,7 @@ def check_bets():
             bets_modified = False
             
             for bet in day_data["bets"]:
-                # ... same bet loop logic ...
-                # Since the loop is huge and I cannot replace just lines, I will invoke the check_logic here
-                # But wait, I'm inside replace_file_content. I should reuse the logic.
-                # However, the logic is 300 lines long.
-                # I should encapuslate the logic? Or just duplicate the loop structure in the tool?
-                # The tool documentation says "If you are making multiple edits across a single file, specify multiple separate ReplacementChunks."
-                # But here I need to WRAP the existing logic in a loop or indent it.
-                # Indenting 300 lines via replace_file_content is risky and consumes tokens.
-                # BETTER APPROACH:
-                # Iterate dates first (as is).
-                # Inside date loop, iterate categories.
-                # The content IS inside the date loop. I need to indent everything from line 373 to 701.
-                # That is too much.
-                
-                # ALTERNATIVE:
-                # Do not loop categories inside check_bets function body directly wrapping code.
-                # Extract the process_date_logic into a function?
-                # That requires moving code.
-                pass 
-    
-    # Wait, I can't easily indent 300 lines.
-    # I will modify check_bets to call a new helper function `process_date_for_category`
-    # checking existing logic...
-    pass
 
-    # Actually, I will just iterate the categories in the outer loop.
-    # Original: for date_str in dates_to_check:
-    # New: for date_str in dates_to_check: for category in categories:
-    
-    # I will create a function `check_date_category(rs, date_str, category)` 
-    # and move the logic there?
-    # Moving code is hard with `replace_file_content`.
-
-    # Let's try to just change the loop line?
-    # "for date_str in dates_to_check:" 
-    # -> 
-    # "for date_str_iter in dates_to_check:
-    #      for category in categories:
-    #          date_str = date_str_iter ... "
-    
-    # But then all the code below needs indentation. Python relies on indentation.
-    # If I don't indent, it won't work.
-    
-    # I MUST extract the logic to a function to avoid massive indentation changes in diffs? 
-    # No, I can't easily extract without deleting and recreating.
     
     # I will use `replace_file_content` to rewriting the `check_bets` function signature and the loop, 
     # accepting that I have to rewrite the body if I want correct indentation.

@@ -376,7 +376,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                         <div className="relative">
                             <input
                                 type="password"
-                                value={passwordInput}
+                                value={passwordInput || ""}
                                 onChange={(e) => setPasswordInput(e.target.value)}
                                 placeholder="Contraseña..."
                                 className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 transition-all text-center tracking-widest"
@@ -920,7 +920,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                                 <div>
                                                     <label className="text-xs font-bold text-white/40 mb-2 block uppercase tracking-wider">Mensaje del Anuncio</label>
                                                     <textarea
-                                                        value={settings.announcement_text}
+                                                        value={settings.announcement_text || ""}
                                                         onChange={(e) => setSettings({ ...settings, announcement_text: e.target.value })}
                                                         placeholder="Escribe aquí el anuncio..."
                                                         rows={3}

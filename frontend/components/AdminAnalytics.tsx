@@ -252,9 +252,21 @@ export default function AdminAnalytics({ showStakazoToggle = false }: { showStak
                 {activeTab === 'resumen' && (
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                         {/* 1. PROFIT */}
+                        {/* 1. PROFIT */}
                         <StatCard
+                            title={category === 'daily_bets_stakazo' ? "Unknown Profit" : "Profit"}
+                            // Wait, title should be static or dynamic? I'll keep it simple.
                             title="Profit"
-                            value={`${totalProfit > 0 ? '+' : ''}${totalProfit.toFixed(2)} u`}
+                            value={
+                                <span className="inline-flex items-center gap-2">
+                                    {totalProfit > 0 ? '+' : ''}{totalProfit.toFixed(2)} u
+                                    {category === 'daily_bets_stakazo' && (
+                                        <span className="text-[9px] bg-amber-500/10 text-amber-500 border border-amber-500/20 px-1.5 py-0.5 rounded font-black tracking-wider align-middle shadow-sm">
+                                            PREMIUM
+                                        </span>
+                                    )}
+                                </span>
+                            }
                             colorTheme={isPositive ? 'emerald' : 'rose'}
                             icon={DollarSign}
                             tooltip="Ganancia neta total acumulada en el mes seleccionado."

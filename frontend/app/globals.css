@@ -85,3 +85,45 @@
 .btn-active-effect:active {
   transform: scale(0.96);
 }
+
+/* STAKAZO PREMIUM ANIMATIONS */
+@keyframes golden-glow {
+  0% { box-shadow: 0 0 5px rgba(212, 175, 55, 0.1); }
+  50% { box-shadow: 0 0 25px rgba(255, 215, 0, 0.4), 0 0 10px rgba(212, 175, 55, 0.2); }
+  100% { box-shadow: 0 0 5px rgba(212, 175, 55, 0.1); }
+}
+
+.animate-golden-glow {
+  animation: golden-glow 3s ease-in-out infinite;
+}
+
+.text-stakazo-premium {
+  background: linear-gradient(to right, #FFD700, #00FF87);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 20px rgba(255, 215, 0, 0.2);
+}
+
+.stakazo-card-border {
+  border: 1px solid rgba(255, 215, 0, 0.15); /* Fallback */
+  border-image: linear-gradient(to bottom, rgba(255, 215, 0, 0.4), rgba(255, 215, 0, 0.05)) 1;
+}
+
+/* Override border-image because it messes with border-radius */
+.stakazo-border-gradient {
+   position: relative;
+   background: #050505; /* Blackish */
+   background-clip: padding-box;
+   border: 1px solid transparent;
+   border-radius: 1rem;
+}
+.stakazo-border-gradient::before {
+  content: "";
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  z-index: -1;
+  margin: -1px;
+  border-radius: inherit;
+  background: linear-gradient(to bottom, rgba(255, 215, 0, 0.3), rgba(255, 215, 0, 0.05));
+}

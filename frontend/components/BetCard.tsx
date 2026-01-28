@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, Target, PartyPopper, Clock, Check, X as XIcon, RefreshCw, Save, ChevronDown, ChevronUp, MinusCircle, Info } from 'lucide-react';
+import { ShieldCheck, Target, PartyPopper, Clock, Check, X as XIcon, RefreshCw, Save, ChevronDown, ChevronUp, MinusCircle, Info, Trophy } from 'lucide-react';
 import { triggerTouchFeedback } from '@/utils/haptics';
 import FormattedReason from './FormattedReason';
 
@@ -184,7 +184,7 @@ type BetData = {
 };
 
 type BetCardProps = {
-    type: 'safe' | 'value' | 'funbet';
+    type: 'safe' | 'value' | 'funbet' | 'stakazo';
     data?: BetData;
     isAdmin?: boolean;
     date?: string; // Explicit date prop
@@ -469,6 +469,19 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
     };
 
     const cardConfigs = {
+        stakazo: {
+            type: 'stakazo',
+            icon: Trophy,
+            color: 'amber',
+            title: 'Stakazo',
+            subtitle: 'Selección Premium',
+            cardBorder: 'stakazo-card-border bg-[#080808]',
+            cardShadow: 'shadow-[0_0_40px_rgba(255,215,0,0.15)]',
+            headerBg: 'bg-gradient-to-r from-amber-700 via-amber-500 to-amber-400',
+            iconBg: 'bg-amber-500/20',
+            textColor: 'text-amber-500',
+            stake: 10
+        },
         safe: {
             type: 'safe',
             icon: ShieldCheck,
@@ -651,7 +664,7 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
     const isResultsPage = pathname?.includes('calendar') || pathname?.includes('resultados') || !!date;
 
     return (
-        <div className={`group relative bg-card border border-border rounded-3xl p-6 transition-all duration-300 hover:shadow-2xl ${config.cardBorder} ${config.cardShadow} ${type === 'value' ? 'z-10 shadow-xl' : ''}`}>
+        <div className={`group relative bg-card border border-border rounded-3xl p-6 transition-all duration-300 hover:shadow-2xl active:scale-[0.99] ${config.cardBorder} ${config.cardShadow} ${type === 'value' ? 'z-10 shadow-xl' : ''}`}>
             {/* Header Line */}
             <div className={`absolute inset-x-0 top-0 h-1 ${config.headerBg} rounded-t-3xl`} />
 
@@ -907,8 +920,8 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
                     <div className="flex flex-col">
                         <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider mb-0.5">Profit Est.</span>
                         <span
-                            className="font-mono font-black text-xl text-emerald-500"
-                            style={{ textShadow: "0 0 10px rgba(52, 211, 153, 0.8), 0 0 20px rgba(52, 211, 153, 0.4)" }}
+                            className={`font-mono font-black text-xl ${type === 'stakazo' ? 'text-stakazo-premium text-2xl tracking-tight' : 'text-emerald-500'} transition-all`}
+                            style={type === 'stakazo' ? {} : { textShadow: "0 0 10px rgba(52, 211, 153, 0.8), 0 0 20px rgba(52, 211, 153, 0.4)" }}
                         >
                             {data.estimated_units ? `+${data.estimated_units}u` :
                                 `+${((data.stake || config.stake) * ((data.total_odd || data.odd) - 1)).toFixed(2)}u`}
@@ -916,10 +929,33 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
                     </div>
 
                     <div className="flex flex-col items-center">
-                        <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider mb-0.5">Stake</span>
-                        <span className={`font-mono font-bold text-lg ${config.textColor}`}>
-                            {data.stake || config.stake}/10
-                        </span>
+                        <span className="text-muted-foreground text-sm uppercase font-bold tracking-wider mb-0.5">Stake</span>
+                        {type === 'stakazo' ? (
+                            <div className="flex items-center gap-1 mt-1">
+                                {[1, 2, 3, 4, 5].map((level) => {
+                                    const currentStake = data.stake || config.stake || 0;
+                                    const intensity = Math.ceil(currentStake / 10);
+                                    const isActive = level <= intensity;
+                                    const isMax = currentStake >= 50;
+
+                                    return (
+                                        <div
+                                            key={level}
+                                            className={`
+                                                w-2.5 h-6 rounded-sm transition-all duration-500
+                                                ${isActive ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]' : 'bg-white/10'}
+                                                ${isActive && isMax ? 'shadow-[0_0_12px_rgba(255,215,0,0.8)] bg-yellow-400' : ''}
+                                            `}
+                                        />
+                                    );
+                                })}
+                                <span className="ml-2 font-mono font-bold text-amber-500 text-lg">{data.stake}</span>
+                            </div>
+                        ) : (
+                            <span className={`font-mono font-bold text-lg ${config.textColor}`}>
+                                {data.stake || config.stake}/10
+                            </span>
+                        )}
                     </div>
 
                     <div className="flex flex-col items-end">

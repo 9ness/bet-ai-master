@@ -7,9 +7,11 @@ import BetCard from '@/components/BetCard';
 interface DailyPredictionsProps {
     predictions: any;
     isAdmin?: boolean;
+    customTitle?: React.ReactNode;
+    hideHeader?: boolean;
 }
 
-export default function DailyPredictions({ predictions, isAdmin }: DailyPredictionsProps) {
+export default function DailyPredictions({ predictions, isAdmin, customTitle, hideHeader }: DailyPredictionsProps) {
     const [activeTab, setActiveTab] = useState<'safe' | 'value' | 'funbet'>('safe');
 
     if (!predictions) {
@@ -25,16 +27,39 @@ export default function DailyPredictions({ predictions, isAdmin }: DailyPredicti
     }
 
     // Normalize Data
-    let safeBet, valueBet, funbetBet;
+    let safeBet, valueBet, funbetBet, stakazoBet;
 
     if (Array.isArray(predictions)) {
+        // Check for specific bet types
+        stakazoBet = predictions.find((p: any) => (p.betType === 'stakazo' || p.type === 'stakazo'));
         safeBet = predictions.find((p: any) => (p.betType === 'safe' || p.type === 'safe'));
         valueBet = predictions.find((p: any) => (p.betType === 'value' || p.type === 'value'));
         funbetBet = predictions.find((p: any) => (p.betType === 'funbet' || p.type === 'funbet'));
     } else {
+        stakazoBet = predictions?.stakazo;
         safeBet = predictions?.safe;
         valueBet = predictions?.value;
         funbetBet = predictions?.funbet;
+    }
+
+    // SPECIAL RENDER FOR STAKAZO (No Tabs)
+    if (stakazoBet) {
+        return (
+            <section className="max-w-7xl mx-auto px-4 pt-0 pb-6">
+                {/* Header Logic (Optional, respecting hideHeader) */}
+                {!hideHeader && (
+                    <div className="text-center mb-6 md:mb-12 relative z-10">
+                        <h2 className="text-3xl md:text-4xl font-black mb-3 tracking-tighter text-amber-500">
+                            SELECCIÓN STAKAZO
+                        </h2>
+                    </div>
+                )}
+
+                <div className="animate-in fade-in zoom-in duration-500">
+                    <BetCard type="stakazo" data={stakazoBet} isAdmin={isAdmin} />
+                </div>
+            </section>
+        );
     }
 
     // Helper to get status color/icon for the mini-tabs
@@ -88,15 +113,23 @@ export default function DailyPredictions({ predictions, isAdmin }: DailyPredicti
     return (
         <section className="max-w-7xl mx-auto px-4 pt-0 pb-6">
             {/* Styled Header */}
-            <div className="text-center mb-6 md:mb-12 relative z-10">
-                <h2 className="text-3xl md:text-4xl font-black mb-3 tracking-tighter flex items-center justify-center gap-3">
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Apuestas</span> <span className="text-white drop-shadow-[0_2px_10px_rgba(255,255,255,0.2)]">del Día</span>
-                </h2>
-                <div className="w-24 h-1.5 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full mx-auto mb-2 animate-pulse" />
-                <p className="text-muted-foreground/80 font-medium max-w-xl mx-auto text-sm md:text-base leading-relaxed">
-                    Selección diaria de oportunidades de alta probabilidad. Análisis detallado y transparencia total.
-                </p>
-            </div>
+            {!hideHeader && (
+                <div className="text-center mb-6 md:mb-12 relative z-10">
+                    {customTitle ? (
+                        customTitle
+                    ) : (
+                        <>
+                            <h2 className="text-3xl md:text-4xl font-black mb-3 tracking-tighter flex items-center justify-center gap-3">
+                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Apuestas</span> <span className="text-white drop-shadow-[0_2px_10px_rgba(255,255,255,0.2)]">del Día</span>
+                            </h2>
+                            <div className="w-24 h-1.5 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full mx-auto mb-2 animate-pulse" />
+                            <p className="text-muted-foreground/80 font-medium max-w-xl mx-auto text-sm md:text-base leading-relaxed">
+                                Selección diaria de oportunidades de alta probabilidad. Análisis detallado y transparencia total.
+                            </p>
+                        </>
+                    )}
+                </div>
+            )}
 
             {/* MOBILE: TABS NAVIGATION */}
             <div className="md:hidden flex gap-3 mb-10">
@@ -108,9 +141,24 @@ export default function DailyPredictions({ predictions, isAdmin }: DailyPredicti
             {/* MOBILE: ACTIVE CONTENT */}
             <div className="md:hidden min-h-[400px]">
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    {activeTab === 'safe' && <BetCard type="safe" data={safeBet} isAdmin={isAdmin} />}
-                    {activeTab === 'value' && <BetCard type="value" data={valueBet} isAdmin={isAdmin} />}
-                    {activeTab === 'funbet' && <BetCard type="funbet" data={funbetBet} isAdmin={isAdmin} />}
+                    {activeTab === 'safe' && (safeBet ? <BetCard type="safe" data={safeBet} isAdmin={isAdmin} /> : (
+                        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground bg-white/5 rounded-3xl border border-white/5 mx-2">
+                            <ShieldCheck size={48} className="opacity-20 mb-4" />
+                            <p className="text-sm font-medium">No hay apuesta Segura hoy</p>
+                        </div>
+                    ))}
+                    {activeTab === 'value' && (valueBet ? <BetCard type="value" data={valueBet} isAdmin={isAdmin} /> : (
+                        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground bg-white/5 rounded-3xl border border-white/5 mx-2">
+                            <TrendingUp size={48} className="opacity-20 mb-4" />
+                            <p className="text-sm font-medium">No hay apuesta de Valor hoy</p>
+                        </div>
+                    ))}
+                    {activeTab === 'funbet' && (funbetBet ? <BetCard type="funbet" data={funbetBet} isAdmin={isAdmin} /> : (
+                        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground bg-white/5 rounded-3xl border border-white/5 mx-2">
+                            <PartyPopper size={48} className="opacity-20 mb-4" />
+                            <p className="text-sm font-medium">No hay Funbet hoy</p>
+                        </div>
+                    ))}
                 </div>
             </div>
 

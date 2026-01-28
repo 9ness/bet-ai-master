@@ -302,9 +302,11 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
             <div className="flex justify-between items-start mb-2">
                 <span className={`text-xs font-bold uppercase px-2 py-1 rounded-full flex items-center gap-1.5
                     ${finalType === 'safe' ? 'bg-cyan-500/10 text-cyan-500' :
-                        finalType === 'value' ? 'bg-amber-500/10 text-amber-500' :
-                            'bg-fuchsia-500/10 text-fuchsia-500'}`}>
-                    {finalType === 'safe' ? 'SEGURA' : finalType === 'value' ? 'DE VALOR' : finalType}
+                        finalType === 'value' ? 'bg-emerald-500/10 text-emerald-500' :
+                            finalType === 'stakazo' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' :
+                                'bg-fuchsia-500/10 text-fuchsia-500'}`}>
+                    {finalType === 'stakazo' && <Trophy size={12} />}
+                    {finalType === 'safe' ? 'SEGURA' : finalType === 'value' ? 'DE VALOR' : finalType === 'stakazo' ? 'STAKAZO' : finalType}
                     {bet.reason && (
                         <button
                             onClick={() => setReasonOpen(!reasonOpen)}
