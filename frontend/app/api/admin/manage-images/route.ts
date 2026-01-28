@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { del, list, put } from '@vercel/blob';
 
-export const runtime = 'edge';
+
 
 export async function DELETE(request: Request) {
     try {
@@ -30,8 +30,13 @@ export async function POST(request: Request) {
         console.log(`[Admin] Moving image ${url} to type: ${type}, tag: ${tag}`);
 
         // 1. Download current image
-        const response = await fetch(url);
-        if (!response.ok) throw new Error("Could not fetch source image");
+        const response = await fetch(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': '*/*'
+            }
+        });
+        if (!response.ok) throw new Error(`Could not fetch source image: ${response.status}`);
         const blob = await response.blob();
 
         // 2. Generate new filename

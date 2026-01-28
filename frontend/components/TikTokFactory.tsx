@@ -201,7 +201,8 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                 if (data.files) setAvailableFiles(data.files);
                 setMoveModal({ ...moveModal, open: false });
             } else {
-                alert("Error al mover");
+                const err = await res.json();
+                alert(`Error al mover: ${err.error || 'Desconocido'}`);
             }
         } catch (e) { console.error(e); alert("Error de conexión"); }
     };
@@ -587,7 +588,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                         <div className="w-full max-w-lg mx-auto bg-[#121212] border border-white/10 rounded-2xl p-4">
                             <div className="space-y-3 max-h-[60vh] overflow-y-auto custom-scrollbar pr-1">
                                 {!slideGroups.length && <p className="text-center text-xs text-white/30 py-8">No hay apuestas cargadas</p>}
-                                {slideGroups.map((group: any, gIdx: number) => (<div key={gIdx} className="bg-black/30 rounded-xl p-3 border border-white/5 hover:border-sky-500/30 transition-colors"><div className="flex items-center gap-2 mb-2"><input value={group.matchDisplay} onChange={(e) => { const n = [...slideGroups]; n[gIdx].matchDisplay = e.target.value; setSlideGroups(n); }} className="bg-transparent border-b border-white/10 w-full text-xs font-bold text-sky-400 focus:border-sky-500 outline-none pb-1" /><button onClick={() => { const n = [...slideGroups]; n[gIdx].isFeatured = !n[gIdx].isFeatured; setSlideGroups(n); }} className={`p-1.5 rounded-lg border ${group.isFeatured ? 'bg-sky-500 border-sky-500 text-white' : 'bg-white/5 border-white/5 text-white/20'}`}><ScanEye size={12} /></button></div><div className="space-y-1 pl-2 border-l border-white/10">{group.picks.map((pick: string, pIdx: number) => (<input key={pIdx} value={pick} onChange={(e) => { const n = [...slideGroups]; n[gIdx].picks[pIdx] = e.target.value; setSlideGroups(n); }} className="bg-transparent w-full text-[10px] text-white/60 focus:text-white outline-none" />))}</div></div>))}
+                                {slideGroups.map((group: any, gIdx: number) => (<div key={gIdx} className="bg-black/30 rounded-xl p-3 border border-white/5 hover:border-sky-500/30 transition-colors"><div className="flex items-center gap-2 mb-2"><input value={group.matchDisplay} onChange={(e) => { const n = [...slideGroups]; n[gIdx].matchDisplay = e.target.value; setSlideGroups(n); }} className="bg-transparent border-b border-white/10 w-full text-xs font-bold text-sky-400 focus:border-sky-500 outline-none pb-1" /><button onClick={() => { const n = [...slideGroups]; n[gIdx].isFeatured = !n[gIdx].isFeatured; setSlideGroups(n); }} className={`p-1.5 rounded-lg border ${group.isFeatured ? 'bg-sky-500 border-sky-500 text-white' : 'bg-white/5 border-white/5 text-white/20'}`}><ScanEye size={12} /></button></div><div className="space-y-1 pl-2 border-l border-white/10">{group.picks.map((pick: string, pIdx: number) => (<textarea key={pIdx} value={pick} onChange={(e) => { const n = [...slideGroups]; n[gIdx].picks[pIdx] = e.target.value; setSlideGroups(n); }} rows={2} className="bg-transparent w-full text-[10px] text-white/60 focus:text-white outline-none resize-y min-h-[40px] whitespace-pre-wrap" />))}</div></div>))}
                             </div>
                         </div>
                     )}
@@ -657,7 +658,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                 {slideGroups.map((group, idx) => (
                                     <div key={idx} className="bg-black/30 p-3 rounded-xl border border-white/5 hover:border-sky-500/20 transition-all">
                                         <div className="flex gap-2 mb-2"><input value={group.matchDisplay} onChange={e => { const n = [...slideGroups]; n[idx].matchDisplay = e.target.value; setSlideGroups(n) }} className="bg-transparent border-b border-white/10 w-full text-xs font-bold text-sky-300 focus:border-sky-500 outline-none pb-1" /><button onClick={() => { const n = [...slideGroups]; n[idx].isFeatured = !n[idx].isFeatured; setSlideGroups(n) }} className={`p-1 rounded ${group.isFeatured ? 'bg-sky-500 text-white' : 'text-white/20'}`}><ScanEye size={12} /></button></div>
-                                        <div className="pl-2 border-l border-white/10 space-y-1">{group.picks.map((p: string, i: number) => <input key={i} value={p} onChange={e => { const n = [...slideGroups]; n[idx].picks[i] = e.target.value; setSlideGroups(n) }} className="bg-transparent w-full text-[10px] text-white/50 focus:text-white outline-none" />)}</div>
+                                        <div className="pl-2 border-l border-white/10 space-y-1">{group.picks.map((p: string, i: number) => <textarea key={i} value={p} onChange={e => { const n = [...slideGroups]; n[idx].picks[i] = e.target.value; setSlideGroups(n) }} rows={2} className="bg-transparent w-full text-[10px] text-white/50 focus:text-white outline-none resize-y min-h-[40px] whitespace-pre-wrap" />)}</div>
                                     </div>
                                 ))}
                                 {!slideGroups.length && <p className="text-xs text-center text-white/20 py-4">Sin datos</p>}
@@ -770,7 +771,9 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                     <div key={bIdx} className="w-full flex flex-col items-center gap-4">
                                         <div className="bg-black px-8 pt-2 pb-4 rounded-xl max-w-[95%] border-2 border-black flex items-center justify-center text-center"><h3 className="text-3xl font-black text-white uppercase tracking-tight leading-tight whitespace-pre-wrap break-words pb-5">{group.matchDisplay}</h3></div>
                                         {group.picks.map((pick: string, pIdx: number) => (
-                                            <div key={pIdx} className="bg-white px-8 pt-2 pb-4 rounded-xl max-w-[95%] flex items-center justify-center text-center mt-[-10px]"><span className="text-3xl font-black text-black tracking-tight leading-tight whitespace-pre-wrap break-words pb-5">{pick}</span></div>
+                                            pick.split('\n').filter(l => l.trim()).map((line, lIdx) => (
+                                                <div key={`${pIdx}-${lIdx}`} className="bg-white px-8 pt-2 pb-4 rounded-xl max-w-[95%] flex items-center justify-center text-center mt-[-10px]"><span className="text-3xl font-black text-black tracking-tight leading-tight whitespace-pre-wrap break-words pb-5">{line}</span></div>
+                                            ))
                                         ))}
                                     </div>
                                 ))}
