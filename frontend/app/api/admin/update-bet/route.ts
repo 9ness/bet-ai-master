@@ -26,9 +26,12 @@ export async function POST(request: Request) {
             return upper;
         };
 
+        const isStakazo = betType && String(betType).toLowerCase().includes('stakazo');
+        const category = isStakazo ? 'daily_bets_stakazo' : 'daily_bets';
+
         const yearMonth = date.substring(0, 7);
-        const hashKey = `betai:daily_bets:${yearMonth}`;
-        const dayKey = `betai:daily_bets:${date}`;
+        const hashKey = `betai:${category}:${yearMonth}`;
+        const dayKey = `betai:${category}:${date}`;
 
         // 1. LOAD DATA
         // Priority: HASH -> KEY
@@ -40,14 +43,15 @@ export async function POST(request: Request) {
             source = 'KEY';
         }
 
-        // Fallback checks
+        // Fallback checks (Only for regular bets logic mainly, but keeps safety)
         if (!data) {
-            const fallbackData: any = await redis.get("betai:daily_bets"); // Try generic master
+            const masterKeyRaw = isStakazo ? "betai:daily_bets_stakazo" : "betai:daily_bets";
+            const fallbackData: any = await redis.get(masterKeyRaw);
             if (fallbackData && fallbackData.date === date) {
                 data = fallbackData;
                 source = 'FALLBACK_MASTER';
-            } else {
-                // Last ditch: legacy key without prefix?
+            } else if (!isStakazo) {
+                // Last ditch: legacy key without prefix? (Only for legacy daily_bets)
                 const legacy = await redis.get("daily_bets");
                 if (legacy && (legacy as any).date === date) {
                     data = legacy;
@@ -55,6 +59,8 @@ export async function POST(request: Request) {
                 } else {
                     return NextResponse.json({ success: false, error: "No data found for this date" }, { status: 404 });
                 }
+            } else {
+                return NextResponse.json({ success: false, error: "No data found for this date (Stakazo)" }, { status: 404 });
             }
         }
 
@@ -65,6 +71,10 @@ export async function POST(request: Request) {
         let bet: any = null;
         if (Array.isArray(bets)) {
             bet = bets.find((b: any) => b.type === betType || b.betType === betType);
+            // Relaxed search for Stakazo if betType differs slightly
+            if (!bet && isStakazo) {
+                bet = bets.find((b: any) => String(b.betType).toLowerCase().includes('stakazo'));
+            }
         } else {
             bet = bets[betType];
             if (!bet) {
@@ -185,6 +195,7 @@ export async function POST(request: Request) {
             if (typeKey === 'safe') stake = 6;
             else if (typeKey === 'value') stake = 3;
             else if (typeKey === 'funbet') stake = 1;
+            else if (typeKey.includes('stakazo')) stake = 10;
             bet.stake = stake;
         }
 
@@ -222,11 +233,12 @@ export async function POST(request: Request) {
         // B) Master Key (Legacy/Current View) if Today
         const todayStr = new Date().toISOString().split('T')[0];
         if (date === todayStr) {
-            await redis.set("betai:daily_bets", jsonStr);
+            const masterKey = isStakazo ? "betai:daily_bets_stakazo" : "betai:daily_bets";
+            await redis.set(masterKey, jsonStr);
         }
 
         // 7. STATS
-        await updateMonthStats(date);
+        await updateMonthStats(date, category);
 
         revalidatePath('/', 'layout');
         return NextResponse.json({ success: true, bet, dayProfit: historyData.day_profit });
@@ -238,10 +250,18 @@ export async function POST(request: Request) {
 }
 
 // Helper to recalculate monthly stats by reading all days (User Logic Replacement)
-async function updateMonthStats(dateStr: string) {
+async function updateMonthStats(dateStr: string, category: string = 'daily_bets') {
     const [year, month] = dateStr.split('-');
-    const statsKey = `betai:stats:${year}-${month}`;
-    const hashKey = `betai:daily_bets:${year}-${month}`;
+
+    // Stats Key -> stats:YYYY-MM OR stats_stakazo:YYYY-MM
+    const statsPrefix = category === 'daily_bets_stakazo' ? 'stats_stakazo' : 'stats';
+    const statsKey = `betai:${statsPrefix}:${year}-${month}`;
+
+    // Data Hash -> daily_bets:YYYY-MM OR daily_bets_stakazo:YYYY-MM
+    // Note: Variable 'hashKey' in main func used 'betai:' prefix. Here we construct similarly.
+    // The previous logic used `betai:daily_bets:...` hardcoded?
+    // Let's match the category passed.
+    const hashKey = `betai:${category}:${year}-${month}`;
 
     // 1. Get all daily bets for this month (HGETALL)
     const monthData: Record<string, any> | null = await redis.hgetall(hashKey);
@@ -252,7 +272,7 @@ async function updateMonthStats(dateStr: string) {
     let totalBets = 0;
 
     // Default Stakes (Safety Net)
-    const DEFAULT_STAKES: Record<string, number> = { safe: 6, value: 3, funbet: 1 };
+    const DEFAULT_STAKES: Record<string, number> = { safe: 6, value: 3, funbet: 1, stakazo: 10 };
 
     if (monthData) {
         Object.values(monthData).forEach((dayDataRaw: any) => {
@@ -270,8 +290,13 @@ async function updateMonthStats(dateStr: string) {
 
                 // SOLO sumamos si la apuesta no está PENDING (Target: WON/LOST)
                 if (norm === 'WON' || norm === 'LOST') {
-                    const betType = (bet.type || '').toLowerCase();
-                    const stake = Number(bet.stake) || DEFAULT_STAKES[betType] || 0;
+                    const betType = (bet.type || bet.betType || '').toLowerCase();
+                    // Identify stake safely
+                    let stake = Number(bet.stake);
+                    if (!stake) {
+                        if (betType.includes('stakazo')) stake = 10;
+                        else stake = DEFAULT_STAKES[betType] || 0;
+                    }
 
                     totalStaked += stake;
                     totalProfit += Number(bet.profit || 0);

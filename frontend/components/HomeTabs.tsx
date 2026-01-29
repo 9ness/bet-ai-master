@@ -197,92 +197,100 @@ export default function HomeTabs({ settings, predictions, stakazoPredictions, fo
                 <div className="absolute top-0 left-1/4 w-96 h-96 bg-fuchsia-500/10 rounded-full blur-[128px] pointer-events-none opacity-30" />
                 <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-[128px] pointer-events-none opacity-30" />
 
-                <div className="max-w-4xl mx-auto px-4 py-4 md:py-6 text-center relative z-10">
+                <div className="max-w-4xl mx-auto px-4 py-2 md:py-6 text-center relative z-10">
 
-
-                    {/* Main Title COMPACT */}
-                    <div className="flex flex-col md:flex-row items-center justify-center gap-2 md:gap-4 mb-3">
-                        <h1 className="text-2xl md:text-5xl font-black tracking-tighter leading-none">
+                    {/* Main Title COMPACT & SPACIOUS (Single Line) */}
+                    <div className="flex flex-row items-baseline justify-center gap-2 mb-2 md:mb-3">
+                        <h1 className="text-base md:text-5xl font-black tracking-tighter leading-none whitespace-nowrap">
                             BET AI <span className="text-fuchsia-500">MASTER</span>
                         </h1>
-                        <span className="hidden md:block text-muted-foreground/30 text-3xl font-thin">|</span>
-                        <h2 className="text-lg md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-fuchsia-500 to-violet-500 animate-gradient">
-                            PREDICCIONES DIARIAS
+                        <span className="text-muted-foreground/30 text-sm md:text-3xl font-thin">|</span>
+                        <h2 className="text-sm md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-fuchsia-500 to-violet-500 animate-gradient whitespace-nowrap">
+                            PREDICCIONES
                         </h2>
                     </div>
 
-                    {/* Date & Stats Row - SINGLE LINE LAYOUT */}
-                    <div className="flex flex-col md:flex-row items-center justify-center gap-3">
-                        <p className="text-xs md:text-sm text-muted-foreground font-medium capitalize flex items-center gap-1.5 whitespace-nowrap">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                            {formattedDate}
-                        </p>
+                    {/* Date & Stats Row - FLEXIBLE (Priority Center) */}
+                    <div className="flex flex-row items-center justify-between gap-2 w-full pb-1 mb-1 md:mb-2 px-1">
+                        {/* LEFT: Date (Auto Width) */}
+                        <div className="flex-none flex justify-start">
+                            <p className="text-xs md:text-sm text-muted-foreground font-medium capitalize flex items-center gap-1 whitespace-nowrap">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                {formattedDate.split(',')[0]} {formattedDate.split(',')[1]?.split(' ')[1]}
+                            </p>
+                        </div>
 
-                        {settings.show_announcement && settings.announcement_text && (
-                            <div className={`px-3 py-1 rounded-full border text-xs font-medium flex items-center gap-1.5 ${settings.announcement_type === 'warning' ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' : 'bg-blue-500/10 border-blue-500/20 text-blue-500'}`}>
-                                <AlertTriangle size={12} />
-                                {settings.announcement_text}
-                            </div>
-                        )}
+                        {/* CENTER: Info / Update Time (Flex Grow) */}
+                        <div className="flex-1 flex justify-center min-w-0">
+                            {settings.show_announcement && settings.announcement_text ? (
+                                <div className={`w-full px-1.5 py-0.5 rounded-full border text-[10px] md:text-xs font-medium flex items-center justify-center gap-1 ${settings.announcement_type === 'warning' ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' : 'bg-blue-500/10 border-blue-500/20 text-blue-500'}`}>
+                                    <AlertTriangle size={10} className="shrink-0" />
+                                    <span className="whitespace-nowrap">{settings.announcement_text}</span>
+                                </div>
+                            ) : (
+                                <div className="text-[10px] text-muted-foreground/50 whitespace-nowrap">Actualizado 09:00 AM</div>
+                            )}
+                        </div>
 
-                        {settings.show_analytics && (
-                            <div className="flex items-center gap-3">
-                                <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold ${headerStats.profit >= 0 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : 'bg-rose-500/10 border-rose-500/20 text-rose-500'}`}>
+                        {/* RIGHT: Balance (Auto Width) */}
+                        <div className="flex-none flex justify-end">
+                            {settings.show_analytics && (
+                                <div className={`flex items-center gap-1 text-xs font-bold ${headerStats.profit >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                                     <Activity size={12} />
                                     <span>{headerStats.profit >= 0 ? '+' : ''}{headerStats.profit}u</span>
                                 </div>
-                                <div className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-border/50 bg-secondary/50 text-muted-foreground text-xs font-medium">
-                                    <span>Yield: {headerStats.yieldVal}%</span>
-                                </div>
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </div>
 
 
-                    {isMock && (
-                        <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/10 text-amber-500 border border-amber-500/20 mb-4">
-                            <AlertTriangle size={16} />
-                            <span className="text-sm font-medium">Modo Demostración</span>
-                        </div>
-                    )}
-
-                    {/* STAKAZO BANNER (Global Alert) */}
+                    {/* STAKAZO BANNER (Balanced Mobile) */}
                     {settings.show_stakazo_alert && settings.show_stakazo_menu && activeTab !== 'stakazo' && (
-                        <div className="mt-6 animate-in zoom-in fade-in duration-500">
+                        <div className="mt-2 md:mt-6 animate-in zoom-in fade-in duration-500">
                             <button
                                 onClick={() => scrollToTab('stakazo')}
-                                className="group relative overflow-hidden rounded-3xl bg-[#080808] border border-amber-500/40 w-full max-w-sm mx-auto shadow-[0_0_25px_rgba(245,158,11,0.15)] transition-all active:scale-[0.98] hover:border-amber-500/60"
+                                className="group relative overflow-hidden rounded-xl md:rounded-3xl bg-[#080808] border border-amber-500/40 w-full md:max-w-sm mx-auto shadow-[0_0_15px_rgba(245,158,11,0.1)] transition-all active:scale-[0.98] hover:border-amber-500/60"
                             >
-                                {/* Animated Gradient Glow Background (Subtle) */}
+                                {/* Animated Gradient Glow Background */}
                                 <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 via-transparent to-amber-500/5 opacity-50 group-hover:opacity-100 transition-opacity duration-500" />
-
-                                {/* Shine Effect */}
                                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-amber-500/10 to-transparent translate-x-[-150%] group-hover:translate-x-[150%] transition-transform duration-1000 z-10" />
 
-                                <div className="relative z-0 p-5 flex flex-col items-center justify-center h-full">
-                                    {/* Top Label */}
-                                    <span className="text-[10px] text-amber-500 font-bold uppercase tracking-[0.2em] mb-1 animate-pulse">
-                                        Acceso Exclusivo
-                                    </span>
+                                {/* Balanced Layout (h-[52px]) */}
+                                <div className="relative z-0 px-3 h-[52px] md:h-auto md:p-5 flex flex-row md:flex-col items-center justify-between md:justify-center gap-2 md:gap-0">
 
-                                    {/* Main Content Row */}
-                                    <div className="flex items-center gap-3 mb-2">
-                                        <div className="p-2 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-full shadow-[0_0_15px_rgba(245,158,11,0.4)]">
-                                            <Trophy size={20} className="text-white fill-white/20" />
+                                    {/* START: Icon + Label */}
+                                    <div className="flex items-center gap-2 md:mb-2">
+                                        <div className="p-1.5 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-full shadow-[0_0_10px_rgba(245,158,11,0.3)] md:p-2">
+                                            <Trophy size={14} className="text-white fill-white/20 md:w-5 md:h-5" />
                                         </div>
-                                        <div className="flex flex-col items-start leading-none">
-                                            <span className="text-2xl md:text-3xl font-black text-white tracking-tighter drop-shadow-md">
+
+                                        {/* Mobile Text */}
+                                        <span className="text-xs font-black text-white tracking-tighter md:hidden">
+                                            💎 STAKAZO <span className="text-amber-500">{stakazoStake}</span>
+                                        </span>
+
+                                        {/* Desktop Text */}
+                                        <div className="hidden md:flex flex-col items-start leading-none">
+                                            <span className="text-[10px] text-amber-500 font-bold uppercase tracking-[0.2em] mb-1 animate-pulse">Acceso Exclusivo</span>
+                                            <span className="text-3xl font-black text-white tracking-tighter drop-shadow-md">
                                                 STAKAZO <span className="text-amber-500">{stakazoStake}</span>
                                             </span>
                                         </div>
                                     </div>
 
-                                    {/* Divider */}
-                                    <div className="h-px w-32 bg-gradient-to-r from-transparent via-amber-500/30 to-transparent my-1" />
+                                    {/* CENTER: Text (Mobile Only) */}
+                                    <div className="md:hidden flex-1 text-center">
+                                        <span className="text-[10px] text-amber-500/60 font-medium uppercase tracking-wider block">
+                                            Acceso Exclusivo
+                                        </span>
+                                    </div>
 
-                                    {/* Bottom CTA */}
-                                    <span className="text-[10px] text-gray-400 font-medium group-hover:text-amber-400 transition-colors">
-                                        Click para revelar selección
+                                    {/* Desktop Divider */}
+                                    <div className="hidden md:block h-px w-32 bg-gradient-to-r from-transparent via-amber-500/30 to-transparent my-1" />
+
+                                    {/* END: CTA */}
+                                    <span className="text-[10px] text-gray-400 font-medium group-hover:text-amber-400 transition-colors whitespace-nowrap flex items-center gap-1">
+                                        <span className="hidden md:inline">Click para revelar</span> Ver &rarr;
                                     </span>
                                 </div>
                             </button>
@@ -292,28 +300,30 @@ export default function HomeTabs({ settings, predictions, stakazoPredictions, fo
             </div>
 
             {/* TAB NAVIGATION */}
-            {visibleTabs.length > 1 && (
-                <div className="sticky top-16 z-40 bg-background/95 backdrop-blur-md border-b border-border/50">
-                    <div className="max-w-7xl mx-auto px-2 md:px-4 flex justify-center md:justify-start">
-                        {visibleTabs.map(tab => (
-                            <button
-                                key={tab.id}
-                                onClick={() => scrollToTab(tab.id)}
-                                onTouchStart={() => triggerTouchFeedback()}
-                                className={`
+            {
+                visibleTabs.length > 1 && (
+                    <div className="sticky top-16 z-40 bg-background/95 backdrop-blur-md border-b border-border/50">
+                        <div className="max-w-7xl mx-auto px-2 md:px-4 flex justify-center md:justify-start">
+                            {visibleTabs.map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => scrollToTab(tab.id)}
+                                    onTouchStart={() => triggerTouchFeedback()}
+                                    className={`
                                     btn-active-effect
-                                    flex-1 md:flex-none py-3 px-4 md:py-4 text-xs md:text-sm font-bold border-b-2 transition-transform 
+                                    flex-1 md:flex-none py-3 px-3 md:py-4 md:px-4 text-xs md:text-sm font-bold border-b-2 transition-transform 
                                     ${activeTab === tab.id
-                                        ? (tab.id === 'stakazo' ? 'border-amber-500 text-amber-500' : 'border-fuchsia-500 text-fuchsia-500')
-                                        : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-secondary/20'}
+                                            ? (tab.id === 'stakazo' ? 'border-amber-500 text-amber-500' : 'border-fuchsia-500 text-fuchsia-500')
+                                            : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-secondary/20'}
                                 `}
-                            >
-                                {tab.label}
-                            </button>
-                        ))}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* CONTENT CONTAINER - DIRECT RENDERING WITH SWIPE */}
             <div
@@ -377,6 +387,6 @@ export default function HomeTabs({ settings, predictions, stakazoPredictions, fo
                     )}
                 </div>
             </div>
-        </div>
+        </div >
     );
 }

@@ -609,7 +609,17 @@ def check_bets():
                              
                              if "local" in pick or "home" in pick or "1" in pick.split() or (home_team_clean and home_team_clean in pick):
                                  # Home
-                                 is_win = (home_score + line) > away_score
+                                 adjusted_score = home_score + line
+                                 if adjusted_score > away_score:
+                                    is_win = True
+                                 elif adjusted_score == away_score:
+                                    print(f"      => Result: VOID (Push)")
+                                    sel["status"] = "VOID"
+                                    sel["result"] = f"{home_score}-{away_score} (Push)"
+                                    bets_modified = True
+                                    void_count += 1
+                                    continue
+
                                  actual_margin = home_score - away_score
                                  target_margin = math.floor(-line) + 1
                                  diff = actual_margin - target_margin
@@ -619,7 +629,17 @@ def check_bets():
                                  result_str += f" | {res_val}"
 
                              elif "visitante" in pick or "away" in pick or "2" in pick.split() or (away_team_clean and away_team_clean in pick):
-                                 is_win = (away_score + line) > home_score
+                                 adjusted_score = away_score + line
+                                 if adjusted_score > home_score:
+                                    is_win = True
+                                 elif adjusted_score == home_score:
+                                    print(f"      => Result: VOID (Push)")
+                                    sel["status"] = "VOID"
+                                    sel["result"] = f"{home_score}-{away_score} (Push)"
+                                    bets_modified = True
+                                    void_count += 1
+                                    continue
+
                                  actual_margin = away_score - home_score
                                  target_margin = math.floor(-line) + 1
                                  diff = actual_margin - target_margin

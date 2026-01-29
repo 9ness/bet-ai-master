@@ -60,12 +60,12 @@ export default async function Home() {
     }
 
     // --- STAKAZO FETCHING (Parallel) ---
-    // Fetch Stakazo data following similar logic (Priority: Today -> Yesterday -> Master? No, just keys)
-    // Actually Master key for Stakazo is "daily_bets_stakazo" (if we set it in redis_service)
-    let stakazoData: any = await redis.get('betai:daily_bets_stakazo');
+    // Fetch Stakazo data (Priority: Today -> Master -> Yesterday)
+    // We prioritize the specific date key to ensure we don't get stale master data
+    let stakazoData: any = await redis.get(`betai:daily_bets_stakazo:${today}`);
 
     if (!stakazoData) {
-        stakazoData = await redis.get(`betai:daily_bets_stakazo:${today}`);
+        stakazoData = await redis.get('betai:daily_bets_stakazo');
     }
     if (!stakazoData) {
         stakazoData = await redis.get(`betai:daily_bets_stakazo:${yesterday}`);
