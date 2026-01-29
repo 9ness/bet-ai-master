@@ -95,7 +95,7 @@ export default function DailyPredictions({ predictions, isAdmin, customTitle, hi
                     relative flex flex-col items-center justify-center px-4 py-3 rounded-xl border transition-all w-full
                     ${isActive
                         ? `${bgActive} ${borderColor} ${colorClass} shadow-[0_0_15px_-3px_rgba(0,0,0,0.3)] scale-[1.02]`
-                        : 'bg-white/5 border-white/5 text-white/40 hover:bg-white/10 hover:text-white/60'
+                        : 'bg-secondary/40 border-border/40 text-muted-foreground hover:bg-secondary/60 hover:text-foreground'
                     }
                 `}
             >
@@ -120,7 +120,7 @@ export default function DailyPredictions({ predictions, isAdmin, customTitle, hi
                     ) : (
                         <>
                             <h2 className="text-3xl md:text-4xl font-black mb-3 tracking-tighter flex items-center justify-center gap-3">
-                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Apuestas</span> <span className="text-white drop-shadow-[0_2px_10px_rgba(255,255,255,0.2)]">del Día</span>
+                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Apuestas</span> <span className="text-foreground drop-shadow-sm">del Día</span>
                             </h2>
                             <div className="w-24 h-1.5 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full mx-auto mb-2 animate-pulse" />
                             <p className="text-muted-foreground/80 font-medium max-w-xl mx-auto text-sm md:text-base leading-relaxed">
@@ -142,19 +142,19 @@ export default function DailyPredictions({ predictions, isAdmin, customTitle, hi
             <div className="md:hidden min-h-[400px]">
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                     {activeTab === 'safe' && (safeBet ? <BetCard type="safe" data={safeBet} isAdmin={isAdmin} /> : (
-                        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground bg-white/5 rounded-3xl border border-white/5 mx-2">
+                        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground bg-secondary/30 rounded-3xl border border-secondary mx-2">
                             <ShieldCheck size={48} className="opacity-20 mb-4" />
                             <p className="text-sm font-medium">No hay apuesta Segura hoy</p>
                         </div>
                     ))}
                     {activeTab === 'value' && (valueBet ? <BetCard type="value" data={valueBet} isAdmin={isAdmin} /> : (
-                        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground bg-white/5 rounded-3xl border border-white/5 mx-2">
+                        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground bg-secondary/30 rounded-3xl border border-secondary mx-2">
                             <TrendingUp size={48} className="opacity-20 mb-4" />
                             <p className="text-sm font-medium">No hay apuesta de Valor hoy</p>
                         </div>
                     ))}
                     {activeTab === 'funbet' && (funbetBet ? <BetCard type="funbet" data={funbetBet} isAdmin={isAdmin} /> : (
-                        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground bg-white/5 rounded-3xl border border-white/5 mx-2">
+                        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground bg-secondary/30 rounded-3xl border border-secondary mx-2">
                             <PartyPopper size={48} className="opacity-20 mb-4" />
                             <p className="text-sm font-medium">No hay Funbet hoy</p>
                         </div>

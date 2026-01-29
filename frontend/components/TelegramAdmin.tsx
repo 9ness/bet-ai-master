@@ -233,11 +233,11 @@ export default function TelegramAdmin({ readOnly }: { readOnly?: boolean }) {
     // Color Helpers
     const getCardColor = (type: string) => {
         switch (type.toLowerCase()) {
-            case 'safe': return 'from-emerald-950/40 to-emerald-900/10 border-emerald-500/20';
-            case 'value': return 'from-amber-950/40 to-amber-900/10 border-amber-500/20';
-            case 'funbet': return 'from-violet-950/40 to-violet-900/10 border-violet-500/20';
-            case 'monthly_report': return 'from-indigo-950/40 to-indigo-900/10 border-indigo-500/20'; // New Style
-            default: return 'from-gray-900/40 to-gray-800/20 border-gray-500/30';
+            case 'safe': return 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-500/20';
+            case 'value': return 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-500/20';
+            case 'funbet': return 'bg-violet-50 dark:bg-violet-950/40 border-violet-200 dark:border-violet-500/20';
+            case 'monthly_report': return 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-500/20';
+            default: return 'bg-secondary/30 dark:bg-gray-900/40 border-border/20 dark:border-gray-500/30';
         }
     };
 
@@ -368,9 +368,9 @@ function DateSelectorWrapper({
     return (
         <div className="max-w-6xl mx-auto space-y-6 pb-10">
             {!readOnly && (
-                <div className="flex items-center justify-between bg-black/20 p-4 rounded-2xl border border-white/5 backdrop-blur-sm sticky top-0 z-10 w-full shadow-xl shadow-black/20">
-                    <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                        <Send className="text-sky-400" />
+                <div className="flex items-center justify-between bg-white/50 dark:bg-black/20 p-4 rounded-2xl border border-border/10 dark:border-white/5 backdrop-blur-sm sticky top-0 z-10 w-full shadow-xl shadow-black/5 dark:shadow-black/20">
+                    <h3 className="text-xl font-bold text-foreground dark:text-white flex items-center gap-2">
+                        <Send className="text-sky-500 dark:text-sky-400" />
                         Gestor Telegram
                     </h3>
                     <div className="flex items-center gap-2">
@@ -398,7 +398,7 @@ function DateSelectorWrapper({
                         </button>
                         <button
                             onClick={fetchData}
-                            className="p-2 bg-white/5 rounded-full hover:bg-white/10 transition text-white/60 hover:text-white"
+                            className="p-2 bg-secondary/80 dark:bg-white/5 rounded-full hover:bg-secondary dark:hover:bg-white/10 transition text-muted-foreground dark:text-white/60 hover:text-foreground dark:hover:text-white"
                         >
                             <RefreshCw size={18} />
                         </button>
@@ -409,8 +409,8 @@ function DateSelectorWrapper({
             {/* MAIN SELECTOR TABS (Dates + Report) */}
             <div className="space-y-4">
                 <div className="flex items-center gap-2 px-2">
-                    <Clock className="text-emerald-400" size={18} />
-                    <h4 className="text-sm font-bold text-white/70 uppercase tracking-widest">
+                    <Clock className="text-emerald-500 dark:text-emerald-400" size={18} />
+                    <h4 className="text-sm font-bold text-muted-foreground dark:text-white/70 uppercase tracking-widest">
                         Gestor de Contenido
                     </h4>
                 </div>
@@ -423,8 +423,8 @@ function DateSelectorWrapper({
                             className={`
                                 flex flex-col items-center justify-center px-4 py-2 rounded-xl border transition-all min-w-[80px] hover:scale-105 active:scale-95 duration-200
                                 ${selectedDate === 'REPORT'
-                                    ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-400 shadow-[0_0_15px_-3px_rgba(99,102,241,0.3)]'
-                                    : 'bg-white/5 border-white/5 text-white/50 hover:bg-white/10 hover:text-white/80'
+                                    ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-500 dark:text-indigo-400 shadow-[0_0_15px_-3px_rgba(99,102,241,0.3)]'
+                                    : 'bg-white dark:bg-white/5 border-border/20 dark:border-white/5 text-muted-foreground dark:text-white/50 hover:bg-secondary/50 dark:hover:bg-white/10 hover:text-foreground dark:hover:text-white/80'
                                 }
                             `}
                         >
@@ -451,8 +451,8 @@ function DateSelectorWrapper({
                                 className={`
                                     flex flex-col items-center justify-center px-4 py-2 rounded-xl border transition-all min-w-[80px] hover:scale-105 active:scale-95 duration-200 relative
                                     ${isSelected
-                                        ? 'bg-sky-500/20 border-sky-500/50 text-sky-400 shadow-[0_0_15px_-3px_rgba(14,165,233,0.3)]'
-                                        : 'bg-white/5 border-white/5 text-white/50 hover:bg-white/10 hover:text-white/80'
+                                        ? 'bg-sky-500/20 border-sky-500/50 text-sky-600 dark:text-sky-400 shadow-[0_0_15px_-3px_rgba(14,165,233,0.3)]'
+                                        : 'bg-white dark:bg-white/5 border-border/20 dark:border-white/5 text-muted-foreground dark:text-white/50 hover:bg-secondary/50 dark:hover:bg-white/10 hover:text-foreground dark:hover:text-white/80'
                                     }
                                  `}
                             >
@@ -551,11 +551,11 @@ function DailyGroup({
     const isToday = date === new Date().toISOString().split('T')[0];
 
     return (
-        <div className="bg-white/5 rounded-2xl border border-white/5 p-4 min-h-[200px]">
-            <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-2">
+        <div className="bg-white/50 dark:bg-white/5 rounded-2xl border border-border/10 dark:border-white/5 p-4 min-h-[200px]">
+            <div className="flex items-center justify-between mb-4 border-b border-border/10 dark:border-white/5 pb-2">
                 <div className="flex items-center gap-3">
-                    <CalendarDays className="text-sky-400" size={20} />
-                    <h4 className="text-lg font-bold text-white/90 capitalize">
+                    <CalendarDays className="text-sky-500 dark:text-sky-400" size={20} />
+                    <h4 className="text-lg font-bold text-foreground dark:text-white/90 capitalize">
                         {new Date(date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
                     </h4>
                 </div>
@@ -630,7 +630,7 @@ function TelegramCard({
             // Check for tags using regex matching for robustness
             const bMatch = part.match(/^<b>([\s\S]*)<\/b>$/i);
             if (bMatch) {
-                return <b key={i} className="font-bold text-white">{renderTelegramHTML(bMatch[1])}</b>;
+                return <b key={i} className="font-bold text-black dark:text-white">{renderTelegramHTML(bMatch[1])}</b>;
             }
 
             const uMatch = part.match(/^<u>([\s\S]*)<\/u>$/i);
@@ -641,7 +641,7 @@ function TelegramCard({
             const qMatch = part.match(/^<blockquote>([\s\S]*)<\/blockquote>$/i);
             if (qMatch) {
                 return (
-                    <blockquote key={i} className="border-l-2 border-white/20 pl-3 my-2 italic text-gray-400 bg-white/5 py-1 rounded-r-md whitespace-pre-wrap">
+                    <blockquote key={i} className="border-l-2 border-border dark:border-white/20 pl-3 my-2 italic text-muted-foreground dark:text-gray-400 bg-secondary/30 dark:bg-white/5 py-1 rounded-r-md whitespace-pre-wrap">
                         {renderTelegramHTML(qMatch[1].trim())}
                     </blockquote>
                 );
@@ -653,12 +653,12 @@ function TelegramCard({
     };
 
     return (
-        <div className={`relative group p-3 md:p-3 rounded-xl border bg-gradient-to-br transition-all hover:border-opacity-50 ${getCardColor(item.bet_type_key)}`}>
+        <div className={`relative group p-3 md:p-3 rounded-xl border transition-all hover:border-opacity-50 ${getCardColor(item.bet_type_key)}`}>
             {/* Header Compact - Now includes Edit Button */}
             <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                     <div className={`w-1.5 h-1.5 rounded-full ${item.enviado ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                    <h5 className="font-bold text-white/90 tracking-tight text-xs truncate max-w-[150px]">
+                    <h5 className="font-bold text-gray-700 dark:text-white/90 tracking-tight text-xs truncate max-w-[150px]">
                         {item.tipo}
                     </h5>
 
@@ -666,7 +666,7 @@ function TelegramCard({
                     {!readOnly && !item.enviado && !isEditing && (
                         <button
                             onClick={() => handleEditStart(item)}
-                            className="p-1 text-white/30 hover:text-white transition opacity-0 group-hover:opacity-100"
+                            className="p-1 text-muted-foreground/50 hover:text-foreground dark:text-white/30 dark:hover:text-white transition opacity-0 group-hover:opacity-100"
                             title="Editar mensaje"
                         >
                             <Edit3 size={12} />
@@ -708,7 +708,7 @@ function TelegramCard({
                 </div>
             ) : (
                 <div className="relative group/text">
-                    <div className="bg-black/20 rounded-lg p-2 font-mono text-[11px] text-gray-300 w-full mb-2 max-h-[140px] overflow-y-auto custom-scrollbar leading-relaxed">
+                    <div className="bg-white/50 dark:bg-black/20 rounded-lg p-2 font-mono text-[11px] text-gray-700 dark:text-gray-300 w-full mb-2 max-h-[140px] overflow-y-auto custom-scrollbar leading-relaxed">
                         <div>{renderTelegramHTML(displayMessage)}</div>
                     </div>
                 </div>
@@ -722,9 +722,9 @@ function TelegramCard({
                         id={`check-${item.id}`}
                         checked={showAnalysis}
                         onChange={(e) => setShowAnalysis(e.target.checked)}
-                        className="w-3 h-3 rounded border-white/20 bg-white/5 text-sky-500 focus:ring-sky-500/20 cursor-pointer"
+                        className="w-3 h-3 rounded border-border dark:border-white/20 bg-secondary dark:bg-white/5 text-sky-500 focus:ring-sky-500/20 cursor-pointer"
                     />
-                    <label htmlFor={`check-${item.id}`} className="text-[10px] font-bold text-white/50 cursor-pointer select-none">
+                    <label htmlFor={`check-${item.id}`} className="text-[10px] font-bold text-muted-foreground dark:text-white/50 cursor-pointer select-none">
                         Mostrar análisis
                     </label>
                 </div>
@@ -740,7 +740,7 @@ function TelegramCard({
                             flex items-center gap-1.5 px-3 py-1 rounded-md font-bold text-[10px] transition-all w-full justify-center
                             ${item.enviado
                                 ? 'bg-emerald-500/5 text-emerald-500/30 cursor-not-allowed border border-emerald-500/10'
-                                : 'bg-white/5 hover:bg-white/10 text-white border border-white/10 hover:border-white/20'
+                                : 'bg-secondary dark:bg-white/5 hover:bg-secondary/80 dark:hover:bg-white/10 text-foreground dark:text-white border border-border/50 dark:border-white/10 hover:border-border dark:hover:border-white/20'
                             }
                         `}
                     >

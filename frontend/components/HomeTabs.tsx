@@ -223,19 +223,19 @@ export default function HomeTabs({ settings, predictions, stakazoPredictions, fo
                         {/* CENTER: Info / Update Time (Flex Grow) */}
                         <div className="flex-1 flex justify-center min-w-0">
                             {settings.show_announcement && settings.announcement_text ? (
-                                <div className={`w-full px-1.5 py-0.5 rounded-full border text-[10px] md:text-xs font-medium flex items-center justify-center gap-1 ${settings.announcement_type === 'warning' ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' : 'bg-blue-500/10 border-blue-500/20 text-blue-500'}`}>
+                                <div className={`w-full px-1.5 py-0.5 rounded-full border text-[10px] md:text-xs font-medium flex items-center justify-center gap-1 ${settings.announcement_type === 'warning' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-500' : 'bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-500'}`}>
                                     <AlertTriangle size={10} className="shrink-0" />
                                     <span className="whitespace-nowrap">{settings.announcement_text}</span>
                                 </div>
                             ) : (
-                                <div className="text-[10px] text-muted-foreground/50 whitespace-nowrap">Actualizado 09:00 AM</div>
+                                <div className="text-[10px] text-muted-foreground whitespace-nowrap">Actualizado 09:00 AM</div>
                             )}
                         </div>
 
                         {/* RIGHT: Balance (Auto Width) */}
                         <div className="flex-none flex justify-end">
                             {settings.show_analytics && (
-                                <div className={`flex items-center gap-1 text-xs font-bold ${headerStats.profit >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                <div className={`flex items-center gap-1 text-xs font-bold ${headerStats.profit >= 0 ? 'text-emerald-600 dark:text-emerald-500' : 'text-rose-600 dark:text-rose-500'}`}>
                                     <Activity size={12} />
                                     <span>{headerStats.profit >= 0 ? '+' : ''}{headerStats.profit}u</span>
                                 </div>

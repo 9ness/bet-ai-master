@@ -716,13 +716,13 @@ export default function ResultsCalendar({ showStakazoToggle = false }: { showSta
         const profitClass = hasData ? (dayData.day_profit > 0 ? 'text-emerald-400' : dayData.day_profit < 0 ? 'text-rose-400' : 'text-amber-400') : '';
         const profitBg = hasData ?
             (dayData.day_profit > 0 ? 'bg-emerald-500/25 border-emerald-500/20' :
-                dayData.day_profit < 0 ? 'bg-rose-500/25 border-rose-500/20' :
-                    'bg-amber-500/25 border-amber-500/20')
-            : 'bg-secondary/5';
+                (dayData.day_profit < 0 ? 'bg-rose-500/25 border-rose-500/20' :
+                    'bg-amber-500/25 border-amber-500/20'))
+            : 'bg-secondary/20 border-border/20';
 
         if (!hasData) {
             return (
-                <div key={day} className={`aspect-square md:aspect-auto md:h-32 lg:h-40 bg-secondary/5 rounded-xl border border-white/5 p-2 transition-all hover:bg-secondary/10 group relative`}>
+                <div key={day} className={`aspect-square md:aspect-auto md:h-32 lg:h-40 bg-secondary/10 rounded-xl border border-border/20 p-2 transition-all hover:bg-secondary/20 group relative`}>
                     <div className="flex justify-between items-start">
                         <span className={`text-sm font-bold ${isToday ? 'bg-primary text-primary-foreground w-6 h-6 rounded-full flex items-center justify-center' : 'text-muted-foreground'}`}>
                             {day}
@@ -740,7 +740,7 @@ export default function ResultsCalendar({ showStakazoToggle = false }: { showSta
                     relative aspect-square md:aspect-auto border rounded-xl p-3 flex flex-col justify-between transition-all group overflow-hidden cursor-pointer hover:shadow-lg hover:scale-[1.02]
                     md:h-32 lg:h-40
                     ${profitBg}
-                    border-white/5
+                    border-border/30
                     ${selectedDate === dateStr ? 'ring-2 ring-primary' : ''}
                 `}
             >
@@ -784,16 +784,16 @@ export default function ResultsCalendar({ showStakazoToggle = false }: { showSta
             {/* Header */}
             <div className="text-center mb-6 relative z-10 flex flex-col items-center">
                 <h2 className="text-3xl md:text-4xl font-black mb-3 tracking-tighter">
-                    <span className={`text-transparent bg-clip-text bg-gradient-to-r ${category === 'daily_bets_stakazo' ? 'from-amber-400 to-orange-500' : 'from-violet-400 to-fuchsia-400'}`}>Resultados</span> <span className="text-white drop-shadow-[0_2px_10px_rgba(255,255,255,0.2)]">Históricos</span>
+                    <span className={`text-transparent bg-clip-text bg-gradient-to-r ${category === 'daily_bets_stakazo' ? 'from-amber-400 to-orange-500' : 'from-violet-400 to-fuchsia-400'}`}>Resultados</span> <span className="text-foreground drop-shadow-sm">Históricos</span>
                 </h2>
                 <div className={`w-24 h-1.5 bg-gradient-to-r ${category === 'daily_bets_stakazo' ? 'from-amber-500 to-orange-500' : 'from-violet-500 to-fuchsia-500'} rounded-full mx-auto mb-4 animate-pulse`} />
 
                 {/* CATEGORY SWITCH */}
                 {showStakazoToggle && (
-                    <div className="flex bg-black/40 p-1 rounded-full border border-white/10 mb-4 scale-90 md:scale-100">
+                    <div className="flex bg-secondary/50 p-1 rounded-full border border-border/30 mb-4 scale-90 md:scale-100">
                         <button
                             onClick={() => setCategory('daily_bets')}
-                            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${category === 'daily_bets' ? 'bg-fuchsia-500 text-white shadow-lg shadow-fuchsia-500/20' : 'text-muted-foreground hover:text-white'}`}
+                            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${category === 'daily_bets' ? 'bg-fuchsia-500 text-white shadow-lg shadow-fuchsia-500/20' : 'text-muted-foreground hover:text-foreground'}`}
                         >
                             STANDARD
                         </button>
@@ -871,7 +871,7 @@ export default function ResultsCalendar({ showStakazoToggle = false }: { showSta
                         {/* Modal Header */}
                         <div className="p-6 border-b border-border flex justify-between items-center bg-gradient-to-r from-secondary/50 to-background/50">
                             <div>
-                                <h3 className="font-bold text-2xl text-white flex items-center gap-2">
+                                <h3 className="font-bold text-2xl text-foreground flex items-center gap-2">
                                     {new Date(selectedDate).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
                                 </h3>
                                 <div className="flex items-center gap-2 mt-1">
@@ -921,7 +921,7 @@ export default function ResultsCalendar({ showStakazoToggle = false }: { showSta
                                     })()}
                                 </div>
                             </div>
-                            <button onClick={() => setSelectedDate(null)} className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/70 hover:text-white">
+                            <button onClick={() => setSelectedDate(null)} className="p-2 hover:bg-secondary/20 rounded-full transition-colors text-muted-foreground hover:text-foreground">
                                 <X size={28} />
                             </button>
                         </div>

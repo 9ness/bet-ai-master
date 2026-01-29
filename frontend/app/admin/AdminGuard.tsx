@@ -398,7 +398,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
     return (
         <div className="relative min-h-screen flex flex-col">
             {/* Top Bar Admin HUD */}
-            <div className="sticky top-0 z-[100] w-full bg-black/95 backdrop-blur-lg border-b border-white/10 text-white shadow-2xl transition-all h-10">
+            <div className="sticky top-0 z-[100] w-full bg-white/90 dark:bg-black/95 backdrop-blur-lg border-b border-border/10 dark:border-white/10 text-foreground dark:text-white shadow-sm dark:shadow-2xl transition-all h-10">
                 <div className="max-w-7xl mx-auto px-4 h-full flex items-center justify-between gap-4">
 
                     {/* Left Brand */}
@@ -413,17 +413,17 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
 
                     {/* Right Logout */}
                     <div className="shrink-0 flex items-center gap-3">
-                        <Link href="/" className="text-xs font-bold text-gray-500 hover:text-white transition-colors flex items-center gap-1.5 px-3 py-1.5 rounded-full hover:bg-white/10 uppercase tracking-wider">
+                        <Link href="/" className="text-xs font-bold text-muted-foreground hover:text-foreground dark:text-gray-500 dark:hover:text-white transition-colors flex items-center gap-1.5 px-3 py-1.5 rounded-full hover:bg-secondary dark:hover:bg-white/10 uppercase tracking-wider">
                             <Home className="w-3.5 h-3.5" />
                             Normal
                         </Link>
-                        <div className="w-px h-4 bg-white/10 mx-1" />
+                        <div className="w-px h-4 bg-border dark:bg-white/10 mx-1" />
                         <button
                             onClick={() => {
                                 localStorage.removeItem("admin_auth");
                                 setIsAuthenticated(false);
                             }}
-                            className="text-gray-500 hover:text-white transition-colors p-1 hover:bg-white/10 rounded-full"
+                            className="text-muted-foreground hover:text-foreground dark:text-gray-500 dark:hover:text-white transition-colors p-1 hover:bg-secondary dark:hover:bg-white/10 rounded-full"
                         >
                             <Lock className="w-3.5 h-3.5" />
                         </button>
@@ -502,13 +502,13 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
             </div>
 
             {/* Navigation Tabs */}
-            <div className="bg-black/80 backdrop-blur-md border-b border-white/5 sticky top-10 z-[90]">
+            <div className="bg-white/80 dark:bg-black/80 backdrop-blur-md border-b border-border/10 dark:border-white/5 sticky top-10 z-[90]">
                 <div className="max-w-7xl mx-auto px-2 md:px-4 flex justify-start md:gap-6 overflow-x-auto scrollbar-hide">
                     <button
                         onClick={() => scrollToTab('analysis')}
                         onTouchStart={() => triggerTouchFeedback()}
                         className={`btn-active-effect flex-1 md:flex-none py-3 md:py-4 text-xs md:text-sm font-bold border-b-2 transition-transform flex justify-center md:justify-start items-center gap-1.5 md:gap-2
-                        ${activeTab === 'analysis' ? 'border-fuchsia-500 text-fuchsia-400' : 'border-transparent text-gray-400 hover:text-white'}`}
+                        ${activeTab === 'analysis' ? 'border-fuchsia-500 text-fuchsia-500 dark:text-fuchsia-400' : 'border-transparent text-muted-foreground dark:text-gray-400 hover:text-foreground dark:hover:text-white'}`}
                     >
                         <span className="md:hidden">🎯 Análisis</span>
                         <span className="hidden md:block">🎯 Análisis</span>
@@ -517,7 +517,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                         onClick={() => scrollToTab('calendar')}
                         onTouchStart={() => triggerTouchFeedback()}
                         className={`btn-active-effect flex-1 md:flex-none py-3 md:py-4 text-xs md:text-sm font-bold border-b-2 transition-transform flex justify-center md:justify-start items-center gap-1.5 md:gap-2
-                        ${activeTab === 'calendar' ? 'border-fuchsia-500 text-fuchsia-400' : 'border-transparent text-gray-400 hover:text-white'}`}
+                        ${activeTab === 'calendar' ? 'border-fuchsia-500 text-fuchsia-500 dark:text-fuchsia-400' : 'border-transparent text-muted-foreground dark:text-gray-400 hover:text-foreground dark:hover:text-white'}`}
                     >
                         <span className="md:hidden">📅 Cal</span>
                         <span className="hidden md:block">📅 Calendario</span>
@@ -526,7 +526,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                         onClick={() => scrollToTab('analytics')}
                         onTouchStart={() => triggerTouchFeedback()}
                         className={`btn-active-effect flex-1 md:flex-none py-3 md:py-4 text-xs md:text-sm font-bold border-b-2 transition-transform flex justify-center md:justify-start items-center gap-1.5 md:gap-2
-                        ${activeTab === 'analytics' ? 'border-fuchsia-500 text-fuchsia-400' : 'border-transparent text-gray-400 hover:text-white'}`}
+                        ${activeTab === 'analytics' ? 'border-fuchsia-500 text-fuchsia-500 dark:text-fuchsia-400' : 'border-transparent text-muted-foreground dark:text-gray-400 hover:text-foreground dark:hover:text-white'}`}
                     >
                         <span className="md:hidden">📊 Stats</span>
                         <span className="hidden md:block">📊 Estadísticas</span>
@@ -535,7 +535,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                         onClick={() => scrollToTab('telegram')}
                         onTouchStart={() => triggerTouchFeedback()}
                         className={`btn-active-effect flex-1 md:flex-none py-3 md:py-4 text-xs md:text-sm font-bold border-b-2 transition-transform flex justify-center md:justify-start items-center gap-1.5 md:gap-2
-                        ${activeTab === 'telegram' ? 'border-sky-500 text-sky-400' : 'border-transparent text-gray-400 hover:text-white'}`}
+                        ${activeTab === 'telegram' ? 'border-sky-500 text-sky-500 dark:text-sky-400' : 'border-transparent text-muted-foreground dark:text-gray-400 hover:text-foreground dark:hover:text-white'}`}
                     >
                         <span className="md:hidden">✈️ Tlgrm</span>
                         <span className="hidden md:block">✈️ Telegram</span>
@@ -544,7 +544,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                         onClick={() => scrollToTab('tiktok')}
                         onTouchStart={() => triggerTouchFeedback()}
                         className={`btn-active-effect flex-1 md:flex-none py-3 md:py-4 text-xs md:text-sm font-bold border-b-2 transition-transform flex justify-center md:justify-start items-center gap-1.5 md:gap-2
-                        ${activeTab === 'tiktok' ? 'border-fuchsia-500 text-fuchsia-400' : 'border-transparent text-gray-400 hover:text-white'}`}
+                        ${activeTab === 'tiktok' ? 'border-fuchsia-500 text-fuchsia-500 dark:text-fuchsia-400' : 'border-transparent text-muted-foreground dark:text-gray-400 hover:text-foreground dark:hover:text-white'}`}
                     >
                         <span className="md:hidden">🏭 Tiktok</span>
                         <span className="hidden md:block">🏭 TikTok Factory</span>
@@ -553,7 +553,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                         onClick={() => scrollToTab('settings')}
                         onTouchStart={() => triggerTouchFeedback()}
                         className={`btn-active-effect flex-1 md:flex-none py-3 md:py-4 text-xs md:text-sm font-bold border-b-2 transition-transform flex justify-center md:justify-start items-center gap-1.5 md:gap-2
-                        ${activeTab === 'settings' ? 'border-fuchsia-500 text-fuchsia-400' : 'border-transparent text-gray-400 hover:text-white'}`}
+                        ${activeTab === 'settings' ? 'border-fuchsia-500 text-fuchsia-500 dark:text-fuchsia-400' : 'border-transparent text-muted-foreground dark:text-gray-400 hover:text-foreground dark:hover:text-white'}`}
                     >
                         <span className="md:hidden">⚙️ Panel</span>
                         <span className="hidden md:block">⚙️ Panel de Control</span>
@@ -644,7 +644,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                                         flex flex-col items-center justify-center px-4 md:px-6 py-2 md:py-3 rounded-xl border transition-all min-w-[85px] md:min-w-[120px] hover:scale-105 active:scale-95 duration-200
                                                         ${activeControlTab === tab.id
                                                             ? tab.activeClass
-                                                            : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10 hover:text-white/80'
+                                                            : 'bg-secondary/40 dark:bg-white/5 border-border/10 dark:border-white/10 text-muted-foreground dark:text-white/40 hover:bg-secondary dark:hover:bg-white/10 hover:text-foreground dark:hover:text-white/80'
                                                         }
                                                     `}
                                                 >
@@ -662,13 +662,13 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
 
                                 {/* CONTENT: VISIBILIDAD */}
                                 {activeControlTab === 'visibilidad' && (
-                                    <div className="bg-card border border-white/10 rounded-2xl p-6 md:p-8 space-y-6 relative overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                    <div className="bg-card dark:bg-card border border-border/10 dark:border-white/10 rounded-2xl p-6 md:p-8 space-y-6 relative overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500 shadow-md">
                                         <div className="absolute top-0 right-0 p-4 opacity-10">
                                             <LayoutDashboard size={64} />
                                         </div>
 
-                                        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-white/5 pb-4">
-                                            <h3 className="text-xl font-bold flex items-center gap-2 text-white">
+                                        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-border/10 dark:border-white/5 pb-4">
+                                            <h3 className="text-xl font-bold flex items-center gap-2 text-foreground dark:text-white">
                                                 {visibilidadMode === 'standard' ? (
                                                     <LayoutDashboard className="text-fuchsia-500" size={24} />
                                                 ) : (
@@ -678,17 +678,17 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                             </h3>
 
                                             {/* MODE TOGGLE */}
-                                            <div className="flex bg-black/40 p-1 rounded-lg border border-white/10">
+                                            <div className="flex bg-secondary dark:bg-black/40 p-1 rounded-lg border border-border/10 dark:border-white/10">
                                                 <button
                                                     onClick={() => setVisibilidadMode('standard')}
-                                                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-2 ${visibilidadMode === 'standard' ? 'bg-white/10 text-white shadow-lg' : 'text-white/40 hover:text-white/70'}`}
+                                                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-2 ${visibilidadMode === 'standard' ? 'bg-white dark:bg-white/10 text-black dark:text-white shadow-lg' : 'text-muted-foreground dark:text-white/40 hover:text-foreground dark:hover:text-white/70'}`}
                                                 >
                                                     <LayoutDashboard size={14} />
                                                     STANDARD
                                                 </button>
                                                 <button
                                                     onClick={() => setVisibilidadMode('stakazo')}
-                                                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-2 ${visibilidadMode === 'stakazo' ? 'bg-amber-500/20 text-amber-500 border border-amber-500/20 shadow-lg' : 'text-white/40 hover:text-white/70'}`}
+                                                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-2 ${visibilidadMode === 'stakazo' ? 'bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-500 border border-amber-500/20 shadow-lg' : 'text-muted-foreground dark:text-white/40 hover:text-foreground dark:hover:text-white/70'}`}
                                                 >
                                                     <Trophy size={14} />
                                                     STAKAZO
@@ -701,10 +701,10 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                             {visibilidadMode === 'standard' && (
                                                 <div className="space-y-6 animate-in fade-in slide-in-from-left-4 duration-300">
                                                     {/* Item 1 */}
-                                                    <div className="flex items-center justify-between p-4 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
+                                                    <div className="flex items-center justify-between p-4 bg-secondary/30 dark:bg-black/20 rounded-xl border border-border/10 dark:border-white/5 hover:border-border/30 dark:hover:border-white/10 transition-colors">
                                                         <div>
-                                                            <h4 className="font-bold text-sm md:text-base text-white">Mostrar Apuestas Diarias</h4>
-                                                            <p className="text-xs text-white/50 mt-1">Habilita las 3 tarjetas de predicción en la Home.</p>
+                                                            <h4 className="font-bold text-sm md:text-base text-foreground dark:text-white">Mostrar Apuestas Diarias</h4>
+                                                            <p className="text-xs text-muted-foreground dark:text-white/50 mt-1">Habilita las 3 tarjetas de predicción en la Home.</p>
                                                         </div>
                                                         <label className="relative inline-flex items-center cursor-pointer">
                                                             <input
@@ -718,10 +718,10 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                                     </div>
 
                                                     {/* Item 2 */}
-                                                    <div className="flex items-center justify-between p-4 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
+                                                    <div className="flex items-center justify-between p-4 bg-secondary/30 dark:bg-black/20 rounded-xl border border-border/10 dark:border-white/5 hover:border-border/30 dark:hover:border-white/10 transition-colors">
                                                         <div>
-                                                            <h4 className="font-bold text-sm md:text-base text-white">Mostrar Calendario</h4>
-                                                            <p className="text-xs text-white/50 mt-1">Muestra el calendario de resultados históricos al público.</p>
+                                                            <h4 className="font-bold text-sm md:text-base text-foreground dark:text-white">Mostrar Calendario</h4>
+                                                            <p className="text-xs text-muted-foreground dark:text-white/50 mt-1">Muestra el calendario de resultados históricos al público.</p>
                                                         </div>
                                                         <label className="relative inline-flex items-center cursor-pointer">
                                                             <input
@@ -735,10 +735,10 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                                     </div>
 
                                                     {/* Item 3 */}
-                                                    <div className="flex items-center justify-between p-4 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
+                                                    <div className="flex items-center justify-between p-4 bg-secondary/30 dark:bg-black/20 rounded-xl border border-border/10 dark:border-white/5 hover:border-border/30 dark:hover:border-white/10 transition-colors">
                                                         <div>
-                                                            <h4 className="font-bold text-sm md:text-base text-white">Mostrar Analítica</h4>
-                                                            <p className="text-xs text-white/50 mt-1">Muestra las gráficas de rendimiento (Beta) al público.</p>
+                                                            <h4 className="font-bold text-sm md:text-base text-foreground dark:text-white">Mostrar Analítica</h4>
+                                                            <p className="text-xs text-muted-foreground dark:text-white/50 mt-1">Muestra las gráficas de rendimiento (Beta) al público.</p>
                                                         </div>
                                                         <label className="relative inline-flex items-center cursor-pointer">
                                                             <input
@@ -747,15 +747,15 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                                                 checked={settings.show_analytics}
                                                                 onChange={(e) => setSettings({ ...settings, show_analytics: e.target.checked })}
                                                             />
-                                                            <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-fuchsia-600"></div>
+                                                            <div className="w-11 h-6 bg-secondary/50 dark:bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-fuchsia-600"></div>
                                                         </label>
                                                     </div>
 
                                                     {/* Item Telegram */}
-                                                    <div className="flex items-center justify-between p-4 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
+                                                    <div className="flex items-center justify-between p-4 bg-secondary/30 dark:bg-black/20 rounded-xl border border-border/10 dark:border-white/5 hover:border-border/30 dark:hover:border-white/10 transition-colors">
                                                         <div>
-                                                            <h4 className="font-bold text-sm md:text-base text-white">Mostrar Telegram</h4>
-                                                            <p className="text-xs text-white/50 mt-1">Muestra la pestaña de Telegram en la Home (Pública).</p>
+                                                            <h4 className="font-bold text-sm md:text-base text-foreground dark:text-white">Mostrar Telegram</h4>
+                                                            <p className="text-xs text-muted-foreground dark:text-white/50 mt-1">Muestra la pestaña de Telegram en la Home (Pública).</p>
                                                         </div>
                                                         <label className="relative inline-flex items-center cursor-pointer">
                                                             <input
@@ -768,11 +768,10 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                                         </label>
                                                     </div>
 
-                                                    {/* Item TikTok (Admin Only) */}
-                                                    <div className="flex items-center justify-between p-4 bg-black/20 rounded-xl border border-white/5 border-l-4 border-l-fuchsia-500 hover:border-white/10 transition-colors">
+                                                    <div className="flex items-center justify-between p-4 bg-secondary/30 dark:bg-black/20 rounded-xl border border-border/10 dark:border-white/5 border-l-4 border-l-fuchsia-500 hover:border-border/30 dark:hover:border-white/10 transition-colors">
                                                         <div>
-                                                            <h4 className="font-bold text-sm md:text-base text-fuchsia-400">Mostrar TikTok Factory</h4>
-                                                            <p className="text-xs text-white/50 mt-1">Habilita el generador de contenido (Solo visible en Admin).</p>
+                                                            <h4 className="font-bold text-sm md:text-base text-fuchsia-600 dark:text-fuchsia-400">Mostrar TikTok Factory</h4>
+                                                            <p className="text-xs text-muted-foreground dark:text-white/50 mt-1">Habilita el generador de contenido (Solo visible en Admin).</p>
                                                         </div>
                                                         <label className="relative inline-flex items-center cursor-pointer">
                                                             <input

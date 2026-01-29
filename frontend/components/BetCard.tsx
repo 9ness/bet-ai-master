@@ -479,7 +479,7 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
             cardShadow: 'shadow-[0_0_40px_rgba(255,215,0,0.15)]',
             headerBg: 'bg-gradient-to-r from-amber-700 via-amber-500 to-amber-400',
             iconBg: 'bg-amber-500/20',
-            textColor: 'text-amber-500',
+            textColor: 'text-amber-500', // Stakazo (Premium) should usually stay same or just amber-500 is fine on black
             stake: 10
         },
         safe: {
@@ -492,7 +492,7 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
             cardShadow: 'hover:shadow-cyan-500/10',
             headerBg: 'bg-cyan-500',
             iconBg: 'bg-cyan-500/10',
-            textColor: 'text-cyan-500',
+            textColor: 'text-cyan-600 dark:text-cyan-500',
             stake: 6
         },
         value: {
@@ -505,7 +505,7 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
             cardShadow: 'hover:shadow-amber-500/10',
             headerBg: 'bg-amber-500',
             iconBg: 'bg-amber-500/10',
-            textColor: 'text-amber-500',
+            textColor: 'text-amber-600 dark:text-amber-500',
             stake: 3
         },
         funbet: {
@@ -518,7 +518,7 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
             cardShadow: 'hover:shadow-fuchsia-500/10',
             headerBg: 'bg-fuchsia-500',
             iconBg: 'bg-fuchsia-500/10',
-            textColor: 'text-fuchsia-500',
+            textColor: 'text-fuchsia-600 dark:text-fuchsia-500',
             stake: 1
         }
     };
@@ -673,9 +673,9 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
                 {/* 1. Status Badge (Only if WON/LOST) */}
                 {(data.status === 'WON' || data.status === 'GANADA' || data.status === 'LOST' || data.status === 'PERDIDA' || data.status === 'VOID' || data.status === 'NULA') && (
                     <div className={`flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-full border 
-                        ${(data.status === 'WON' || data.status === 'GANADA') ? 'bg-emerald-500/20 text-emerald-500 border-emerald-500/20' :
-                            (data.status === 'VOID' || data.status === 'NULA') ? 'bg-gray-500/20 text-gray-400 border-gray-500/20' :
-                                'bg-rose-500/20 text-rose-500 border-rose-500/20'}`}>
+                        ${(data.status === 'WON' || data.status === 'GANADA') ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-500 border-emerald-500/20' :
+                            (data.status === 'VOID' || data.status === 'NULA') ? 'bg-gray-500/20 text-gray-600 dark:text-gray-400 border-gray-500/20' :
+                                'bg-rose-500/20 text-rose-600 dark:text-rose-500 border-rose-500/20'}`}>
                         {(data.status === 'WON' || data.status === 'GANADA') ? <Check size={12} /> :
                             (data.status === 'VOID' || data.status === 'NULA') ? <MinusCircle size={12} /> : <XIcon size={12} />}
                         <span>
@@ -705,7 +705,7 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
                         {/* 3. Countdown (Only if PENDING/undefined AND NOT Started) */}
                         {(!data.status || data.status === 'PENDING' || data.status === 'PENDIENTE') && (
                             hasStarted ? (
-                                <div className="text-[10px] font-bold text-blue-500 animate-pulse flex items-center gap-1">
+                                <div className="text-[10px] font-bold text-blue-600 dark:text-blue-500 animate-pulse flex items-center gap-1">
                                     <span className="relative flex h-2 w-2">
                                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                                         <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
