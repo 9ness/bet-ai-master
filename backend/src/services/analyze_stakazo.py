@@ -151,6 +151,10 @@ INPUT DATA (MATCHES):
                 for sel in bet.get("selections", []):
                     source = fixture_map.get(str(sel.get("fixture_id")))
                     if source:
+                        # [STAKAZO FIX] Append suffix to differentiate from standard bets
+                        original_fid = sel.get("fixture_id")
+                        sel["fixture_id"] = f"{original_fid}_stakazo"
+                        
                         sel.update({
                             "match": f"{source.get('home')} vs {source.get('away')}",
                             "league": source.get("league", "Desconocida"),

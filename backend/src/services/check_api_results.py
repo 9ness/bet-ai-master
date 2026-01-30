@@ -438,23 +438,27 @@ def check_bets():
                     continue
                 
                 fid = sel.get("fixture_id")
+                
+                # [STAKAZO SUPPORT] Strip suffix for API calls, keep fid for internal tracking
+                api_fid = str(fid).replace("_stakazo", "")
+                
                 sport = sel.get("sport", "football").lower()
                 
-                # [BLACKLIST CHECK]
+                # [BLACKLIST CHECK] Use original 'fid' so stakazo failures are tracked separately
                 if bl_manager.is_blacklisted(fid, pick_lower, date_str):
                      print(f"      [SKIP] ID {fid} ({pick_lower}) is in Blacklist.")
                      pending_count += 1
                      all_won = False
                      continue
 
-                print(f"   -> Checking {sport} ID {fid} ({sel['match']})...")
+                print(f"   -> Checking {sport} ID {api_fid} (Orig: {fid}) - {sel['match']}...")
                 
                 data = None
                 try:
                     if sport == "football":
-                        data = get_football_result(fid)
+                        data = get_football_result(api_fid)
                     elif sport == "basketball":
-                        data = get_basketball_result(fid)
+                        data = get_basketball_result(api_fid)
                 except Exception as e_api:
                      print(f"      [API-WARN] Failed to fetch ID {fid}: {e_api}")
                      pending_count += 1
@@ -503,7 +507,7 @@ def check_bets():
                     
                     if is_player_prop:
                          print(f"      [PLAYER] Fetching stats for '{pick}'...")
-                         players_stats = get_football_player_stats(fid)
+                         players_stats = get_football_player_stats(api_fid)
                          target_player = find_player_in_stats(pick, players_stats)
                          
                          if not target_player:
