@@ -354,7 +354,12 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
                     placeholder="Descripción de la apuesta..."
                 />
             ) : (
-                <p className="text-xs text-muted-foreground mb-1 italic">{bet.pick}</p>
+                <p className={`text-xs text-muted-foreground mb-1 italic ${finalType === 'stakazo' ? 'text-amber-500/80 font-medium' : ''}`}>
+                    {/* STAKAZO FIX: If pick is 'Combination', try to show the first selection's pick */}
+                    {(finalType === 'stakazo' && (bet.pick === 'Combination' || !bet.pick) && details[0]?.pick)
+                        ? details[0].pick
+                        : bet.pick}
+                </p>
             )}
 
             {/* Single Bet Result Display */}

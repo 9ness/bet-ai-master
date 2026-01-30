@@ -114,10 +114,12 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
     const [bgTeamSelected, setBgTeamSelected] = useState<string | null>(null);
     const [bgSportForTeam, setBgSportForTeam] = useState<'futbol' | 'basket'>('futbol');
 
-    // --- DRAGGABLE TEXT STATE ---
+    // --- DRAGGABLE & SCALABLE TEXT STATE ---
     const [textPositions, setTextPositions] = useState<{ x: number, y: number }[]>([]);
+    const [textScales, setTextScales] = useState<number[]>([]);
     const [isDragging, setIsDragging] = useState(false);
     const dragRef = useRef<{ startX: number, startY: number, initialX: number, initialY: number, idx: number } | null>(null);
+    const pinchRef = useRef<{ initialDist: number, initialScale: number, idx: number } | null>(null);
 
     useEffect(() => {
         // Sync positions array size
@@ -130,11 +132,32 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                 // Preserve old positions if possible? Maybe too complex for now, just reset on structure change or preserve by index
                 return newArr.map((_, i) => prev[i] || { x: 0, y: 0 });
             });
+            setTextScales(prev => {
+                const newArr = new Array(required).fill(1.0);
+                return newArr.map((_, i) => prev[i] || 1.0);
+            });
         }
     }, [slidesData.length]);
 
+    const getDistance = (touches: any) => {
+        return Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY);
+    };
+
     const handleDragStart = (e: React.MouseEvent | React.TouchEvent, idx: number) => {
         // e.preventDefault(); // allow touch scroll if not on text? No, on text we want drag.
+
+        // CHECK FOR PINCH (2 fingers)
+        if ('touches' in e && e.touches.length === 2) {
+            const dist = getDistance(e.touches);
+            pinchRef.current = {
+                initialDist: dist,
+                initialScale: textScales[idx] || 1,
+                idx
+            };
+            setIsDragging(true);
+            return;
+        }
+
         const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
         const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
 
@@ -150,7 +173,28 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
 
     useEffect(() => {
         const handleMove = (e: MouseEvent | TouchEvent) => {
-            if (!isDragging || !dragRef.current) return;
+            if (!isDragging) return;
+
+            // HANDLE PINCH ZOOM
+            if ('touches' in e && (e as TouchEvent).touches.length === 2 && pinchRef.current) {
+                e.preventDefault(); // Prevent page zooming
+                const dist = getDistance((e as TouchEvent).touches);
+                const scaleFactor = dist / pinchRef.current.initialDist;
+
+                // Clamp scale (0.5x to 3x)
+                let newScale = pinchRef.current.initialScale * scaleFactor;
+                newScale = Math.max(0.5, Math.min(newScale, 3.0));
+
+                const newScales = [...textScales];
+                newScales[pinchRef.current.idx] = newScale;
+                setTextScales(newScales);
+                return;
+            }
+
+            // HANDLE DRAG (If single touch or mouse)
+            if (!dragRef.current) return;
+            if ('touches' in e && (e as TouchEvent).touches.length !== 1) return;
+
             const clientX = 'touches' in e ? (e as TouchEvent).touches[0].clientX : (e as MouseEvent).clientX;
             const clientY = 'touches' in e ? (e as TouchEvent).touches[0].clientY : (e as MouseEvent).clientY;
 
@@ -177,6 +221,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         const handleUp = () => {
             setIsDragging(false);
             dragRef.current = null;
+            pinchRef.current = null;
         };
 
         if (isDragging) {
@@ -191,7 +236,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
             window.removeEventListener('mouseup', handleUp);
             window.removeEventListener('touchend', handleUp);
         };
-    }, [isDragging, textPositions]);
+    }, [isDragging, textPositions, textScales]);
 
     useEffect(() => {
         fetch('/api/social/tiktok').then(res => res.ok ? res.json() : null).then(data => data?.title && setSocialContent(data));
@@ -675,7 +720,14 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
     // --- SHARED RENDERER ---
     const renderSlideContent = (index: number, isPreview = false) => {
         const pos = textPositions[index] || { x: 0, y: 0 };
-        const style = { transform: `translate(${pos.x}px, ${pos.y}px)`, cursor: isPreview ? 'grab' : 'default', touchAction: 'none' };
+        const scale = textScales[index] || 1;
+
+        const style = {
+            transform: `translate(${pos.x}px, ${pos.y}px) scale(${scale})`,
+            cursor: isPreview ? 'grab' : 'default',
+            touchAction: 'none'
+        };
+
         const handlers = isPreview ? {
             onMouseDown: (e: any) => handleDragStart(e, index),
             onTouchStart: (e: any) => handleDragStart(e, index)
