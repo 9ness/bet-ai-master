@@ -45,7 +45,8 @@ class SportsDataService:
                     2, 3, 848,                       # UCL, UEL, UECL
                     71, 128, 262, 265, 292           # Brasil, Argentina, México, Chile, Corea
                 ], # Expanded Whitelist
-                "markets": [1, 4, 5, 6, 7, 8, 10, 12, 16, 17, 25, 27, 28, 45, 50, 57, 58, 59, 80, 82, 83, 87, 92, 173, 212, 215],
+                # "markets": [1, 4, 5, 6, 7, 8, 10, 12, 16, 17, 25, 27, 28, 45, 50, 57, 58, 59, 80, 82, 83, 87, 92, 173, 212, 215],
+                "markets": [1, 4, 5, 6, 7, 8, 10, 12, 16, 17, 25, 27, 28, 45, 50, 57, 58, 59, 80, 82, 83, 87, 173], # Removed: 92, 212, 215 (Player Stats)
                 "bookmaker": 8 
             },
             "basketball": {
