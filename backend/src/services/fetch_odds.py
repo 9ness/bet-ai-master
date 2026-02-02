@@ -165,7 +165,9 @@ class SportsDataService:
                     match_ts = item["fixture"]["timestamp"]
                     fix_id = item["fixture"]["id"]
                     home = item["teams"]["home"]["name"]
+                    home_id = item["teams"]["home"]["id"]
                     away = item["teams"]["away"]["name"]
+                    away_id = item["teams"]["away"]["id"]
                     league_name = item["league"]["name"]
                     # Metadata Context
                     referee = item["fixture"].get("referee")
@@ -182,7 +184,9 @@ class SportsDataService:
                     match_ts = item["timestamp"]
                     fix_id = item["id"]
                     home = item["teams"]["home"]["name"]
+                    home_id = item["teams"]["home"]["id"]
                     away = item["teams"]["away"]["name"]
+                    away_id = item["teams"]["away"]["id"]
                     league_name = item["league"]["name"] if "league" in item else "NBA"
                     
                     # Basketball Metadata - Venue
@@ -234,7 +238,9 @@ class SportsDataService:
                     "timestamp": match_ts, 
                     "startTime": (datetime.fromtimestamp(match_ts) + timedelta(hours=1)).strftime('%Y-%m-%d %H:%M'),
                     "home": home,
+                    "home_id": home_id,
                     "away": away,
+                    "away_id": away_id,
                     "league": league_name,
                     "league_id": lid,
                     "country": item["league"]["country"] if sport == "football" else item.get("country", {}).get("name"),
@@ -243,6 +249,14 @@ class SportsDataService:
                     "round": round_name if sport == "football" else None,
                     "odds": odds
                 }
+
+                # NEW: Fetch Statistics and Events (Football Only)
+                if sport == "football":
+                    # Note: These might be empty for future matches, but user requested logic to be present.
+                    match_entry["statistics"] = self._process_statistics(self._fetch_fixture_statistics(fix_id))
+                    match_entry["events"] = self._process_events(self._fetch_fixture_events(fix_id))
+                    self.calls_football += 2 # Count the extra calls
+                
                 matches_found.append(match_entry)
                 time.sleep(0.1) 
             
@@ -400,6 +414,106 @@ class SportsDataService:
             if mid == 112: return "team_points_total"
             
         return default_name.lower().replace(" ", "_").replace("/", "_")
+
+    def _fetch_fixture_statistics(self, fixture_id):
+        """Fetches raw statistics for a given fixture."""
+        try:
+            url = f"{self.configs['football']['url']}/fixtures/statistics"
+            resp = self._call_api(url, params={"fixture": fixture_id})
+            data = resp.json()
+            return data.get("response", [])
+        except Exception as e:
+            print(f"      [!] Error fetching stats for {fixture_id}: {e}")
+            return []
+
+    def _fetch_fixture_events(self, fixture_id):
+        """Fetches raw events for a given fixture."""
+        try:
+            url = f"{self.configs['football']['url']}/fixtures/events"
+            resp = self._call_api(url, params={"fixture": fixture_id})
+            data = resp.json()
+            return data.get("response", [])
+        except Exception as e:
+            print(f"      [!] Error fetching events for {fixture_id}: {e}")
+            return []
+
+    def _process_statistics(self, raw_stats):
+        """
+        Post-process raw statistics into a cleaner dictionary format.
+        """
+        processed = []
+        if not raw_stats: return processed
+
+        for entry in raw_stats:
+            team_data = entry.get("team", {})
+            stats_list = entry.get("statistics", [])
+            
+            stats_dict = {}
+            for s in stats_list:
+                if not s.get("type"): continue
+                
+                # Normalize Key: "Ball Possession" -> "ball_possession"
+                key = str(s["type"]).lower().replace(" ", "_").replace("%", "percent")
+                val = s["value"]
+                
+                # Normalize Value: "57%" -> 57 (int), "1.67" -> 1.67 (float)
+                if val is not None:
+                    if isinstance(val, str):
+                        if val.endswith("%"):
+                            try:
+                                val = int(val.replace("%", ""))
+                            except:
+                                pass
+                        elif "." in val and val.replace(".", "").isdigit():
+                             try:
+                                val = float(val)
+                             except:
+                                pass
+                
+                stats_dict[key] = val
+            
+            processed.append({
+                "team_id": team_data.get("id"),
+                "team_name": team_data.get("name"),
+                "stats": stats_dict
+            })
+        
+        return processed
+
+    def _process_events(self, raw_events):
+        """
+        Post-process raw events into a cleaner list of event dictionaries.
+        """
+        processed = []
+        if not raw_events: return processed
+
+        for ev in raw_events:
+            # Safe extraction just in case, though structure seems consistent
+            if not ev.get("time") or not ev.get("team"): continue
+
+            # Time formatting
+            elapsed = ev["time"].get("elapsed")
+            extra = ev["time"].get("extra")
+            time_str = str(elapsed)
+            if extra:
+                time_str += f"+{extra}"
+
+            processed.append({
+                "time_display": time_str,
+                "elapsed": elapsed,
+                "extra": extra,
+                "team_id": ev["team"].get("id"),
+                "team_name": ev["team"].get("name"),
+                "player_id": ev["player"].get("id") if ev.get("player") else None,
+                "player_name": ev["player"].get("name") if ev.get("player") else None,
+                "assist_id": ev["assist"].get("id") if ev.get("assist") else None,
+                "assist_name": ev["assist"].get("name") if ev.get("assist") else None,
+                "type": ev.get("type"),     # Goal, Card, subst, Var, etc.
+                "detail": ev.get("detail"), # Normal Goal, Yellow Card, etc.
+                "comments": ev.get("comments")
+            })
+        
+        return processed
 
 if __name__ == "__main__":
     service = SportsDataService()
