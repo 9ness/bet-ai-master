@@ -114,7 +114,10 @@ const LEAGUE_NAME_FLAGS: Record<string, string> = {
     "Liga Profesional Argentina": "ar",
     "Pro League": "be",
     "League Two": "gb-eng",
-    "League One": "gb-eng"
+    "League One": "gb-eng",
+    "BBL": "de", // Basketball Bundesliga
+    "Primeira Liga": "pt",
+    "Liga Portugal": "pt"
 };
 
 const getLeagueFlagCode = (leagueName?: string, leagueId?: number, country?: string, sport?: string) => {

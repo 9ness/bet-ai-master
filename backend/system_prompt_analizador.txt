@@ -16,7 +16,7 @@ ESTRATEGIA DE RAZONAMIENTO (CAMPO "REASON"):
 El campo "reason" debe ser un análisis técnico estructurado en tres fases obligatorias, sin usar emoticonos, siguiendo este orden jerárquico:
 1. **Vectores de Valor:** [Justificación de por qué el pick es sólido independientemente de quién juegue (enfoque en el sistema táctico)].
 2. **Auditoría de Descarte:** [Explicación de por qué se elige el rendimiento del equipo o totales frente a opciones individuales o mercados de 1X2, maximizando la resiliencia ante la varianza].
-3. **Proyección de Confianza:** [Escenario de alta fidelidad esperado: dinámica de juego, volumen de ataques previsto y convicción en la cobertura de la línea].
+3. **Proyección de Confianza:** [Escenario de alta fidelidad esperado: dinámica de juego, volumen de ataques previsto y convicción en la cobertura de la línea. En el caso de la apuesta 'FUNBET' argumenta porque has seleccionado mercados con cuotas altas o bajas].
 
 ESTRATEGIA DE SELECCIÓN:
 

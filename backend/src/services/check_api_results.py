@@ -561,8 +561,19 @@ def check_bets():
                         # Double Chance
                         elif "doble" in pick or "double" in pick or "1x" in pick or "x2" in pick:
                              clean = pick.replace("doble oportunidad", "").replace("double chance", "").upper()
-                             if "1X" in clean or "1X" in pick.upper(): is_win = home_score >= away_score
-                             elif "X2" in clean or "X2" in pick.upper(): is_win = away_score >= home_score
+                             
+                             # Determine 1X (Home or Draw)
+                             is_1x = "1X" in clean or "1X" in pick.upper()
+                             if not is_1x and home_team_clean and home_team_clean in pick and ("empate" in pick or "draw" in pick):
+                                 is_1x = True
+
+                             # Determine X2 (Away or Draw)
+                             is_x2 = "X2" in clean or "X2" in pick.upper()
+                             if not is_x2 and away_team_clean and away_team_clean in pick and ("empate" in pick or "draw" in pick):
+                                 is_x2 = True
+
+                             if is_1x: is_win = home_score >= away_score
+                             elif is_x2: is_win = away_score >= home_score
                              elif "12" in clean: is_win = home_score != away_score
                         # 2. BTTS
                         elif "ambos marcan" in pick or "btts" in pick:
@@ -600,10 +611,30 @@ def check_bets():
                              match_num = re.search(r'\d+(\.\d+)?', clean_pick)
                              val = float(match_num.group()) if match_num else 1.5
                              
-                             total = home_score + away_score
+                             # DETECT SPECIFIC TEAM TOTALS
+                             target_team_name = None
+                             total = 0
+                             is_team_total = False
+                             
+                             # Check for specific team references in the pick
+                             if home_team_clean and home_team_clean in pick:
+                                 total = home_score
+                                 target_team_name = home_team_clean
+                                 is_team_total = True
+                             elif away_team_clean and away_team_clean in pick:
+                                 total = away_score
+                                 target_team_name = away_team_clean
+                                 is_team_total = True
+                             else:
+                                 total = home_score + away_score # Default to Match Total
+                             
                              is_win = total > val if is_over else total < val
                              label = "Puntos" if sport == "basketball" else "Goles"
-                             result_str = f"{home_score}-{away_score} | {total} {label}"
+                             
+                             if is_team_total:
+                                result_str = f"{home_score}-{away_score} | {total} {label} ({target_team_name})"
+                             else:
+                                result_str = f"{home_score}-{away_score} | {total} {label}"
                              
                         # 5. Handicap
                         elif "hándicap" in pick or "handicap" in pick or "ah" in pick or re.search(r'(^|\s)[-+]\d+(\.\d+)?', pick):

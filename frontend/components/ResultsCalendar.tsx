@@ -46,7 +46,9 @@ const LEAGUE_NAME_FLAGS: Record<string, string> = {
     "League Two": "gb-eng",
     "League One": "gb-eng",
     "Eerste Divisie": "nl",
-    "ABA League": "eu"
+    "ABA League": "eu",
+    "BBL": "de", // Basketball Bundesliga
+    "Liga Portugal": "pt"
 };
 
 const getLeagueFlagCode = (leagueName?: string, leagueId?: number, country?: string) => {
@@ -355,10 +357,12 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
                 />
             ) : (
                 <p className={`text-xs text-muted-foreground mb-1 italic ${finalType === 'stakazo' ? 'text-amber-500/80 font-medium' : ''}`}>
-                    {/* STAKAZO FIX: If pick is 'Combination', try to show the first selection's pick */}
-                    {(finalType === 'stakazo' && (bet.pick === 'Combination' || !bet.pick) && details[0]?.pick)
-                        ? details[0].pick
-                        : bet.pick}
+                    {/* FIXED: For single bets labeled 'Combination', show the Match Name instead */}
+                    {((bet.pick === 'Combination' || !bet.pick) && details.length === 1 && details[0]?.match)
+                        ? details[0].match
+                        : (finalType === 'stakazo' && (bet.pick === 'Combination' || !bet.pick) && details[0]?.pick
+                            ? details[0].pick
+                            : bet.pick)}
                 </p>
             )}
 

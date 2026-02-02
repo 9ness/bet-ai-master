@@ -46,13 +46,13 @@ class SportsDataService:
                     71, 128, 262, 265, 292           # Brasil, Argentina, México, Chile, Corea
                 ], # Expanded Whitelist
                 # "markets": [1, 4, 5, 6, 7, 8, 10, 12, 16, 17, 25, 27, 28, 45, 50, 57, 58, 59, 80, 82, 83, 87, 92, 173, 212, 215],
-                "markets": [1, 4, 5, 6, 7, 8, 10, 12, 16, 17, 25, 27, 28, 45, 50, 57, 58, 59, 80, 82, 83, 87, 173], # Removed: 92, 212, 215 (Player Stats)
+                "markets": [1, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 16, 17, 21, 25, 27, 28, 31, 45, 50, 54, 57, 58, 59, 80, 82, 83, 87, 173],
                 "bookmaker": 8 
             },
             "basketball": {
                 "url": "https://v1.basketball.api-sports.io",
                 "leagues": [12, 116, 117, 120, 194, 52, 40, 104, 45, 198, 26, 202, 2, 161, 152, 210, 167, 195, 411], # Updated Whitelist
-                "markets": [1, 2, 3, 4, 5, 7, 14, 15, 38, 39, 40, 83, 100, 101, 103, 109],
+                "markets": [1, 2, 3, 4, 5, 7, 10, 12, 14, 15, 38, 39, 40, 65, 83, 100, 101, 103, 109, 112],
                 "bookmaker": 4
             }
         }
@@ -167,8 +167,12 @@ class SportsDataService:
                     home = item["teams"]["home"]["name"]
                     away = item["teams"]["away"]["name"]
                     league_name = item["league"]["name"]
+                    # Metadata Context
+                    referee = item["fixture"].get("referee")
+                    venue_obj = item["fixture"].get("venue", {})
+                    venue = f"{venue_obj.get('name', '')}, {venue_obj.get('city', '')}".strip(', ')
+                    round_name = item["league"].get("round")
                 else: 
-                    # Basketball structure
                     lid = item["league"]["id"] if "league" in item else 12 
                     if "league" in item and "id" in item["league"]:
                         lid = item["league"]["id"]
@@ -180,6 +184,30 @@ class SportsDataService:
                     home = item["teams"]["home"]["name"]
                     away = item["teams"]["away"]["name"]
                     league_name = item["league"]["name"] if "league" in item else "NBA"
+                    
+                    # Basketball Metadata - Venue
+                    venue = None
+                    if "country" in item and hasattr(item["country"], "get"):
+                         # Sometimes venue is deep, but API-Basketball standard is often at root or valid in country? 
+                         # Actually check standard docs or generic location. 
+                         # For now, if venue exists in root or similar to football
+                         pass
+                    
+                    # Check for venue in root or similar
+                    # Note: API-Basketball structure is similar. 'venue' key might exist.
+                    venue = None
+                    # Attempt safe extraction if structure is similar to football (often it is not exactly same, check docs or defaults)
+                    # Use generic get just in case
+                    # Fix: User asked to capture 'venue' if available in item.
+                    # API-Basketball 'games' endpoint items usually don't have 'venue' directly, but let's try generic 'venue' or 'country'.
+                    # User said "si está disponible en el objeto item".
+                    if "venue" in item:
+                        # If it's a dictionary
+                        if isinstance(item["venue"], dict):
+                             venue = f"{item['venue'].get('name', '')}, {item['venue'].get('city', '')}".strip(', ')
+                        # If it's a string
+                        elif isinstance(item["venue"], str):
+                            venue = item["venue"]
 
                 # 2. League Filter (Whitelist Check)
                 if lid not in target_leagues:
@@ -208,8 +236,11 @@ class SportsDataService:
                     "home": home,
                     "away": away,
                     "league": league_name,
-                    "league_id": lid, 
+                    "league_id": lid,
                     "country": item["league"]["country"] if sport == "football" else item.get("country", {}).get("name"),
+                    "referee": referee if sport == "football" else None,
+                    "venue": venue, # Now available for both if extracted
+                    "round": round_name if sport == "football" else None,
                     "odds": odds
                 }
                 matches_found.append(match_entry)
@@ -228,9 +259,16 @@ class SportsDataService:
             url_odds = f"{base_url}/odds"
             param_key = "fixture" if sport == "football" else "game"
             
-            # Dynamic Bookmaker ID
-            # resp = requests.get(url_odds, headers=self.headers, params={param_key: fixture_id, "bookmaker": bookmaker_id})
-            resp = self._call_api(url_odds, params={param_key: fixture_id, "bookmaker": bookmaker_id})
+            # PRIORITY FALLBACK LOOP
+            # 8: Bet365, 11: 1xBet, 6: Bwin, 3: Betsson, 2: Marathonbet
+            # Expanded for Basketball: [8, 11, 2, 4, 1, 6, 3]
+            if sport == 'basketball':
+                priority_bookmakers = [8, 11, 2, 4, 1, 6, 3]
+            else:
+                priority_bookmakers = [8, 11, 6, 3, 2]
+
+            # Allow fetching ALL bookmakers (remove 'bookmaker' param)
+            resp = self._call_api(url_odds, params={param_key: fixture_id})
             data = resp.json()
             
             # Initialize with NULLs for strict schema
@@ -238,27 +276,37 @@ class SportsDataService:
 
             if not data.get("response"): return cleaned_odds
             
-            bookmakers = data["response"][0]["bookmakers"]
-            if not bookmakers: return cleaned_odds
+            all_bookmakers = data["response"][0]["bookmakers"]
+            if not all_bookmakers: return cleaned_odds
             
-            target_bookmaker = bookmakers[0]
+            # Map ID -> Bookmaker Object
+            bm_map = {b["id"]: b for b in all_bookmakers}
             
-            for bet in target_bookmaker["bets"]:
-                mid = bet["id"]
-                name = bet["name"]
+            # Helper to try filling gaps
+            def fill_from_bookmaker(bm_id):
+                if bm_id not in bm_map: return
+                bm = bm_map[bm_id]
                 
-                # WHITELIST CHECK
-                if mid not in whitelist:
-                    continue
-                
-                market_values = {}
-                for v in bet["values"]:
-                    raw_label = str(v["value"])
-                    key = self._normalize_key(raw_label)
-                    market_values[key] = float(v["odd"])
-                
-                slug = self._get_market_slug(mid, name, sport)
-                cleaned_odds[slug] = market_values
+                for bet in bm["bets"]:
+                    mid = bet["id"]
+                    name = bet["name"]
+                    
+                    if mid not in whitelist: continue
+                    
+                    slug = self._get_market_slug(mid, name, sport)
+                    
+                    # Fill ONLY if currently None (First Come First Serve logic based on priority loop)
+                    if cleaned_odds.get(slug) is None:
+                        market_values = {}
+                        for v in bet["values"]:
+                            raw_label = str(v["value"])
+                            key = self._normalize_key(raw_label)
+                            market_values[key] = float(v["odd"])
+                        cleaned_odds[slug] = market_values
+
+            # Retrieve Metadata from priority list
+            for p_id in priority_bookmakers:
+                fill_from_bookmaker(p_id)
                 
             return cleaned_odds
 
@@ -275,13 +323,18 @@ class SportsDataService:
                     "result_total_goals", "home_clean_sheet", "away_clean_sheet", "corners", 
                     "asian_goal_line", "home_corners", "away_corners", "own_goal", "cards", 
                     "home_cards", "away_cards", "total_shots_on_goal", "player_anytime_scorer", 
-                    "fouls", "player_assist", "player_total_shots"
+                    "fouls", "player_assist", "player_total_shots",
+                    # New Markets
+                    "draw_no_bet", "second_half_winner", "asian_handicap_corners", 
+                    "win_to_nil", "btts_1st_half", "multi_goals"
                     ]
         else: # basketball
             keys = ["3way_result", "home_away", "asian_handicap", "over_under",
                     "over_under_1st_half", "double_chance", "result_q1", "ht_ft", 
                     "result_q2", "result_q3", "result_q4", "race_to_20", "total_home", 
-                    "total_away", "race_to_30", "winning_margin_3w"]
+                    "total_away", "race_to_30", "winning_margin_3w",
+                    # New Markets
+                    "handicap_1st_half", "highest_scoring_quarter", "team_points_total"]
         
         for k in keys:
             empty[k] = None
@@ -291,20 +344,26 @@ class SportsDataService:
         # FOOTBALL IDs
         if sport == 'football':
             if mid == 1: return "1x2"
+            if mid == 3: return "draw_no_bet"
             if mid == 4: return "asian_handicap"
             if mid == 5: return "over_under"
             if mid == 6: return "goals_over_under_h1"
             if mid == 7: return "ht_ft" 
             if mid == 8: return "btts"
             if mid == 10: return "exact_score"
+            if mid == 11: return "second_half_winner"
             if mid == 12: return "double_chance"
+            if mid == 13: return "asian_handicap_corners"
             if mid == 16: return "home_total_goals"
             if mid == 17: return "away_total_goals"
+            if mid == 21: return "win_to_nil"
             if mid == 25: return "result_total_goals"
             if mid == 27: return "home_clean_sheet"
             if mid == 28: return "away_clean_sheet"
+            if mid == 31: return "btts_1st_half"
             if mid == 45: return "corners"
             if mid == 50: return "asian_goal_line"
+            if mid == 54: return "multi_goals"
             if mid == 57: return "home_corners"
             if mid == 58: return "away_corners"
             if mid == 59: return "own_goal"
@@ -325,16 +384,20 @@ class SportsDataService:
             if mid == 4: return "over_under"         # PUNTOS TOTALES (Este es el que suele variar)
             if mid == 5: return "over_under_1st_half"
             if mid == 7: return "double_chance"
+            if mid == 10: return "handicap_1st_half"
+            if mid == 12: return "over_under_1st_half" # Mapping as requested, may overlap ID 5
             if mid == 14: return "result_q1"
             if mid == 15: return "ht_ft"             # Descanso / Final
             if mid == 38: return "result_q2"
             if mid == 39: return "result_q3"
             if mid == 40: return "result_q4"
+            if mid == 65: return "highest_scoring_quarter"
             if mid == 83: return "race_to_20"
             if mid == 100: return "total_home"       # Puntos individuales Local
             if mid == 101: return "total_away"       # Puntos individuales Visitante
             if mid == 103: return "race_to_30"
             if mid == 109: return "winning_margin_3w"
+            if mid == 112: return "team_points_total"
             
         return default_name.lower().replace(" ", "_").replace("/", "_")
 
