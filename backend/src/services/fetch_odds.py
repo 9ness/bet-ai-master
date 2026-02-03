@@ -56,6 +56,11 @@ class SportsDataService:
                 "bookmaker": 4
             }
         }
+        
+        # Mapeo de nombres de ligas para normalización
+        self.league_name_mapping = {
+            "Eerste Divisie": "Eredivisie"
+        }
 
     def get_today_date(self):
         return datetime.now().strftime("%Y-%m-%d")
@@ -169,6 +174,7 @@ class SportsDataService:
                     away = item["teams"]["away"]["name"]
                     away_id = item["teams"]["away"]["id"]
                     league_name = item["league"]["name"]
+                    league_name = self.league_name_mapping.get(league_name, league_name)
                     # Metadata Context
                     referee = item["fixture"].get("referee")
                     venue_obj = item["fixture"].get("venue", {})
@@ -188,6 +194,7 @@ class SportsDataService:
                     away = item["teams"]["away"]["name"]
                     away_id = item["teams"]["away"]["id"]
                     league_name = item["league"]["name"] if "league" in item else "NBA"
+                    league_name = self.league_name_mapping.get(league_name, league_name)
                     
                     # Basketball Metadata - Venue
                     venue = None

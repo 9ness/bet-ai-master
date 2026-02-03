@@ -546,10 +546,60 @@ def check_bets():
                              
                          print(f"      [PLAYER CHECK] {target_player.get('name')}: {current_val} vs {val} -> {is_win}")
                          
+
                     # 1. 1X2 / HANDICAP / GOALS (Standard Logic)
                     else:
+                        # NEW: COMBINED MARKETS (Winner + Goals)
+                        # Example: "Dordrecht y Mas de 2.5"
+                        if (" y " in pick or " & " in pick) and ("mas" in pick or "over" in pick or "menos" in pick or "under" in pick):
+                            print(f"      [COMBO CHECK] Analizando combinada: '{pick}'")
+                            splitter = " y " if " y " in pick else " & "
+                            parts = pick.split(splitter)
+                            
+                            combo_pass = True
+                            
+                            for part in parts:
+                                part = part.strip()
+                                sub_win = False
+                                
+                                # A. Winner Check
+                                # Check vs cleaned team names
+                                is_home = (home_team_clean and home_team_clean in part) or "local" in part or "home" in part or "1" == part
+                                is_away = (away_team_clean and away_team_clean in part) or "visitante" in part or "away" in part or "2" == part
+                                is_draw = "empate" in part or "draw" in part or "x" == part
+                                
+                                if is_home:
+                                    sub_win = home_score > away_score
+                                elif is_away:
+                                    sub_win = away_score > home_score
+                                elif is_draw:
+                                    sub_win = home_score == away_score
+                                
+                                # B. Over/Under Check
+                                elif any(x in part for x in ["mas", "over", "menos", "under"]):
+                                    clean_p = part.replace("mas de", "").replace("over", "").replace("menos de", "").replace("under", "").replace("goles", "").strip()
+                                    
+                                    match_n_real = re.search(r'\d+(\.\d+)?', clean_p)
+                                    val_n = float(match_n_real.group()) if match_n_real else 2.5
+                                    
+                                    total_g = home_score + away_score
+                                    if "mas" in part or "over" in part:
+                                        sub_win = total_g > val_n
+                                    else:
+                                        sub_win = total_g < val_n
+                                        
+                                # If part matched neither winner nor over/under clearly, treat as fail or strict?
+                                # For "Dordrecht", it matches is_home above. 
+                                
+                                if not sub_win:
+                                    combo_pass = False
+                                    break # Fail fast
+                            
+                            is_win = combo_pass
+                            result_str = f"{home_score}-{away_score} (Combo)"
+
                         # 1. WINNER 
-                        if "gana" in pick or "win" in pick or \
+                        elif "gana" in pick or "win" in pick or \
                              ((home_team_clean and home_team_clean in pick) and not re.search(r'[-+]\d+', pick) and "over" not in pick and "mas" not in pick) or \
                              ((away_team_clean and away_team_clean in pick) and not re.search(r'[-+]\d+', pick) and "over" not in pick and "mas" not in pick):
                             
@@ -557,6 +607,8 @@ def check_bets():
                                 is_win = home_score > away_score
                             elif "visitante" in pick or "away" in pick or "2" in pick.split() or (away_team_clean and away_team_clean in pick):
                                 is_win = away_score > home_score
+                            elif "empate" in pick or "draw" in pick or "x" in pick.split():
+                                is_win = home_score == away_score
 
                         # Double Chance
                         elif "doble" in pick or "double" in pick or "1x" in pick or "x2" in pick:
@@ -577,7 +629,7 @@ def check_bets():
                              elif "12" in clean: is_win = home_score != away_score
                         # 2. BTTS
                         elif "ambos marcan" in pick or "btts" in pick:
-                             if "sí" in pick or "yes" in pick: is_win = home_score > 0 and away_score > 0
+                             if "sí" in pick or "yes" in pick or "si" in pick: is_win = home_score > 0 and away_score > 0
                              else: is_win = home_score == 0 or away_score == 0
                              
                         # 3. Specialized Over/Under (Corners, Cards, Shots)
