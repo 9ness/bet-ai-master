@@ -746,16 +746,16 @@ def check_bets():
             month_key = date_str[:7]
             rs.hset(f"{category}:{month_key}", {date_str: json.dumps(day_data)})
             
-            # Sync Master (Only for legacy daily_bets)
-            if category == "daily_bets":
+            # Sync Master (Latest Day Cache - Supports daily_bets and daily_bets_stakazo)
+            if category in ["daily_bets", "daily_bets_stakazo"]:
                 try:
-                    master_json = rs.get("daily_bets")
+                    master_json = rs.get(category)
                     if master_json:
                         master_data = json.loads(master_json) if isinstance(master_json, str) else master_json
                         if master_data.get("date") == date_str:
                             import copy
                             mirror = copy.deepcopy(day_data)
-                            rs.set_data("daily_bets", mirror)
+                            rs.set_data(category, mirror)
                 except Exception: pass
                 
             print(f"[SUCCESS] Updated results for {date_str} ({category}). Day Profit: {day_profit}")

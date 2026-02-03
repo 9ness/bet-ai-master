@@ -41,9 +41,9 @@ class SportsDataService:
                     61, 62,                          # Francia: Ligue 1, 2
                     88, 89,                          # Países Bajos: Eredivisie, Eerste
                     94, 203, 529, 253,               # Portugal, Turquía, Arabia, MLS
-                    13, 103, 113, 144, 197,          # Dinamarca, Noruega, Suecia, Bélgica, Grecia
-                    2, 3, 848,                       # UCL, UEL, UECL
-                    71, 128, 262, 265, 292           # Brasil, Argentina, México, Chile, Corea
+                    13, 103, 113, 144, 197,          # Libertadores, Noruega, Suecia, Bélgica, Grecia
+                    2, 3, 848, 11,                   # UCL, UEL, UECL, Sudamericana
+                    71, 128, 130, 262, 265, 292      # Brasil, Argentina (Liga+Copa), México, Chile, Corea
                 ], # Expanded Whitelist
                 # "markets": [1, 4, 5, 6, 7, 8, 10, 12, 16, 17, 25, 27, 28, 45, 50, 57, 58, 59, 80, 82, 83, 87, 92, 173, 212, 215],
                 "markets": [1, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 16, 17, 21, 25, 27, 28, 31, 45, 50, 54, 57, 58, 59, 80, 82, 83, 87, 173],
@@ -250,11 +250,16 @@ class SportsDataService:
                     "odds": odds
                 }
 
-                # NEW: Fetch Statistics and Events (Football Only)
+                # NEW: Fetch H2H and Predictions (Football Only)
                 if sport == "football":
-                    # Note: These might be empty for future matches, but user requested logic to be present.
-                    match_entry["statistics"] = self._process_statistics(self._fetch_fixture_statistics(fix_id))
-                    match_entry["events"] = self._process_events(self._fetch_fixture_events(fix_id))
+                    # Fetch Predictions (Season context)
+                    raw_preds = self._fetch_predictions(fix_id)
+                    match_entry["predictions"] = self._process_predictions(raw_preds)
+                    
+                    # Fetch Head to Head (History context)
+                    raw_h2h = self._fetch_headtohead(home_id, away_id)
+                    match_entry["h2h"] = self._process_h2h(raw_h2h)
+                    
                     self.calls_football += 2 # Count the extra calls
                 
                 matches_found.append(match_entry)
@@ -415,104 +420,115 @@ class SportsDataService:
             
         return default_name.lower().replace(" ", "_").replace("/", "_")
 
-    def _fetch_fixture_statistics(self, fixture_id):
-        """Fetches raw statistics for a given fixture."""
+    def _fetch_predictions(self, fixture_id):
+        """Fetches predictions/analysis for a given fixture."""
         try:
-            url = f"{self.configs['football']['url']}/fixtures/statistics"
+            url = f"{self.configs['football']['url']}/predictions"
             resp = self._call_api(url, params={"fixture": fixture_id})
             data = resp.json()
             return data.get("response", [])
         except Exception as e:
-            print(f"      [!] Error fetching stats for {fixture_id}: {e}")
+            print(f"      [!] Error fetching predictions for {fixture_id}: {e}")
             return []
 
-    def _fetch_fixture_events(self, fixture_id):
-        """Fetches raw events for a given fixture."""
+    def _fetch_headtohead(self, home_id, away_id):
+        """
+        Fetches H2H matches, filtering for recent years (Current & Previous) and Finished status.
+        """
         try:
-            url = f"{self.configs['football']['url']}/fixtures/events"
-            resp = self._call_api(url, params={"fixture": fixture_id})
+            url = f"{self.configs['football']['url']}/fixtures/headtohead"
+            resp = self._call_api(url, params={"h2h": f"{home_id}-{away_id}"})
             data = resp.json()
-            return data.get("response", [])
+            raw_h2h = data.get("response", [])
+            
+            if not raw_h2h: return []
+            
+            # FILTER: Current Year and Previous Year Only
+            current_year = datetime.now().year
+            min_year = current_year - 1
+            
+            filtered = []
+            for match in raw_h2h:
+                # check status
+                status = match.get("fixture", {}).get("status", {}).get("short")
+                if status not in ["FT", "AET", "PEN"]:
+                    continue
+                    
+                # check date
+                date_str = match.get("fixture", {}).get("date", "")
+                if not date_str: continue
+                
+                try:
+                    match_year = int(date_str[:4])
+                    if match_year >= min_year:
+                        filtered.append(match)
+                except:
+                    continue
+                    
+            # Sort by date desc (most recent first)
+            filtered.sort(key=lambda x: x["fixture"]["date"], reverse=True)
+            
+            return filtered
+            
         except Exception as e:
-            print(f"      [!] Error fetching events for {fixture_id}: {e}")
+            print(f"      [!] Error fetching H2H for {home_id}-{away_id}: {e}")
             return []
 
-    def _process_statistics(self, raw_stats):
+    def _process_predictions(self, raw_data):
         """
-        Post-process raw statistics into a cleaner dictionary format.
+        Extracts key insights from the predictions API response.
         """
-        processed = []
-        if not raw_stats: return processed
-
-        for entry in raw_stats:
-            team_data = entry.get("team", {})
-            stats_list = entry.get("statistics", [])
-            
-            stats_dict = {}
-            for s in stats_list:
-                if not s.get("type"): continue
-                
-                # Normalize Key: "Ball Possession" -> "ball_possession"
-                key = str(s["type"]).lower().replace(" ", "_").replace("%", "percent")
-                val = s["value"]
-                
-                # Normalize Value: "57%" -> 57 (int), "1.67" -> 1.67 (float)
-                if val is not None:
-                    if isinstance(val, str):
-                        if val.endswith("%"):
-                            try:
-                                val = int(val.replace("%", ""))
-                            except:
-                                pass
-                        elif "." in val and val.replace(".", "").isdigit():
-                             try:
-                                val = float(val)
-                             except:
-                                pass
-                
-                stats_dict[key] = val
-            
-            processed.append({
-                "team_id": team_data.get("id"),
-                "team_name": team_data.get("name"),
-                "stats": stats_dict
-            })
+        if not raw_data: return None
         
-        return processed
+        try:
+            main = raw_data[0]
+            preds = main.get("predictions", {})
+            teams = main.get("teams", {})
+            comparison = main.get("comparison", {})
+            
+            # Extract relevant fields
+            return {
+                "winner_code": preds.get("winner", {}).get("name"),
+                "advice": preds.get("advice"),
+                "win_percent": preds.get("percent"),
+                "goals_prediction": preds.get("goals"),
+                "comparison": comparison, # { form, att, def, h2h }
+                "home_form": {
+                    "last_5": teams.get("home", {}).get("last_5", {}).get("form"),
+                    "att": teams.get("home", {}).get("last_5", {}).get("att"),
+                    "def": teams.get("home", {}).get("last_5", {}).get("def"),
+                },
+                "away_form": {
+                    "last_5": teams.get("away", {}).get("last_5", {}).get("form"),
+                    "att": teams.get("away", {}).get("last_5", {}).get("att"),
+                    "def": teams.get("away", {}).get("last_5", {}).get("def"),
+                }
+            }
+        except Exception as e:
+            print(f"      [!] Error processing predictions: {e}")
+            return None
 
-    def _process_events(self, raw_events):
+    def _process_h2h(self, filtered_h2h):
         """
-        Post-process raw events into a cleaner list of event dictionaries.
+        Simplifies the H2H list to only show Date, Score, and Status.
         """
-        processed = []
-        if not raw_events: return processed
-
-        for ev in raw_events:
-            # Safe extraction just in case, though structure seems consistent
-            if not ev.get("time") or not ev.get("team"): continue
-
-            # Time formatting
-            elapsed = ev["time"].get("elapsed")
-            extra = ev["time"].get("extra")
-            time_str = str(elapsed)
-            if extra:
-                time_str += f"+{extra}"
-
-            processed.append({
-                "time_display": time_str,
-                "elapsed": elapsed,
-                "extra": extra,
-                "team_id": ev["team"].get("id"),
-                "team_name": ev["team"].get("name"),
-                "player_id": ev["player"].get("id") if ev.get("player") else None,
-                "player_name": ev["player"].get("name") if ev.get("player") else None,
-                "assist_id": ev["assist"].get("id") if ev.get("assist") else None,
-                "assist_name": ev["assist"].get("name") if ev.get("assist") else None,
-                "type": ev.get("type"),     # Goal, Card, subst, Var, etc.
-                "detail": ev.get("detail"), # Normal Goal, Yellow Card, etc.
-                "comments": ev.get("comments")
-            })
+        if not filtered_h2h: return []
         
+        processed = []
+        for match in filtered_h2h:
+            try:
+                date_str = match["fixture"]["date"][:10] # YYYY-MM-DD
+                home = match["teams"]["home"]["name"]
+                away = match["teams"]["away"]["name"]
+                score = f"{match['goals']['home']}-{match['goals']['away']}"
+                
+                processed.append({
+                    "date": date_str,
+                    "match": f"{home} vs {away}",
+                    "score": score
+                })
+            except: continue
+            
         return processed
 
 if __name__ == "__main__":
