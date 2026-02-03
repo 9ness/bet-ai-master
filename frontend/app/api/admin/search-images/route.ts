@@ -9,8 +9,8 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Query is required" }, { status: 400 });
         }
 
-        // Add "wallpaper vertical" to the query
-        const optimizedQuery = `${query} wallpaper vertical 4k`;
+        // Add "football" context to the query for better results
+        const optimizedQuery = `${query} football match vertical`;
 
         console.log(`Searching for: ${optimizedQuery}`);
 
