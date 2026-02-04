@@ -440,7 +440,7 @@ class SportsDataService:
 
     def _fetch_headtohead(self, home_id, away_id):
         """
-        Fetches H2H matches, filtering for recent years (Current & Previous) and Finished status.
+        Fetches H2H matches, filtering for Finished status and returning last 10.
         """
         try:
             url = f"{self.configs['football']['url']}/fixtures/headtohead"
@@ -450,32 +450,19 @@ class SportsDataService:
             
             if not raw_h2h: return []
             
-            # FILTER: Current Year and Previous Year Only
-            current_year = datetime.now().year
-            min_year = current_year - 1
-            
             filtered = []
             for match in raw_h2h:
                 # check status
                 status = match.get("fixture", {}).get("status", {}).get("short")
                 if status not in ["FT", "AET", "PEN"]:
                     continue
-                    
-                # check date
-                date_str = match.get("fixture", {}).get("date", "")
-                if not date_str: continue
-                
-                try:
-                    match_year = int(date_str[:4])
-                    if match_year >= min_year:
-                        filtered.append(match)
-                except:
-                    continue
+                filtered.append(match)
                     
             # Sort by date desc (most recent first)
             filtered.sort(key=lambda x: x["fixture"]["date"], reverse=True)
             
-            return filtered
+            # Return last 10
+            return filtered[:10]
             
         except Exception as e:
             print(f"      [!] Error fetching H2H for {home_id}-{away_id}: {e}")
@@ -492,23 +479,41 @@ class SportsDataService:
             preds = main.get("predictions", {})
             teams = main.get("teams", {})
             comparison = main.get("comparison", {})
+            league = main.get("league", {})
             
-            # Extract relevant fields
+            # Helper to extract team league stats safely
+            def get_team_stats(side):
+                team_data = teams.get(side, {})
+                league_data = team_data.get("league", {})
+                last_5 = team_data.get("last_5", {})
+                
+                return {
+                    "last_5_form": last_5.get("form"),
+                    "last_5_att": last_5.get("att"),
+                    "last_5_def": last_5.get("def"),
+                    "last_5_goals": last_5.get("goals"),
+                    "fixtures": league_data.get("fixtures", {}), # { played, wins, draws, loses }
+                    "goals": league_data.get("goals", {}),       # { for: {total, avg}, against: {total, avg} }
+                    "clean_sheet": league_data.get("clean_sheet", {}),
+                    "failed_to_score": league_data.get("failed_to_score", {}),
+                    "cards": league_data.get("cards", {}),       # { yellow, red }
+                    "biggest": league_data.get("biggest", {})    # { streak, wins, loses, goals }
+                }
+
             return {
                 "winner_code": preds.get("winner", {}).get("name"),
+                "winner_comment": preds.get("winner", {}).get("comment"),
                 "advice": preds.get("advice"),
+                "under_over": preds.get("under_over"),
                 "win_percent": preds.get("percent"),
                 "goals_prediction": preds.get("goals"),
-                "comparison": comparison, # { form, att, def, h2h }
-                "home_form": {
-                    "last_5": teams.get("home", {}).get("last_5", {}).get("form"),
-                    "att": teams.get("home", {}).get("last_5", {}).get("att"),
-                    "def": teams.get("home", {}).get("last_5", {}).get("def"),
-                },
-                "away_form": {
-                    "last_5": teams.get("away", {}).get("last_5", {}).get("form"),
-                    "att": teams.get("away", {}).get("last_5", {}).get("att"),
-                    "def": teams.get("away", {}).get("last_5", {}).get("def"),
+                "comparison": comparison, # { form, att, def, h2h, goals, poisson_distribution, total }
+                "home_team": get_team_stats("home"),
+                "away_team": get_team_stats("away"),
+                "league_context": {
+                    "name": league.get("name"),
+                    "country": league.get("country"),
+                    "season": league.get("season")
                 }
             }
         except Exception as e:
@@ -517,7 +522,7 @@ class SportsDataService:
 
     def _process_h2h(self, filtered_h2h):
         """
-        Simplifies the H2H list to only show Date, Score, and Status.
+        Simplifies the H2H list to only show Date, Score, Status, and League.
         """
         if not filtered_h2h: return []
         
@@ -527,12 +532,18 @@ class SportsDataService:
                 date_str = match["fixture"]["date"][:10] # YYYY-MM-DD
                 home = match["teams"]["home"]["name"]
                 away = match["teams"]["away"]["name"]
-                score = f"{match['goals']['home']}-{match['goals']['away']}"
+                home_goals = match['goals']['home']
+                away_goals = match['goals']['away']
+                score = f"{home_goals}-{away_goals}"
+                league_name = match["league"]["name"]
                 
                 processed.append({
                     "date": date_str,
+                    "league": league_name,
                     "match": f"{home} vs {away}",
-                    "score": score
+                    "score": score,
+                    "home_goals": home_goals,
+                    "away_goals": away_goals
                 })
             except: continue
             

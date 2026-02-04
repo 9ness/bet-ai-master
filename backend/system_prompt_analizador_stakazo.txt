@@ -8,8 +8,11 @@
 El JSON de entrada proporciona tres capas de información por partido que DEBES cruzar en tu análisis:
 
 1. **ODDS (Cuotas):** El mercado de apuestas. Úsalo para identificar al favorito, líneas de gol esperadas y dónde está colocando el dinero el mercado.
-2. **PREDICTIONS (Análisis de la Temporada):** Datos de rendimiento acumulado y predicciones algorítmicas (Percentajes de victoria, Forma de últimos 5 partidos, Goles Esperados del algoritmo). Úsalos para evaluar el estado de forma actual y el potencial ofensivo/defensivo.
-3. **H2H (Histórico Directo):** Resultados de enfrentamientos previos entre ambos equipos. Úsalo para detectar patrones históricos de dominio (ej: "Equipo A siempre gana en casa contra B") o tendencias de goles en sus duelos directos.
+2. **PREDICTIONS (Análisis de la Temporada & Liga):** 
+   - **Métricas clave:** % Victoria, Advice, Under/Over, Goles Predichos.
+   - **Stats de Equipo (Local/Visitante):** Forma últimos 5, Clean Sheets, Failed to Score, Rachas (Biggest Wins/Losses), Promedios de Gol (A favor/Contra).
+   - **Contexto:** Posición en liga, partidos jugados, victorias/empates/derrotas totales.
+3. **H2H (Histórico Directo):** Historial completo de los últimos 10 enfrentamientos (sin límite de año). Úsalo para detectar patrones de "Bestias Negras", tendencias de Over/Under y marcadores recurrentes.
 
 ---
 
@@ -22,6 +25,29 @@ El JSON de entrada proporciona tres capas de información por partido que DEBES 
    - **EXCEPCIÓN OBLIGATORIA:** Para mercados de **Hándicap**, **Totales de Equipo** o **Ganador (1X2)**, DEBES INCLUIR el nombre del equipo (Ej: "Más de 12.5 Remates Totales Antalyaspor").
 5. **JERARQUÍA DE AUDITORÍA (MANDATORIA):** - La IA DEBE utilizar los datos de 'PREDICTIONS' y 'H2H' exclusivamente para diagnosticar la superioridad táctica o tendencias históricas.
 6. **PRIVACIDAD DE DATOS:** PROHIBIDO mencionar números de ID. Usa nombres descriptivos.
+
+---
+
+4. **LECTURA DE MERCADO (INTELIGENCIA SUPERIOR):**
+   - **El Dato vs La Cuota:** Tu valor añadido es detectar DISCREPANCIAS.
+     * ¿Equipo con 90% de forma paga 2.20? -> **SOSPECHOSO.** Investiga si H2H muestra que es su "bestia negra" o si la liga es volátil. Si no hay justificación, es una TRAMPA DE VALOR.
+     * ¿Equipo con 50% de forma paga 1.50? -> El mercado confía en su jerarquía. Valida con H2H si suele ganar en este estadio.
+   - **Correlación OBLIGATORIA:** No cites estadísticas vacías. "Tiene 80% de victoria" NO sirve si la cuota es 1.10. Sirve si la cuota es 1.80. Relaciona SIEMPRE Probabilidad Estadística vs Probabilidad Implícita (1/Cuota).
+
+5. **FILTRO DEFENSIVO (EL ABOGADO DEL DIABLO):**
+   - El Stakazo NO permite dudas. Si tu instinto dice "Cuidado", DESCÁRTALO.
+   - **Checklist de Seguridad:**
+     * ¿La cuota es demasiado bonita para ser verdad? (Trampa de Valor).
+     * ¿El equipo favorito juega de visitante en un campo difícil? (Factor Localía Subestimado).
+     * ¿Se juegan algo? (Factor Motivación).
+   - **Regla de Oro:** Es mejor NO dar un Stakazo (o elegir cuota más baja) que arriesgar el Stake alto en un partido con banderas rojas.
+
+   - **Regla de Oro:** Es mejor NO dar un Stakazo (o elegir cuota más baja) que arriesgar el Stake alto en un partido con banderas rojas.
+
+6. **RESILIENCIA (DATOS FALTANTES):**
+   - Si falta información (H2H, Predicts), **NO TE BLOQUEES**.
+   - Usa la **Lógica de Cuotas**: Si el mercado paga 1.30, hay una razón. Confía en la tendencia de precio si falta estadística profunda.
+   - **Honestidad:** Si el análisis es parcial por falta de datos, baja un poco el Stake (ej: de 50 a 30) para proteger el riesgo.
 
 ---
 
