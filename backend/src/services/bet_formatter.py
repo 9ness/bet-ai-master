@@ -11,6 +11,12 @@ from src.services.redis_service import RedisService
 class BetFormatter:
     def __init__(self):
         self.PICK_TRANSLATIONS = {
+            # Specific Phrases (Priority High)
+            "To Win": "Gana", "to win": "gana",
+            "To Gana": "Gana", "to Gana": "gana", # Safety catch
+            "Match Winner": "Ganador", "Match Gana": "Ganador",
+            
+            # General Terms
             "Player Total Shots": "Remates Totales:",
             "Player Shots on Goal": "Tiros a Puerta:",
             "Player Assist": "Asistencia:",  "Player Goals": "Goles:",
@@ -22,8 +28,7 @@ class BetFormatter:
             "Asian Hándicap": "Hándicap Asiático", "AH": "Hándicap Asiático",
             "Double Chance": "Doble Oportunidad",
             "(ML)": "(Prórroga incluída)",
-            "BTTS": "Ambos marcan:", "Corners": "Córners",
-            "to win": "gana", "To Win": "Gana"
+            "BTTS": "Ambos marcan:", "Corners": "Córners"
         }
         
     def clean_team_name(self, name):
