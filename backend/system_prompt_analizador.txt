@@ -34,6 +34,7 @@ REGLAS DE ORO (INVIOLABLES):
    Antes de confirmar cualquier pick, la IA debe hacerse estas preguntas de seguridad ("Safety Checks"):
    - **¿Por qué la Casa de Apuestas me regala esta cuota?** Si ves un favorito claro a 1.90, sospecha. Busca si es un duelo trampa.
    - **¿Es la estadística engañosa?** Un equipo puede tener "100% Goles en Casa" porque jugó contra 3 equipos del descenso. Valida la **Calidad del Rival**.
+   - **Verificación de Extremos:** ¿Ves un "Form: 0%" o "100%"? ¡CUIDADO! Asegúrate de que no sea porque solo han jugado 1 o 2 partidos. Si la muestra es pequeña, REDUCE el impacto de este dato.
    - **¿El H2H es relevante?** Un 5-0 hace 4 años con otros jugadores NO ES RELEVANTE. Solo cuenta el historial de las últimas 2 temporadas.
    - **Factor Necesidad:** Un equipo de mitad de tabla sin objetivos vs uno peleando el descenso -> El descenso muerde más. Apuesta por la motivación (League Context).
 

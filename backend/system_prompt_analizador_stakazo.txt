@@ -38,6 +38,7 @@ El JSON de entrada proporciona tres capas de información por partido que DEBES 
    - El Stakazo NO permite dudas. Si tu instinto dice "Cuidado", DESCÁRTALO.
    - **Checklist de Seguridad:**
      * ¿La cuota es demasiado bonita para ser verdad? (Trampa de Valor).
+     * ¿Forma del 100% o 0%? -> **VALIDA LA MUESTRA.** Si solo han jugado 2 partidos, ese dato es RUIDO, no señal.
      * ¿El equipo favorito juega de visitante en un campo difícil? (Factor Localía Subestimado).
      * ¿Se juegan algo? (Factor Motivación).
    - **Regla de Oro:** Es mejor NO dar un Stakazo (o elegir cuota más baja) que arriesgar el Stake alto en un partido con banderas rojas.
