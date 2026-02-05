@@ -217,6 +217,16 @@ class RedisService:
         full_pattern = self._get_key(pattern)
         return self._send_command("KEYS", full_pattern)
 
+    def rpush(self, key, value):
+        full_key = self._get_key(key)
+        # RPUSH key value [value ...]
+        return self._send_command("RPUSH", full_key, value)
+
+    def expire(self, key, seconds):
+        full_key = self._get_key(key)
+        return self._send_command("EXPIRE", full_key, seconds)
+
+
     def set_data(self, key, data):
         """
         Guarda datos genéricos en Redis serializados como JSON.
