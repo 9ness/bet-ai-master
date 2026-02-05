@@ -46,3 +46,23 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Failed to fetch logs' }, { status: 500 });
     }
 }
+
+export async function DELETE(request: Request) {
+    try {
+        const { searchParams } = new URL(request.url);
+        const dateParam = searchParams.get('date');
+
+        if (!dateParam) {
+            return NextResponse.json({ error: 'Date parameter required' }, { status: 400 });
+        }
+
+        const key = `betai:check_logs:${dateParam}`;
+        await redis.del(key);
+
+        return NextResponse.json({ message: 'Logs deleted successfully', date: dateParam });
+
+    } catch (error) {
+        console.error('Error deleting logs:', error);
+        return NextResponse.json({ error: 'Failed to delete logs' }, { status: 500 });
+    }
+}

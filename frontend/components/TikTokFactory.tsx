@@ -44,6 +44,7 @@ const TabButton = ({ id, label, icon: Icon, activeTab, setActiveTab }: any) => {
 export default function TikTokFactory({ predictions, formattedDate, rawDate }: TikTokFactoryProps) {
     // --- STATE ---
     const [activeTab, setActiveTab] = useState<'editor' | 'portada' | 'bets' | 'outro' | 'bg'>('editor');
+    const [onlyFootball, setOnlyFootball] = useState(true); // NEW: Football Only Filter
 
     const [generating, setGenerating] = useState(false);
     const [images, setImages] = useState<string[]>([]);
@@ -78,7 +79,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
     const getDayName = () => ['DOMINGO', 'LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'][new Date().getDay()];
 
     const [config, setConfig] = useState({
-        introTitle: `JUBILADORA HOY\n(${getDayName()})`,
+        introTitle: `JUBILADORA PARA HOY\n(${getDayName()})`,
         introSubtitle: "",
         introEmoji1: '🤫',
         introEmoji2: '✅',
@@ -86,7 +87,8 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         outroSub: "ACCEDE DESDE EL PERFIL 🔗",
         bgSelection: [] as string[],
         addHundred: true,
-        useFullDate: true
+        useFullDate: true,
+        showOdds: false // NEW: Visibility toggle for odds
     });
 
     const [imageSelector, setImageSelector] = useState<{ idx: number | null }>({ idx: null });
@@ -441,9 +443,9 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
 
     useEffect(() => {
         if (config.useFullDate) {
-            setConfig(prev => ({ ...prev, introTitle: `JUBILADORA HOY\n${getFormattedDateLong()}`, introEmoji1: '⚽', introEmoji2: '📅' }));
+            setConfig(prev => ({ ...prev, introTitle: `JUBILADORA PARA HOY\n${getFormattedDateLong()}`, introEmoji1: '⚽', introEmoji2: '📅' }));
         } else {
-            setConfig(prev => ({ ...prev, introTitle: `JUBILADORA HOY\n(${getDayName()})`, introEmoji1: '🤫', introEmoji2: '✅' }));
+            setConfig(prev => ({ ...prev, introTitle: `JUBILADORA PARA HOY\n(${getDayName()})`, introEmoji1: '🤫', introEmoji2: '✅' }));
         }
     }, [config.useFullDate]);
 
@@ -522,7 +524,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
             }
         });
 
-        return groupedList.map(g => {
+        const mappedList = groupedList.map(g => {
             const rawMatchDisplay = g.matchDisplay; // No sport icons here
 
             // Featured detection logic (RESTORED)
@@ -617,9 +619,20 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                 isFeatured
             };
         });
+
+        if (onlyFootball) {
+            return mappedList.filter(g => {
+                const sport = (g.sport || '').toLowerCase();
+                return !sport.includes('basket') && !sport.includes('nba');
+            });
+        }
+        return mappedList;
     };
 
-    useEffect(() => setSlideGroups(getAllSelections()), [predictions, availableFiles]);
+    useEffect(() => {
+        setSlideGroups(getAllSelections());
+    }, [predictions, onlyFootball]);
+
 
     // slidesData moved up
 
@@ -741,7 +754,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                         <div className="bg-white px-12 pt-2 pb-6 rounded-2xl w-fit max-w-[90%] flex items-center justify-center pointer-events-none"><h1 className="text-6xl font-black text-black tracking-tighter leading-tight whitespace-nowrap text-center pb-5">{config.introTitle.split('\n')[0]}</h1></div>
                         <div className="bg-white px-12 pt-2 pb-4 rounded-2xl flex items-center justify-center gap-6 w-fit max-w-[95%] pointer-events-none"><h1 className="text-5xl font-black text-black tracking-tighter leading-tight whitespace-nowrap pb-5">{config.introTitle.split('\n')[1] || ''}</h1><div className="flex items-center gap-4 pb-5">{config.introEmoji1 && <span className="text-5xl filter drop-shadow">{config.introEmoji1}</span>}{config.introEmoji2 && <span className="text-5xl filter drop-shadow">{config.introEmoji2}</span>}</div></div>
                     </div>
-                    {config.introSubtitle && <div className="bg-white px-14 pt-4 pb-8 rounded-2xl mt-8 flex items-center justify-center pointer-events-none"><span className="text-6xl font-black text-black uppercase tracking-tighter leading-none pb-5">{config.introSubtitle}</span></div>}
+                    {config.showOdds && config.introSubtitle && <div className="bg-white px-14 pt-4 pb-8 rounded-2xl mt-8 flex items-center justify-center pointer-events-none"><span className="text-6xl font-black text-black uppercase tracking-tighter leading-none pb-5">{config.introSubtitle}</span></div>}
                 </div>
             );
         }
@@ -777,6 +790,28 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         );
     };
 
+    // --- FILTER VIRAL CONTENT ---
+    const getProcessedSocialContent = () => {
+        if (!socialContent) return null;
+        if (!onlyFootball) return socialContent;
+
+        const filter = (t: string) => {
+            if (!t) return "";
+            const blacklist = ['🏀', 'basket', 'nba', 'puntos', 'rebotes', 'asistencias', 'triples', 'euroleague', 'nbb', 'ncaa', 'pintura', 'cba', 'l NB', 'euroliga'];
+            return t.split('\n').filter(line => {
+                const l = line.toLowerCase();
+                return !blacklist.some(word => l.includes(word));
+            }).join('\n');
+        };
+
+        return {
+            ...socialContent,
+            title: filter(socialContent.title),
+            description: filter(socialContent.description || socialContent.caption || "")
+        };
+    };
+    const processedSocialContent = getProcessedSocialContent();
+
     // --- RENDER ---
     return (
         <div className="max-w-[1600px] mx-auto pb-10 space-y-6 select-none">
@@ -796,33 +831,48 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 min-h-[500px]">
                     {/* TAB 1: EDITOR */}
                     {activeTab === 'editor' && (
-                        <div className="w-full max-w-lg mx-auto flex flex-row items-center justify-center gap-4 px-2">
-                            <div className="relative aspect-[9/16] w-full max-w-[200px] bg-black rounded-3xl border border-white/10 shadow-2xl overflow-hidden group shrink-0">
-                                {/* LIVE PREVIEW (Mobile) */}
-                                <div className="absolute inset-0 bg-black flex items-center justify-center overflow-hidden">
-                                    {/* Scaled Render */}
-                                    <div className="w-[1080px] h-[1350px] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 scale-[0.18] lg:scale-[0.25] origin-center flex flex-col items-center justify-center bg-black">
-                                        <img src={getImageSrc(config.bgSelection[currentPreviewIdx])} className="absolute inset-0 w-full h-full object-cover opacity-80" />
-                                        {renderSlideContent(currentPreviewIdx, true)}
-                                    </div>
+                        <>
+                            {/* SOLO FUTBOL TV (Mobile) */}
+                            {/* MOVED TO BUTTON COLUMN */}
 
-                                    {/* Overlay Controls */}
-                                    <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex items-end justify-center gap-4 z-20">
-                                        <button onClick={() => setCurrentPreviewIdx(Math.max(0, currentPreviewIdx - 1))} className="p-2 bg-white/20 hover:bg-white/30 rounded-full backdrop-blur"><ChevronLeft className="text-white" size={16} /></button>
-                                        <div className="flex gap-2">
-                                            {images.length > 0 && <button onClick={() => setPreviewImg(images[currentPreviewIdx])} className="p-2 bg-white text-black rounded-lg hover:scale-110 transition"><ScanEye size={16} /></button>}
+                            <div className="w-full max-w-lg mx-auto flex flex-row items-center justify-center gap-4 px-2">
+                                <div className="relative aspect-[9/16] w-full max-w-[200px] bg-black rounded-3xl border border-white/10 shadow-2xl overflow-hidden group shrink-0">
+                                    {/* LIVE PREVIEW (Mobile) */}
+                                    <div className="absolute inset-0 bg-black flex items-center justify-center overflow-hidden">
+                                        {/* Scaled Render */}
+                                        <div className="w-[1080px] h-[1350px] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 scale-[0.18] lg:scale-[0.25] origin-center flex flex-col items-center justify-center bg-black">
+                                            <img src={getImageSrc(config.bgSelection[currentPreviewIdx])} className="absolute inset-0 w-full h-full object-cover opacity-80" />
+                                            {renderSlideContent(currentPreviewIdx, true)}
                                         </div>
-                                        <button onClick={() => setCurrentPreviewIdx(Math.min((slidesData.length + 1), currentPreviewIdx + 1))} className="p-2 bg-white/20 hover:bg-white/30 rounded-full backdrop-blur"><ChevronRight className="text-white" size={16} /></button>
+
+                                        {/* Overlay Controls */}
+                                        <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex items-end justify-center gap-4 z-20">
+                                            <button onClick={() => setCurrentPreviewIdx(Math.max(0, currentPreviewIdx - 1))} className="p-2 bg-white/20 hover:bg-white/30 rounded-full backdrop-blur"><ChevronLeft className="text-white" size={16} /></button>
+                                            <div className="flex gap-2">
+                                                {images.length > 0 && <button onClick={() => setPreviewImg(images[currentPreviewIdx])} className="p-2 bg-white text-black rounded-lg hover:scale-110 transition"><ScanEye size={16} /></button>}
+                                            </div>
+                                            <button onClick={() => setCurrentPreviewIdx(Math.min((slidesData.length + 1), currentPreviewIdx + 1))} className="p-2 bg-white/20 hover:bg-white/30 rounded-full backdrop-blur"><ChevronRight className="text-white" size={16} /></button>
+                                        </div>
+                                        <div className="absolute top-4 right-4 bg-black/60 px-2 py-0.5 rounded text-[10px] text-white/50 border border-white/5 z-20 pointer-events-none">{currentPreviewIdx + 1}/{slidesData.length + 2}</div>
                                     </div>
-                                    <div className="absolute top-4 right-4 bg-black/60 px-2 py-0.5 rounded text-[10px] text-white/50 border border-white/5 z-20 pointer-events-none">{currentPreviewIdx + 1}/{slidesData.length + 2}</div>
+                                </div>
+                                <div className="flex flex-col gap-2 w-[100px] shrink-0">
+                                    <button
+                                        onClick={() => setOnlyFootball(!onlyFootball)}
+                                        className={`btn-active-effect border font-bold py-2 px-1 rounded-xl flex flex-col items-center justify-center gap-1 h-[60px] transition-all ${onlyFootball
+                                            ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400 shadow-[0_0_10px_-2px_rgba(16,185,129,0.3)]'
+                                            : 'bg-black/40 border-white/10 text-white/40'
+                                            }`}
+                                    >
+                                        <div className={`w-2.5 h-2.5 rounded-full transition-colors mb-0.5 ${onlyFootball ? 'bg-emerald-400 animate-pulse' : 'bg-white/20'}`} />
+                                        <span className="text-[8px] uppercase leading-tight text-center">Solo<br />Fútbol</span>
+                                    </button>
+                                    <button onClick={() => setShowSocialModal(true)} disabled={!socialContent} className="btn-active-effect bg-purple-100 dark:bg-purple-600/20 hover:bg-purple-200 dark:hover:bg-purple-600/30 border border-purple-200 dark:border-purple-500/30 text-purple-700 dark:text-purple-400 font-bold py-3 px-2 rounded-xl flex flex-col items-center justify-center gap-1 h-[70px]"><ScanEye size={18} /><span className="text-[9px] uppercase">Viral</span></button>
+                                    <button onClick={generate} disabled={generating} className="btn-active-effect bg-white hover:bg-gray-100 text-black font-black py-3 px-2 rounded-xl flex flex-col items-center justify-center gap-1 shadow-lg shadow-black/5 dark:shadow-white/10 h-[70px] border border-gray-100"><span className="text-black">{generating ? <Loader2 className="animate-spin" size={18} /> : <ImageIcon size={18} />}</span> <span className="text-[9px] uppercase text-black">{generating ? '...' : 'Generar'}</span></button>
+                                    <button onClick={() => images.forEach((img, i) => download(img, i))} disabled={!images.length} className="btn-active-effect bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-2 rounded-xl flex flex-col items-center justify-center gap-1 shadow-lg shadow-emerald-900/20 disabled:opacity-50 h-[70px]"><Save size={18} /><span className="text-[9px] uppercase">Bajar</span></button>
                                 </div>
                             </div>
-                            <div className="flex flex-col gap-2 w-[100px] shrink-0">
-                                <button onClick={() => setShowSocialModal(true)} disabled={!socialContent} className="btn-active-effect bg-purple-100 dark:bg-purple-600/20 hover:bg-purple-200 dark:hover:bg-purple-600/30 border border-purple-200 dark:border-purple-500/30 text-purple-700 dark:text-purple-400 font-bold py-3 px-2 rounded-xl flex flex-col items-center justify-center gap-1 h-[70px]"><ScanEye size={18} /><span className="text-[9px] uppercase">Viral</span></button>
-                                <button onClick={generate} disabled={generating} className="btn-active-effect bg-white hover:bg-gray-100 text-black font-black py-3 px-2 rounded-xl flex flex-col items-center justify-center gap-1 shadow-lg shadow-black/5 dark:shadow-white/10 h-[70px] border border-gray-100"><span className="text-black">{generating ? <Loader2 className="animate-spin" size={18} /> : <ImageIcon size={18} />}</span> <span className="text-[9px] uppercase text-black">{generating ? '...' : 'Generar'}</span></button>
-                                <button onClick={() => images.forEach((img, i) => download(img, i))} disabled={!images.length} className="btn-active-effect bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-2 rounded-xl flex flex-col items-center justify-center gap-1 shadow-lg shadow-emerald-900/20 disabled:opacity-50 h-[70px]"><Save size={18} /><span className="text-[9px] uppercase">Bajar</span></button>
-                            </div>
-                        </div>
+                        </>
                     )}
                     {/* TAB 2: PORTADA */}
                     {activeTab === 'portada' && (
@@ -830,7 +880,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                             <div className="space-y-4">
                                 <div><label className="text-[10px] font-bold text-emerald-500 dark:text-emerald-400 uppercase tracking-wider block mb-2">Título Principal</label><textarea value={config.introTitle} onChange={e => setConfig({ ...config, introTitle: e.target.value })} className="w-full bg-secondary/30 dark:bg-black/50 border border-border/10 dark:border-white/10 rounded-xl p-3 text-foreground dark:text-white text-sm font-bold min-h-[80px] focus:border-emerald-500/50 outline-none" /><div className="mt-2 flex items-center gap-2"><input type="checkbox" checked={config.useFullDate} onChange={(e) => setConfig({ ...config, useFullDate: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><label className="text-[10px] text-muted-foreground dark:text-white/50">Fecha Larga + Iconos</label></div></div>
                                 <div className="grid grid-cols-2 gap-3"><div><label className="text-[9px] text-muted-foreground dark:text-white/30 uppercase mb-1 block">Emoji 1</label><input value={config.introEmoji1} onChange={e => setConfig({ ...config, introEmoji1: e.target.value })} className="w-full bg-secondary/30 dark:bg-black/50 border border-border/10 dark:border-white/10 rounded-lg p-2 text-center text-foreground dark:text-white" /></div><div><label className="text-[9px] text-muted-foreground dark:text-white/30 uppercase mb-1 block">Emoji 2</label><input value={config.introEmoji2} onChange={e => setConfig({ ...config, introEmoji2: e.target.value })} className="w-full bg-secondary/30 dark:bg-black/50 border border-border/10 dark:border-white/10 rounded-lg p-2 text-center text-foreground dark:text-white" /></div></div>
-                                <div><div className="flex justify-between mb-1"><label className="text-[10px] font-bold text-emerald-500 dark:text-emerald-400 uppercase">Cuota Sticker</label><div className="flex items-center gap-1"><input type="checkbox" checked={config.addHundred} onChange={(e) => { const c = e.target.checked; let val = parseInt(config.introSubtitle.replace(/\D/g, '')) || 0; setConfig({ ...config, addHundred: c, introSubtitle: `+${c ? val * 10 : Math.round(val / 10)} 📈` }) }} className="accent-emerald-500 w-3 h-3" /><span className="text-[9px] text-muted-foreground dark:text-white/50">x10</span></div></div><input value={config.introSubtitle} onChange={e => setConfig({ ...config, introSubtitle: e.target.value })} className="w-full bg-secondary/30 dark:bg-black/50 border border-border/10 dark:border-white/10 rounded-xl p-3 text-foreground dark:text-white text-sm font-bold outline-none focus:border-emerald-500/50" /></div>
+                                <div><div className="flex justify-between mb-1"><label className="text-[10px] font-bold text-emerald-500 dark:text-emerald-400 uppercase">Cuota Sticker</label><div className="flex items-center gap-1"><input type="checkbox" checked={config.showOdds} onChange={(e) => setConfig({ ...config, showOdds: e.target.checked })} className="accent-emerald-500 w-3 h-3" /><span className="text-[9px] text-muted-foreground dark:text-white/50">Mostrar</span></div><div className="flex items-center gap-1"><input type="checkbox" checked={config.addHundred} onChange={(e) => { const c = e.target.checked; let val = parseInt(config.introSubtitle.replace(/\D/g, '')) || 0; setConfig({ ...config, addHundred: c, introSubtitle: `+${c ? val * 10 : Math.round(val / 10)} 📈` }) }} className="accent-emerald-500 w-3 h-3" /><span className="text-[9px] text-muted-foreground dark:text-white/50">x10</span></div></div><input value={config.introSubtitle} onChange={e => setConfig({ ...config, introSubtitle: e.target.value })} className="w-full bg-secondary/30 dark:bg-black/50 border border-border/10 dark:border-white/10 rounded-xl p-3 text-foreground dark:text-white text-sm font-bold outline-none focus:border-emerald-500/50" /></div>
                             </div>
                         </div>
                     )}
@@ -912,6 +962,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                 <div><label className="text-[10px] text-white/40 font-bold uppercase block mb-1">Título</label><textarea value={config.introTitle} onChange={e => setConfig({ ...config, introTitle: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white text-sm font-bold min-h-[70px] focus:border-emerald-500/50 outline-none" /></div>
                                 <div className="grid grid-cols-2 gap-2">
                                     <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5"><input type="checkbox" checked={config.useFullDate} onChange={(e) => setConfig({ ...config, useFullDate: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-white/60 font-bold">Fecha Larga</span></div>
+                                    <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5"><input type="checkbox" checked={config.showOdds} onChange={(e) => setConfig({ ...config, showOdds: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-white/60 font-bold">Mostrar Cuota</span></div>
                                     <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5"><input type="checkbox" checked={config.addHundred} onChange={(e) => { const c = e.target.checked; let val = parseInt(config.introSubtitle.replace(/\D/g, '')) || 0; setConfig({ ...config, addHundred: c, introSubtitle: `+${c ? val * 10 : Math.round(val / 10)} 📈` }) }} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-white/60 font-bold">Cuota x10</span></div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-3">
@@ -925,6 +976,23 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                         {/* BETS TAB (Default if editor) */}
                         {(activeTab === 'bets' || activeTab === 'editor') && (
                             <div className="space-y-3 animate-in fade-in slide-in-from-left-2 duration-300">
+                                <button
+                                    onClick={() => setOnlyFootball(!onlyFootball)}
+                                    className={`w-full flex justify-between items-center px-4 py-3 rounded-xl border transition-all mb-4 group ${onlyFootball
+                                        ? 'bg-emerald-500/10 border-emerald-500/50 hover:bg-emerald-500/20'
+                                        : 'bg-black/40 border-white/5 hover:bg-black/60 hover:border-white/10'
+                                        }`}
+                                >
+                                    <span className={`text-xs font-bold uppercase tracking-wider transition-colors ${onlyFootball ? 'text-emerald-400' : 'text-white/60 group-hover:text-white/80'}`}>
+                                        Solo Fútbol
+                                    </span>
+                                    <div className={`relative w-8 h-4 rounded-full transition-colors ${onlyFootball ? 'bg-emerald-500/30' : 'bg-white/10'}`}>
+                                        <div className={`absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full shadow-sm transition-all duration-300 ${onlyFootball
+                                            ? 'left-[18px] bg-emerald-400'
+                                            : 'left-1 bg-white/40'
+                                            }`} />
+                                    </div>
+                                </button>
                                 {slideGroups.map((group, idx) => (
                                     <div key={idx} className="bg-black/30 p-3 rounded-xl border border-white/5 hover:border-sky-500/20 transition-all">
                                         <div className="flex gap-2 mb-2"><input value={group.matchDisplay} onChange={e => { const n = [...slideGroups]; n[idx].matchDisplay = e.target.value; setSlideGroups(n) }} className="bg-transparent border-b border-white/10 w-full text-xs font-bold text-sky-300 focus:border-sky-500 outline-none pb-1" /><button onClick={() => { const n = [...slideGroups]; n[idx].isFeatured = !n[idx].isFeatured; setSlideGroups(n) }} className={`p-1 rounded ${group.isFeatured ? 'bg-sky-500 text-white' : 'text-white/20'}`}><ScanEye size={12} /></button></div>
@@ -1011,12 +1079,12 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
             </div>
 
             {/* MODAL & RENDERER (Cleaned up) */}
-            {showSocialModal && socialContent && (
+            {showSocialModal && processedSocialContent && (
                 <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur p-4 text-left">
                     <div className="bg-[#1a1a1a] border border-white/10 rounded-3xl p-6 w-full max-w-md space-y-4">
-                        <div className="flex justify-between items-center"><h3 className="font-bold text-white flex gap-2 items-center">📱 Viral Content</h3><button onClick={() => setShowSocialModal(false)} className="text-white/50"><X size={24} /></button></div>
-                        <div className="space-y-2"><label className="text-[10px] text-emerald-400 font-bold uppercase">Título</label><div className="flex gap-2"><div className="flex-1 bg-black/50 p-2 rounded text-white text-sm">{socialContent.title}</div><button onClick={() => handleCopyText(socialContent.title, 't')} className="p-2 bg-white/10 rounded hover:bg-white/20 text-white">{copiedStates['t'] ? <Check size={16} /> : <Copy size={16} />}</button></div></div>
-                        <div className="space-y-2"><label className="text-[10px] text-purple-400 font-bold uppercase">Caption</label><div className="flex gap-2"><div className="flex-1 bg-black/50 p-2 rounded text-white/80 text-xs max-h-32 overflow-y-auto">{socialContent.description || socialContent.caption}</div><button onClick={() => handleCopyText(socialContent.description || socialContent.caption, 'c')} className="p-2 bg-white/10 rounded hover:bg-white/20 text-white h-fit">{copiedStates['c'] ? <Check size={16} /> : <Copy size={16} />}</button></div></div>
+                        <div className="flex justify-between items-center"><h3 className="font-bold text-white flex gap-2 items-center">📱 Viral Content {onlyFootball && <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 rounded-full border border-emerald-500/30">FÚTBOL</span>}</h3><button onClick={() => setShowSocialModal(false)} className="text-white/50"><X size={24} /></button></div>
+                        <div className="space-y-2"><label className="text-[10px] text-emerald-400 font-bold uppercase">Título</label><div className="flex gap-2"><div className="flex-1 bg-black/50 p-2 rounded text-white text-sm">{processedSocialContent.title}</div><button onClick={() => handleCopyText(processedSocialContent.title, 't')} className="p-2 bg-white/10 rounded hover:bg-white/20 text-white">{copiedStates['t'] ? <Check size={16} /> : <Copy size={16} />}</button></div></div>
+                        <div className="space-y-2"><label className="text-[10px] text-purple-400 font-bold uppercase">Caption</label><div className="flex gap-2"><div className="flex-1 bg-black/50 p-2 rounded text-white/80 text-xs max-h-32 overflow-y-auto whitespace-pre-line">{processedSocialContent.description}</div><button onClick={() => handleCopyText(processedSocialContent.description, 'c')} className="p-2 bg-white/10 rounded hover:bg-white/20 text-white h-fit">{copiedStates['c'] ? <Check size={16} /> : <Copy size={16} />}</button></div></div>
                     </div>
                 </div>
             )}

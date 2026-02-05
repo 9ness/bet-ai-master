@@ -432,7 +432,9 @@ def check_bets():
         bets_modified = False
         
         for bet in day_data["bets"]:
-            if bet.get("status") in ["WON", "LOST", "PUSH", "VOID", "MANUAL_CHECK"]:
+            print(f"DEBUG: Bet {bet.get('match')} | Status: {bet.get('status')}")
+            if bet.get("status") in ["WON", "PUSH", "VOID", "MANUAL_CHECK"]:
+                # Skipped logs removed as per user edit request
                 continue
                 
             selections = bet.get("selections", [])
@@ -449,6 +451,8 @@ def check_bets():
             for sel in selections:
                 pick_lower = (sel.get("pick") or "").lower()
                 is_dc = "doble" in pick_lower or "double" in pick_lower or "1x" in pick_lower or "x2" in pick_lower or "12" in pick_lower
+                
+                # print(f"  -> Selection {sel.get('match')} ({sel.get('pick')}) | Status: {sel.get('status')}")
                 
                 if sel.get("status") in ["WON", "LOST", "PUSH", "VOID", "NULA"] and not is_dc:
                     if sel["status"] == "LOST": any_lost = True

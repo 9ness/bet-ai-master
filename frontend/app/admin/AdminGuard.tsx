@@ -18,7 +18,29 @@ type AdminGuardProps = {
     rawDate?: string;
 };
 
+// Helper functions
+const isToday = (dateString: string) => {
+    const today = new Date();
+    const date = new Date(dateString);
+    return date.getDate() === today.getDate() &&
+        date.getMonth() === today.getMonth() &&
+        date.getFullYear() === today.getFullYear();
+};
+
+const getStatusColor = (status: string) => {
+    switch (status) {
+        case 'INFO': return 'border-blue-500/50 text-blue-400 bg-blue-500/10';
+        case 'WARN': return 'border-yellow-500/50 text-yellow-400 bg-yellow-500/10';
+        case 'ERROR': return 'border-red-500/50 text-red-400 bg-red-500/10';
+        case 'WON': return 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10';
+        case 'LOST': return 'border-rose-500/50 text-rose-400 bg-rose-500/10';
+        case 'SKIP': return 'border-gray-500/50 text-gray-400 bg-gray-500/10';
+        default: return 'border-white/20 text-white/60 bg-white/5';
+    }
+};
+
 export default function AdminGuard({ children, predictions, formattedDate, rawDate }: AdminGuardProps) {
+    // ... existing code ...
     // Auth State
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [passwordInput, setPasswordInput] = useState("");
@@ -80,7 +102,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
     const [scriptsStatus, setScriptsStatus] = useState<Record<string, any>>({});
     const [blacklist, setBlacklist] = useState<Record<string, any>>({});
     const [loadingBlacklist, setLoadingBlacklist] = useState(false);
-    const [checkLogs, setCheckLogs] = useState<any[]>([]);
+    const [logsList, setLogsList] = useState<any[]>([]);
     const [logsDate, setLogsDate] = useState<string>(new Date().toISOString().split('T')[0]);
     const [loadingLogs, setLoadingLogs] = useState(false);
     const [blacklistMode, setBlacklistMode] = useState<'list' | 'logs'>('list');
@@ -194,6 +216,26 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
             .finally(() => setLoadingBlacklist(false));
 
     }, []);
+
+    const checkLogs = async () => {
+        setLoadingLogs(true);
+        try {
+            const res = await fetch(`/api/admin/check-logs?date=${logsDate}`);
+            const data = await res.json();
+            if (data && data.logs) {
+                setLogsList(data.logs);
+            } else if (Array.isArray(data)) {
+                setLogsList(data);
+            } else {
+                setLogsList([]);
+            }
+        } catch (e) {
+            console.error("Failed to fetch logs", e);
+            setLogsList([]);
+        } finally {
+            setLoadingLogs(false);
+        }
+    };
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -358,25 +400,12 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
         }
     };
 
-    const fetchCheckLogs = async (date: string) => {
-        setLoadingLogs(true);
-        try {
-            const res = await fetch(`/api/admin/check-logs?date=${date}`);
-            const data = await res.json();
-            if (data.logs) setCheckLogs(data.logs);
-            else setCheckLogs([]);
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setLoadingLogs(false);
-        }
-    };
-
     useEffect(() => {
         if (activeControlTab === 'blacklist') {
-            fetchCheckLogs(logsDate);
+            checkLogs();
         }
     }, [activeControlTab, logsDate]);
+
 
     if (isCheckingAuth) return null;
 
@@ -1142,13 +1171,66 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                             </div>
                                         </div>
 
-                                        {/* VIEW: BLACKLIST LIST */}
-                                        {blacklistMode === 'list' && (
+                                        {/* VIEW: LOGS */}
+                                        {blacklistMode === 'logs' && (
                                             <div className="space-y-6 relative z-10 animate-in fade-in duration-300">
-                                                <div className="flex items-center gap-2 text-white/50 text-xs font-mono mb-2 px-1">
-                                                    <Info size={12} />
-                                                    <span>Elementos totales: {Object.keys(blacklist).length}</span>
+
+                                                {/* Date Selector Header */}
+                                                <div className="flex justify-between items-center bg-[#0f0f11] p-4 rounded-xl border border-white/5">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-[10px] uppercase tracking-wider text-white/40 font-bold mb-1">Fecha del Log:</span>
+                                                            <div className="flex items-center gap-2">
+                                                                <input
+                                                                    type="date"
+                                                                    value={logsDate}
+                                                                    onChange={(e) => setLogsDate(e.target.value)}
+                                                                    className="bg-transparent text-white font-mono text-lg outline-none cursor-pointer"
+                                                                />
+                                                                {isToday(logsDate) && (
+                                                                    <div className="bg-blue-600/20 text-blue-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-500/20">
+                                                                        HOY
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            onClick={checkLogs}
+                                                            disabled={loadingLogs}
+                                                            className="h-9 w-9 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-white/60 hover:text-white transition-all disabled:opacity-50"
+                                                            title="Recargar Logs"
+                                                        >
+                                                            <div className={`${loadingLogs ? 'animate-spin' : ''}`}>
+                                                                <RefreshCw size={16} />
+                                                            </div>
+                                                        </button>
+
+                                                        <button
+                                                            onClick={async () => {
+                                                                if (!confirm("¿Estás seguro de borrar los logs de este día?")) return;
+                                                                try {
+                                                                    setLoadingLogs(true);
+                                                                    await fetch(`/api/admin/check-logs?date=${logsDate}`, { method: 'DELETE' });
+                                                                    checkLogs(); // Reload
+                                                                } catch (err) {
+                                                                    console.error(err);
+                                                                } finally {
+                                                                    setLoadingLogs(false);
+                                                                }
+                                                            }}
+                                                            disabled={loadingLogs}
+                                                            className="h-9 px-3 flex items-center justify-center gap-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/20 transition-all disabled:opacity-50 text-xs font-bold"
+                                                            title="Borrar Logs de este día"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                            LIMPIAR
+                                                        </button>
+                                                    </div>
                                                 </div>
+
 
                                                 <div className="max-h-[400px] overflow-y-auto pr-1 scrollbar-hide bg-black/20 rounded-xl border border-white/5 p-1">
                                                     {loadingBlacklist ? (
@@ -1245,7 +1327,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                                             <div className="flex justify-center py-12">
                                                                 <RefreshCw className="animate-spin text-white/20" size={24} />
                                                             </div>
-                                                        ) : checkLogs.length === 0 ? (
+                                                        ) : logsList.length === 0 ? (
                                                             <div className="flex flex-col items-center justify-center py-20 text-white/20 gap-2">
                                                                 <ClipboardCheck size={32} opacity={0.5} />
                                                                 <span className="italic text-sm">No hay logs para esta fecha.</span>
@@ -1261,7 +1343,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                                                     </tr>
                                                                 </thead>
                                                                 <tbody className="divide-y divide-white/5 text-xs text-white/70">
-                                                                    {checkLogs.map((log, i) => (
+                                                                    {logsList.map((log, i) => (
                                                                         <tr key={i} className="hover:bg-white/5 transition-colors group">
                                                                             <td className="p-3 font-mono text-white/30 whitespace-nowrap text-[10px]">{log.timestamp}</td>
                                                                             <td className="p-3">
@@ -1385,12 +1467,11 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                         </div>
                                     </div>
                                 )}
-
                             </div>
                         </main>
                     </div>
                 </div>
-            </div >
-        </div >
+            </div>
+        </div>
     );
-}
+};
