@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Lock, ArrowRight, RefreshCw, LayoutDashboard, DownloadCloud, BrainCircuit, ClipboardCheck, Activity as ActivityIcon, AlertTriangle, Database, ChevronDown, ChevronUp, Home, Play, Clock, PlayCircle, AlertOctagon, Trash2, Trophy } from 'lucide-react';
+import { Lock, ArrowRight, RefreshCw, LayoutDashboard, DownloadCloud, BrainCircuit, ClipboardCheck, Activity as ActivityIcon, AlertTriangle, Database, ChevronDown, ChevronUp, Home, Play, Clock, PlayCircle, AlertOctagon, Trash2, Trophy, Info } from 'lucide-react';
 import { triggerTouchFeedback } from '@/utils/haptics';
 import Link from 'next/link';
 import { verifyAdminPassword } from './actions';
@@ -80,6 +80,10 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
     const [scriptsStatus, setScriptsStatus] = useState<Record<string, any>>({});
     const [blacklist, setBlacklist] = useState<Record<string, any>>({});
     const [loadingBlacklist, setLoadingBlacklist] = useState(false);
+    const [checkLogs, setCheckLogs] = useState<any[]>([]);
+    const [logsDate, setLogsDate] = useState<string>(new Date().toISOString().split('T')[0]);
+    const [loadingLogs, setLoadingLogs] = useState(false);
+    const [blacklistMode, setBlacklistMode] = useState<'list' | 'logs'>('list');
     const [saveNotification, setSaveNotification] = useState<{ show: boolean, type: 'success' | 'error', message: string }>({ show: false, type: 'success', message: '' });
 
     // Trigger States
@@ -353,6 +357,26 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
             alert("Error al borrar.");
         }
     };
+
+    const fetchCheckLogs = async (date: string) => {
+        setLoadingLogs(true);
+        try {
+            const res = await fetch(`/api/admin/check-logs?date=${date}`);
+            const data = await res.json();
+            if (data.logs) setCheckLogs(data.logs);
+            else setCheckLogs([]);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setLoadingLogs(false);
+        }
+    };
+
+    useEffect(() => {
+        if (activeControlTab === 'blacklist') {
+            fetchCheckLogs(logsDate);
+        }
+    }, [activeControlTab, logsDate]);
 
     if (isCheckingAuth) return null;
 
@@ -1093,52 +1117,179 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                             <AlertOctagon size={64} className="text-red-500" />
                                         </div>
 
-                                        <div className="border-b border-white/5 pb-4">
-                                            <h3 className="text-xl font-bold flex items-center gap-2 text-white">
-                                                <AlertOctagon className="text-red-500" size={24} />
-                                                BlackList
-                                                <span className="text-[10px] text-white/30 font-mono ml-1 hidden sm:inline">(ID_RESULT_FAILED)</span>
-                                            </h3>
-                                            <p className="text-[10px] text-white/30 font-mono mt-1 sm:hidden truncate">(ID_RESULT_FAILED)</p>
-                                        </div>
-
-                                        <div className="relative z-10">
-                                            <div className="max-h-[300px] overflow-y-auto pr-1 scrollbar-hide">
-                                                {loadingBlacklist ? (
-                                                    <div className="flex justify-center py-8">
-                                                        <RefreshCw className="animate-spin text-white/20" size={24} />
-                                                    </div>
-                                                ) : Object.keys(blacklist).length === 0 ? (
-                                                    <div className="text-center py-12 text-white/20 italic text-sm">
-                                                        No hay elementos en la lista negra para este mes.
-                                                    </div>
-                                                ) : (
-                                                    <div className="grid gap-2 mb-4">
-                                                        {Object.entries(blacklist).map(([key, value]: [string, any]) => (
-                                                            <div key={key} className="p-3 bg-black/20 rounded-lg border border-white/5 flex flex-col gap-1 hover:bg-black/40 transition-colors">
-                                                                <div className="flex justify-between items-center">
-                                                                    <span className="text-xs font-mono text-white/70 select-all">{key}</span>
-                                                                    <span className="text-[10px] bg-red-500/10 text-red-400 px-2 py-0.5 rounded uppercase font-bold">Failed</span>
-                                                                </div>
-                                                                <p className="text-xs text-white/50">
-                                                                    {typeof value === 'object' ? JSON.stringify(value) : String(value)}
-                                                                </p>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <div className="pt-4 border-t border-white/5">
+                                        <div className="flex flex-col items-center mb-8">
+                                            <div className="bg-[#0f0f11] p-1 rounded-full flex gap-1 border border-white/5">
                                                 <button
-                                                    onClick={() => setShowDeleteConfirm(true)}
-                                                    className="w-full sm:w-auto px-6 py-3 bg-red-600/10 hover:bg-red-600/20 border border-red-500/30 text-red-500 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+                                                    onClick={() => setBlacklistMode('list')}
+                                                    className={`flex items-center gap-2 px-6 py-2 rounded-full text-xs font-bold transition-all ${blacklistMode === 'list'
+                                                        ? 'bg-fuchsia-600 text-white shadow-[0_0_20px_-5px_rgba(192,38,211,0.5)]'
+                                                        : 'text-white/40 hover:text-white hover:bg-white/5'
+                                                        }`}
                                                 >
-                                                    <Trash2 size={16} />
-                                                    Limpiar Lista Negra
+                                                    <AlertOctagon size={14} />
+                                                    BLACKLIST
+                                                </button>
+                                                <button
+                                                    onClick={() => setBlacklistMode('logs')}
+                                                    className={`flex items-center gap-2 px-6 py-2 rounded-full text-xs font-bold transition-all ${blacklistMode === 'logs'
+                                                        ? 'bg-blue-600 text-white shadow-[0_0_20px_-5px_rgba(37,99,235,0.5)]'
+                                                        : 'text-white/40 hover:text-white hover:bg-white/5'
+                                                        }`}
+                                                >
+                                                    <ClipboardCheck size={14} />
+                                                    LOGS
                                                 </button>
                                             </div>
                                         </div>
+
+                                        {/* VIEW: BLACKLIST LIST */}
+                                        {blacklistMode === 'list' && (
+                                            <div className="space-y-6 relative z-10 animate-in fade-in duration-300">
+                                                <div className="flex items-center gap-2 text-white/50 text-xs font-mono mb-2 px-1">
+                                                    <Info size={12} />
+                                                    <span>Elementos totales: {Object.keys(blacklist).length}</span>
+                                                </div>
+
+                                                <div className="max-h-[400px] overflow-y-auto pr-1 scrollbar-hide bg-black/20 rounded-xl border border-white/5 p-1">
+                                                    {loadingBlacklist ? (
+                                                        <div className="flex justify-center py-12">
+                                                            <RefreshCw className="animate-spin text-white/20" size={24} />
+                                                        </div>
+                                                    ) : Object.keys(blacklist).length === 0 ? (
+                                                        <div className="text-center py-20 text-white/20 italic text-sm">
+                                                            No hay elementos en la lista negra.
+                                                        </div>
+                                                    ) : (
+                                                        <div className="grid gap-2">
+                                                            {Object.entries(blacklist).map(([key, value]: [string, any]) => (
+                                                                <div key={key} className="p-3 bg-black/40 rounded-lg border border-white/5 flex flex-col gap-1 hover:bg-black/60 transition-colors group">
+                                                                    <div className="flex justify-between items-center">
+                                                                        <span className="text-xs font-mono text-white/70 select-all group-hover:text-white transition-colors">{key}</span>
+                                                                        <span className="text-[9px] bg-red-500/10 text-red-500 border border-red-500/20 px-2 py-0.5 rounded uppercase font-bold tracking-wider">Failed</span>
+                                                                    </div>
+                                                                    <p className="text-[10px] text-white/40 font-mono truncate">
+                                                                        {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                                                                    </p>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <div className="pt-2">
+                                                    <button
+                                                        onClick={() => setShowDeleteConfirm(true)}
+                                                        disabled={Object.keys(blacklist).length === 0}
+                                                        className="w-full px-6 py-4 bg-red-900/10 hover:bg-red-900/20 border border-red-500/20 text-red-500 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed group"
+                                                    >
+                                                        <Trash2 size={16} className="group-hover:scale-110 transition-transform" />
+                                                        Borrar Todo
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* VIEW: LOGS TABLE */}
+                                        {blacklistMode === 'logs' && (
+                                            <div className="space-y-6 relative z-10 animate-in fade-in duration-300">
+                                                <div className="flex justify-between items-center bg-black/20 p-2 rounded-2xl border border-white/5">
+                                                    <span className="text-xs font-bold text-white/50 ml-4">Fecha del Log:</span>
+                                                    <div className="flex gap-2">
+                                                        {(() => {
+                                                            const today = new Date();
+                                                            const yesterday = new Date();
+                                                            yesterday.setDate(today.getDate() - 1);
+
+                                                            const formatDateBtn = (date: Date) => {
+                                                                const dayName = date.toLocaleDateString('es-ES', { weekday: 'short' }).replace('.', '').toUpperCase();
+                                                                const dayNum = date.getDate();
+                                                                return { dayName, dayNum, iso: date.toISOString().split('T')[0] };
+                                                            };
+
+                                                            const t = formatDateBtn(today);
+                                                            const y = formatDateBtn(yesterday);
+
+                                                            return (
+                                                                <>
+                                                                    <button
+                                                                        onClick={() => setLogsDate(t.iso)}
+                                                                        className={`relative min-w-[80px] h-14 rounded-xl flex flex-col items-center justify-center border transition-all active:scale-95 ${logsDate === t.iso
+                                                                            ? 'bg-blue-600/10 border-blue-500 shadow-[0_0_15px_-5px_rgba(59,130,246,0.3)]'
+                                                                            : 'bg-transparent border-transparent opacity-50 hover:opacity-100 hover:bg-white/5'
+                                                                            }`}
+                                                                    >
+                                                                        {logsDate === t.iso && <div className="absolute -top-2 bg-blue-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full shadow-lg">HOY</div>}
+                                                                        <span className={`text-[9px] font-bold uppercase leading-none mb-0.5 ${logsDate === t.iso ? 'text-blue-400' : 'text-white/50'}`}>{t.dayName}</span>
+                                                                        <span className={`text-xl font-black leading-none ${logsDate === t.iso ? 'text-white' : 'text-white/60'}`}>{t.dayNum}</span>
+                                                                    </button>
+
+                                                                    <button
+                                                                        onClick={() => setLogsDate(y.iso)}
+                                                                        className={`relative min-w-[80px] h-14 rounded-xl flex flex-col items-center justify-center border transition-all active:scale-95 ${logsDate === y.iso
+                                                                            ? 'bg-blue-600/10 border-blue-500 shadow-[0_0_15px_-5px_rgba(59,130,246,0.3)]'
+                                                                            : 'bg-transparent border-transparent opacity-50 hover:opacity-100 hover:bg-white/5'
+                                                                            }`}
+                                                                    >
+                                                                        <span className={`text-[9px] font-bold uppercase leading-none mb-0.5 ${logsDate === y.iso ? 'text-blue-400' : 'text-white/50'}`}>{y.dayName}</span>
+                                                                        <span className={`text-xl font-black leading-none ${logsDate === y.iso ? 'text-white' : 'text-white/60'}`}>{y.dayNum}</span>
+                                                                    </button>
+                                                                </>
+                                                            );
+                                                        })()}
+                                                    </div>
+                                                </div>
+
+                                                <div className="bg-black/20 rounded-xl border border-white/5 overflow-hidden min-h-[300px]">
+                                                    <div className="max-h-[400px] overflow-y-auto scrollbar-hide">
+                                                        {loadingLogs ? (
+                                                            <div className="flex justify-center py-12">
+                                                                <RefreshCw className="animate-spin text-white/20" size={24} />
+                                                            </div>
+                                                        ) : checkLogs.length === 0 ? (
+                                                            <div className="flex flex-col items-center justify-center py-20 text-white/20 gap-2">
+                                                                <ClipboardCheck size={32} opacity={0.5} />
+                                                                <span className="italic text-sm">No hay logs para esta fecha.</span>
+                                                            </div>
+                                                        ) : (
+                                                            <table className="w-full text-left border-collapse">
+                                                                <thead className="bg-white/5 text-[10px] uppercase font-bold text-white/40 sticky top-0 backdrop-blur-md z-10">
+                                                                    <tr>
+                                                                        <th className="p-3">Hora</th>
+                                                                        <th className="p-3">Evento</th>
+                                                                        <th className="p-3 text-center">Estado</th>
+                                                                        <th className="p-3 text-right">Detalle</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody className="divide-y divide-white/5 text-xs text-white/70">
+                                                                    {checkLogs.map((log, i) => (
+                                                                        <tr key={i} className="hover:bg-white/5 transition-colors group">
+                                                                            <td className="p-3 font-mono text-white/30 whitespace-nowrap text-[10px]">{log.timestamp}</td>
+                                                                            <td className="p-3">
+                                                                                <div className="font-bold text-white group-hover:text-blue-400 transition-colors">{log.match}</div>
+                                                                                <div className="text-[10px] text-white/50">{log.pick}</div>
+                                                                            </td>
+                                                                            <td className="p-3 text-center">
+                                                                                <span className={`inline-flex items-center justify-center w-16 py-0.5 rounded text-[9px] font-bold border ${log.status === 'WON' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                                                                                    log.status === 'LOST' ? 'bg-red-500/10 border-red-500/20 text-red-400' :
+                                                                                        log.status === 'SKIP' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
+                                                                                            log.status === 'ERROR' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
+                                                                                                'bg-white/5 border-white/10 text-white/30'
+                                                                                    }`}>
+                                                                                    {log.status}
+                                                                                </span>
+                                                                            </td>
+                                                                            <td className="p-3 text-right max-w-[200px]">
+                                                                                <span className="text-[10px] text-white/40 truncate block" title={log.message}>{log.message}</span>
+                                                                            </td>
+                                                                        </tr>
+                                                                    ))}
+                                                                </tbody>
+                                                            </table>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 

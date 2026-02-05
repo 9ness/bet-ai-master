@@ -341,6 +341,34 @@ def evaluate_player_prop_merged(pick, target_player, line, prop_type):
     return "VALID", (current_val, stat_label)
 
 
+def log_check_event(rs, date_str, fixture_id, match, pick, status, message, raw_response=None):
+    """
+    Logs a check event to Redis for visual debugging.
+    Key: betai:check_logs:{date_str} (List)
+    """
+    try:
+        log_entry = {
+            "timestamp": datetime.now().strftime("%H:%M:%S"),
+            "fixture_id": str(fixture_id),
+            "match": match,
+            "pick": pick,
+            "status": status,  # INFO, WARN, ERROR, WON, LOST, VOID, SKIP
+            "message": message,
+            "raw_response": str(raw_response) if raw_response else None
+        }
+        # Push to head of list (newest first for easy reading, or tail?)
+        # Let's push to tail so we read in order, but UI might want reverse. 
+        # RPUSH is standard log order.
+        # RedisService auto-prefixes, so we just pass "check_logs:{date_str}"
+        key = f"check_logs:{date_str}"
+        rs.rpush(key, json.dumps(log_entry))
+        # Expire after 2 days
+        rs.expire(key, 172800) 
+    except Exception as e:
+        print(f"[LOG-FAIL] Could not log event: {e}")
+
+
+
 def check_bets():
     print("--- AUTOMATED RESULT CHECKER STARTED ---")
     
@@ -357,6 +385,9 @@ def check_bets():
         return
 
     # Check Today and Yesterday (for late night games)
+    today_log_date = datetime.now().strftime("%Y-%m-%d")
+    log_check_event(rs, today_log_date, "SYSTEM", "SCRIPT_START", "INFO", "START", "Starting automated bet check routine...")
+
     dates_to_check = [
         datetime.now().strftime("%Y-%m-%d"),
         (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d"),
@@ -374,6 +405,7 @@ def check_bets():
     for date_str, category in check_queue:
         # Protect individual category processing so one failure doesn't stop others
         print(f"[*] Checking bets for date: {date_str} [Category: {category}]")
+        log_check_event(rs, today_log_date, "SYSTEM", f"CHECK_{category.upper()}", "INFO", "INFO", f"Checking {date_str} ({category})")
         
         bl_manager = BlacklistManager(rs, category=category)
         
@@ -385,6 +417,7 @@ def check_bets():
             
         if not raw_data:
             print(f"   - No data found for {date_str} ({category})")
+            log_check_event(rs, today_log_date, "SYSTEM", "DATA_FETCH", "INFO", "WARN", f"No data found for {date_str} ({category})")
             continue
             
         try:
@@ -430,12 +463,19 @@ def check_bets():
                 # Time Constraint
                 try:
                     match_time = datetime.strptime(sel["time"], "%Y-%m-%d %H:%M")
+                    # Check if match has started + 2.5 hours (approx end time)
+                    # Use a generous buffer. If now < start + 2.5h, we consider it "too early" to check final result
                     if datetime.now() < match_time + timedelta(hours=2.5):
                         pending_count += 1
                         all_won = False
+                        # Log only if not already logged recently? For now log every time to debug
+                        log_check_event(rs, today_log_date, sel.get("fixture_id", "N/A"), sel.get("match", "Unknown"), str(sel.get("pick", "")), "SKIP", f"Too Early (Match Time: {sel['time']})")
                         continue
-                except:
-                    continue
+                except Exception as e_time:
+                    # If time invalid (e.g. "00:00"), assume we should check it (don't skip)
+                    # print(f"Time parse error (ignoring): {e_time}")
+                    pass 
+
                 
                 fid = sel.get("fixture_id")
                 
@@ -447,6 +487,7 @@ def check_bets():
                 # [BLACKLIST CHECK] Use original 'fid' so stakazo failures are tracked separately
                 if bl_manager.is_blacklisted(fid, pick_lower, date_str):
                      print(f"      [SKIP] ID {fid} ({pick_lower}) is in Blacklist.")
+                     log_check_event(rs, date_str, fid, sel['match'], pick_lower, "SKIP", "Blacklisted")
                      pending_count += 1
                      all_won = False
                      continue
@@ -461,6 +502,7 @@ def check_bets():
                         data = get_basketball_result(api_fid)
                 except Exception as e_api:
                      print(f"      [API-WARN] Failed to fetch ID {fid}: {e_api}")
+                     log_check_event(rs, date_str, fid, sel['match'], pick_lower, "ERROR", f"API Fail: {e_api}")
                      pending_count += 1
                      all_won = False
                      continue
@@ -469,20 +511,27 @@ def check_bets():
                     pending_count += 1
                     all_won = False
                     print(f"      [PENDING] Data unavail/pending.")
+                    log_check_event(rs, date_str, fid, sel['match'], pick_lower, "PENDING", "Match Pending or No Data")
                     continue
                     
                 # --- EVALUATE WIN/LOSS ---
-                pick = (sel.get("pick") or "").lower()
-                pick = pick.replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o").replace("ú", "u")
+                pick = unidecode((sel.get("pick") or "").lower())
                 
                 # EXTRACT TEAM NAMES
                 home_team_clean = ""
                 away_team_clean = ""
                 try:
-                    match_parts = (sel.get("match") or "").lower().split(" vs ")
-                    if len(match_parts) == 2:
+                    match_raw = unidecode((sel.get("match") or "").lower())
+                    separators = [" vs ", " v ", " - "]
+                    match_parts = []
+                    for sep in separators:
+                        if sep in match_raw:
+                            match_parts = match_raw.split(sep)
+                            break
+                    
+                    if len(match_parts) >= 2:
                         home_team_clean = match_parts[0].strip()
-                        away_team_clean = match_parts[1].strip()
+                        away_team_clean = match_parts[-1].strip()
                 except: pass
                 
                 home_score = data["home_score"]
@@ -512,6 +561,7 @@ def check_bets():
                          
                          if not target_player:
                              print(f"      [WARN] Player not found for pick: {pick}")
+                             log_check_event(rs, date_str, fid, sel['match'], pick, "WARN", "Player Not Found in API Stats")
                              # Don't fail entire bet logic, just warn and leave pending
                              # Or blacklist? Blacklist for now to avoid stuck loop
                              pending_count += 1
@@ -738,6 +788,7 @@ def check_bets():
 
                 except Exception as e:
                     print(f"      [LOGIC-ERROR] Parsing Error for '{pick}': {e}")
+                    log_check_event(rs, date_str, fid, sel['match'], pick, "ERROR", f"Logic Error: {e}")
                     bl_manager.add(fid, pick, str(e), f"{sel['match']} - {pick}", date_str)
                     pending_count += 1
                     all_won = False
@@ -747,6 +798,7 @@ def check_bets():
                 status_str = "WON" if is_win else "LOST"
                 
                 print(f"      => Result: {status_str} ({result_str})")
+                log_check_event(rs, date_str, fid, sel['match'], pick, status_str, result_str)
                 sel["status"] = status_str
                 sel["result"] = result_str
                 bets_modified = True
@@ -795,9 +847,13 @@ def check_bets():
             day_data["day_profit"] = round(day_profit, 2)
             
             # Save Monthly
+            # Save Monthly
             month_key = date_str[:7]
             rs.hset(f"{category}:{month_key}", {date_str: json.dumps(day_data)})
-            
+
+
+
+
             # Sync Master (Latest Day Cache - Supports daily_bets and daily_bets_stakazo)
             if category in ["daily_bets", "daily_bets_stakazo"]:
                 try:

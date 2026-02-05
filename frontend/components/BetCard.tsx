@@ -79,6 +79,7 @@ const LEAGUE_NAME_FLAGS: Record<string, string> = {
     "Bundesliga": "de", "2. Bundesliga": "de",
     "Ligue 1": "fr", "La Liga": "es", "Copa del Rey": "es",
     "Serie A": "it", "Serie B": "it", "Coppa Italia": "it",
+    "Serie A Betano": "br", "Brasileirão": "br",
     "Eredivisie": "nl", "Eerste Divisie": "nl",
     "Süper Lig": "tr", "Saudi Pro League": "sa",
     "Major League Soccer": "us", "Liga MX": "mx",
