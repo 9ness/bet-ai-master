@@ -793,22 +793,29 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
     // --- FILTER VIRAL CONTENT ---
     const getProcessedSocialContent = () => {
         if (!socialContent) return null;
-        if (!onlyFootball) return socialContent;
 
-        const filter = (t: string) => {
-            if (!t) return "";
-            const blacklist = ['🏀', 'basket', 'nba', 'puntos', 'rebotes', 'asistencias', 'triples', 'euroleague', 'nbb', 'ncaa', 'pintura', 'cba', 'l NB', 'euroliga'];
-            return t.split('\n').filter(line => {
-                const l = line.toLowerCase();
-                return !blacklist.some(word => l.includes(word));
-            }).join('\n');
-        };
+        let title = socialContent.title || "";
+        let desc = socialContent.description || socialContent.caption || "";
 
-        return {
-            ...socialContent,
-            title: filter(socialContent.title),
-            description: filter(socialContent.description || socialContent.caption || "")
-        };
+        // 1. Clean Markdown (TikTok doesn't support bold)
+        const clean = (t: string) => t.replace(/\*\*/g, '');
+        title = clean(title);
+        desc = clean(desc);
+
+        // 2. Filter Sports if enabled
+        if (onlyFootball) {
+            const filter = (t: string) => {
+                const blacklist = ['🏀', 'basket', 'nba', 'puntos', 'rebotes', 'asistencias', 'triples', 'euroleague', 'nbb', 'ncaa', 'pintura', 'cba', 'l NB', 'euroliga'];
+                return t.split('\n').filter(line => {
+                    const l = line.toLowerCase();
+                    return !blacklist.some(word => l.includes(word));
+                }).join('\n');
+            };
+            title = filter(title);
+            desc = filter(desc);
+        }
+
+        return { ...socialContent, title, description: desc };
     };
     const processedSocialContent = getProcessedSocialContent();
 
