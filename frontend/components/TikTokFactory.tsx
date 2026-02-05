@@ -631,7 +631,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
 
     useEffect(() => {
         setSlideGroups(getAllSelections());
-    }, [predictions, onlyFootball]);
+    }, [predictions, onlyFootball, availableFiles]);
 
 
     // slidesData moved up
