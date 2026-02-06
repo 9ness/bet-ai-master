@@ -386,7 +386,7 @@ def check_bets():
 
     # Check Today and Yesterday (for late night games)
     today_log_date = datetime.now().strftime("%Y-%m-%d")
-    log_check_event(rs, today_log_date, "SYSTEM", "SCRIPT_START", "INFO", "START", "Starting automated bet check routine...")
+    # log_check_event(rs, today_log_date, "SYSTEM", "SCRIPT_START", "INFO", "START", "Starting automated bet check routine...")
 
     dates_to_check = [
         datetime.now().strftime("%Y-%m-%d"),
@@ -405,7 +405,7 @@ def check_bets():
     for date_str, category in check_queue:
         # Protect individual category processing so one failure doesn't stop others
         print(f"[*] Checking bets for date: {date_str} [Category: {category}]")
-        log_check_event(rs, today_log_date, "SYSTEM", f"CHECK_{category.upper()}", "INFO", "INFO", f"Checking {date_str} ({category})")
+        # log_check_event(rs, today_log_date, "SYSTEM", f"CHECK_{category.upper()}", "INFO", "INFO", f"Checking {date_str} ({category})")
         
         bl_manager = BlacklistManager(rs, category=category)
         
@@ -417,7 +417,7 @@ def check_bets():
             
         if not raw_data:
             print(f"   - No data found for {date_str} ({category})")
-            log_check_event(rs, today_log_date, "SYSTEM", "DATA_FETCH", "INFO", "WARN", f"No data found for {date_str} ({category})")
+            # log_check_event(rs, today_log_date, "SYSTEM", "DATA_FETCH", "INFO", "WARN", f"No data found for {date_str} ({category})")
             continue
             
         try:
@@ -500,10 +500,20 @@ def check_bets():
                 
                 data = None
                 try:
+                    # LOG REQUEST
+                    log_check_event(rs, date_str, fid, sel['match'], pick_lower, "INFO", f"Sending ID: {api_fid} ({sport})")
+                    
                     if sport == "football":
                         data = get_football_result(api_fid)
                     elif sport == "basketball":
                         data = get_basketball_result(api_fid)
+
+                    # LOG RESPONSE SUMMARY
+                    if data:
+                        summ = f"Score: {data.get('home_score')}-{data.get('away_score')}"
+                        if data.get('corners') is not None: summ += f", Corn: {data.get('corners')}"
+                        if data.get('cards') is not None: summ += f", Cards: {data.get('cards')}"
+                        log_check_event(rs, date_str, fid, sel['match'], pick_lower, "INFO", f"Received: {summ}")
                 except Exception as e_api:
                      print(f"      [API-WARN] Failed to fetch ID {fid}: {e_api}")
                      log_check_event(rs, date_str, fid, sel['match'], pick_lower, "ERROR", f"API Fail: {e_api}")

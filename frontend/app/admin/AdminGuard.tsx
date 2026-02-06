@@ -1,7 +1,12 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Lock, ArrowRight, RefreshCw, LayoutDashboard, DownloadCloud, BrainCircuit, ClipboardCheck, Activity as ActivityIcon, AlertTriangle, Database, ChevronDown, ChevronUp, Home, Play, Clock, PlayCircle, AlertOctagon, Trash2, Trophy, Info } from 'lucide-react';
+import {
+    Activity as ActivityIcon, AlertOctagon, AlertTriangle, ArrowLeft, ArrowRight, BarChart3, BrainCircuit, CheckCircle2,
+    ChevronDown, ChevronRight, ChevronUp, ClipboardCheck, Clock, Database, DownloadCloud,
+    FileText, Globe, Home, Info, LayoutDashboard, Lock, Menu, Play, PlayCircle, RefreshCw, Save,
+    Settings, Shield, Trash2, Trophy, X, Calendar
+} from 'lucide-react';
 import { triggerTouchFeedback } from '@/utils/haptics';
 import Link from 'next/link';
 import { verifyAdminPassword } from './actions';
@@ -1171,67 +1176,9 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                             </div>
                                         </div>
 
-                                        {/* VIEW: LOGS */}
-                                        {blacklistMode === 'logs' && (
+                                        {/* VIEW: BLACKLIST LIST */}
+                                        {blacklistMode === 'list' && (
                                             <div className="space-y-6 relative z-10 animate-in fade-in duration-300">
-
-                                                {/* Date Selector Header */}
-                                                <div className="flex justify-between items-center bg-[#0f0f11] p-4 rounded-xl border border-white/5">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="flex flex-col">
-                                                            <span className="text-[10px] uppercase tracking-wider text-white/40 font-bold mb-1">Fecha del Log:</span>
-                                                            <div className="flex items-center gap-2">
-                                                                <input
-                                                                    type="date"
-                                                                    value={logsDate}
-                                                                    onChange={(e) => setLogsDate(e.target.value)}
-                                                                    className="bg-transparent text-white font-mono text-lg outline-none cursor-pointer"
-                                                                />
-                                                                {isToday(logsDate) && (
-                                                                    <div className="bg-blue-600/20 text-blue-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-500/20">
-                                                                        HOY
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="flex items-center gap-2">
-                                                        <button
-                                                            onClick={checkLogs}
-                                                            disabled={loadingLogs}
-                                                            className="h-9 w-9 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-white/60 hover:text-white transition-all disabled:opacity-50"
-                                                            title="Recargar Logs"
-                                                        >
-                                                            <div className={`${loadingLogs ? 'animate-spin' : ''}`}>
-                                                                <RefreshCw size={16} />
-                                                            </div>
-                                                        </button>
-
-                                                        <button
-                                                            onClick={async () => {
-                                                                if (!confirm("¿Estás seguro de borrar los logs de este día?")) return;
-                                                                try {
-                                                                    setLoadingLogs(true);
-                                                                    await fetch(`/api/admin/check-logs?date=${logsDate}`, { method: 'DELETE' });
-                                                                    checkLogs(); // Reload
-                                                                } catch (err) {
-                                                                    console.error(err);
-                                                                } finally {
-                                                                    setLoadingLogs(false);
-                                                                }
-                                                            }}
-                                                            disabled={loadingLogs}
-                                                            className="h-9 px-3 flex items-center justify-center gap-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/20 transition-all disabled:opacity-50 text-xs font-bold"
-                                                            title="Borrar Logs de este día"
-                                                        >
-                                                            <Trash2 size={14} />
-                                                            LIMPIAR
-                                                        </button>
-                                                    </div>
-                                                </div>
-
-
                                                 <div className="max-h-[400px] overflow-y-auto pr-1 scrollbar-hide bg-black/20 rounded-xl border border-white/5 p-1">
                                                     {loadingBlacklist ? (
                                                         <div className="flex justify-center py-12">
@@ -1273,56 +1220,71 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
 
                                         {/* VIEW: LOGS TABLE */}
                                         {blacklistMode === 'logs' && (
-                                            <div className="space-y-6 relative z-10 animate-in fade-in duration-300">
-                                                <div className="flex justify-between items-center bg-black/20 p-2 rounded-2xl border border-white/5">
-                                                    <span className="text-xs font-bold text-white/50 ml-4">Fecha del Log:</span>
-                                                    <div className="flex gap-2">
-                                                        {(() => {
-                                                            const today = new Date();
-                                                            const yesterday = new Date();
-                                                            yesterday.setDate(today.getDate() - 1);
+                                            <div className="space-y-4 md:space-y-6 relative z-10 animate-in fade-in duration-300">
 
-                                                            const formatDateBtn = (date: Date) => {
-                                                                const dayName = date.toLocaleDateString('es-ES', { weekday: 'short' }).replace('.', '').toUpperCase();
-                                                                const dayNum = date.getDate();
-                                                                return { dayName, dayNum, iso: date.toISOString().split('T')[0] };
-                                                            };
+                                                {/* Combined Date Controls */}
+                                                <div className="flex flex-col md:flex-row justify-between items-center bg-[#0f0f11] p-3 md:p-4 rounded-xl border border-white/5 gap-4">
 
-                                                            const t = formatDateBtn(today);
-                                                            const y = formatDateBtn(yesterday);
+                                                    {/* Calendar Input */}
+                                                    <div className="flex items-center gap-3 w-full md:w-auto">
+                                                        <div className="bg-white/5 p-2 rounded-lg">
+                                                            <Calendar size={18} className="text-blue-400" />
+                                                        </div>
+                                                        <div className="flex flex-col">
+                                                            <span className="text-[10px] uppercase tracking-wider text-white/40 font-bold leading-none mb-1">Seleccionar Fecha</span>
+                                                            <input
+                                                                type="date"
+                                                                value={logsDate}
+                                                                onChange={(e) => setLogsDate(e.target.value)}
+                                                                className="bg-transparent text-white font-mono text-sm outline-none cursor-pointer w-full"
+                                                            />
+                                                        </div>
+                                                    </div>
 
-                                                            return (
-                                                                <>
-                                                                    <button
-                                                                        onClick={() => setLogsDate(t.iso)}
-                                                                        className={`relative min-w-[80px] h-14 rounded-xl flex flex-col items-center justify-center border transition-all active:scale-95 ${logsDate === t.iso
-                                                                            ? 'bg-blue-600/10 border-blue-500 shadow-[0_0_15px_-5px_rgba(59,130,246,0.3)]'
-                                                                            : 'bg-transparent border-transparent opacity-50 hover:opacity-100 hover:bg-white/5'
-                                                                            }`}
-                                                                    >
-                                                                        {logsDate === t.iso && <div className="absolute -top-2 bg-blue-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full shadow-lg">HOY</div>}
-                                                                        <span className={`text-[9px] font-bold uppercase leading-none mb-0.5 ${logsDate === t.iso ? 'text-blue-400' : 'text-white/50'}`}>{t.dayName}</span>
-                                                                        <span className={`text-xl font-black leading-none ${logsDate === t.iso ? 'text-white' : 'text-white/60'}`}>{t.dayNum}</span>
-                                                                    </button>
+                                                    {/* Quick Actions & Tools */}
+                                                    <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+                                                        {/* Quick Dates */}
+                                                        <div className="flex gap-1 mr-2 bg-black/40 p-1 rounded-lg border border-white/5">
+                                                            {(() => {
+                                                                const today = new Date();
+                                                                const yesterday = new Date();
+                                                                yesterday.setDate(today.getDate() - 1);
+                                                                const formatDateBtn = (date: Date) => {
+                                                                    const dayName = date.toLocaleDateString('es-ES', { weekday: 'short' }).replace('.', '').toUpperCase();
+                                                                    const dayNum = date.getDate();
+                                                                    return { dayName, dayNum, iso: date.toISOString().split('T')[0] };
+                                                                };
+                                                                const t = formatDateBtn(today);
+                                                                const y = formatDateBtn(yesterday);
+                                                                return (
+                                                                    <>
+                                                                        <button onClick={() => setLogsDate(t.iso)} className={`px-3 py-1 rounded text-[10px] font-bold transition-all ${logsDate === t.iso ? 'bg-blue-600 text-white' : 'text-white/40 hover:text-white'}`}>HOY</button>
+                                                                        <button onClick={() => setLogsDate(y.iso)} className={`px-3 py-1 rounded text-[10px] font-bold transition-all ${logsDate === y.iso ? 'bg-blue-600 text-white' : 'text-white/40 hover:text-white'}`}>AYER</button>
+                                                                    </>
+                                                                );
+                                                            })()}
+                                                        </div>
 
-                                                                    <button
-                                                                        onClick={() => setLogsDate(y.iso)}
-                                                                        className={`relative min-w-[80px] h-14 rounded-xl flex flex-col items-center justify-center border transition-all active:scale-95 ${logsDate === y.iso
-                                                                            ? 'bg-blue-600/10 border-blue-500 shadow-[0_0_15px_-5px_rgba(59,130,246,0.3)]'
-                                                                            : 'bg-transparent border-transparent opacity-50 hover:opacity-100 hover:bg-white/5'
-                                                                            }`}
-                                                                    >
-                                                                        <span className={`text-[9px] font-bold uppercase leading-none mb-0.5 ${logsDate === y.iso ? 'text-blue-400' : 'text-white/50'}`}>{y.dayName}</span>
-                                                                        <span className={`text-xl font-black leading-none ${logsDate === y.iso ? 'text-white' : 'text-white/60'}`}>{y.dayNum}</span>
-                                                                    </button>
-                                                                </>
-                                                            );
-                                                        })()}
+                                                        <button onClick={checkLogs} disabled={loadingLogs} className="h-9 w-9 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-white/60 hover:text-white transition-all disabled:opacity-50">
+                                                            <RefreshCw size={16} className={loadingLogs ? 'animate-spin' : ''} />
+                                                        </button>
+
+                                                        <button
+                                                            onClick={async () => {
+                                                                if (!confirm("¿Borrar logs del día?")) return;
+                                                                try { setLoadingLogs(true); await fetch(`/api/admin/check-logs?date=${logsDate}`, { method: 'DELETE' }); checkLogs(); }
+                                                                catch (err) { console.error(err); } finally { setLoadingLogs(false); }
+                                                            }}
+                                                            disabled={loadingLogs}
+                                                            className="h-9 w-9 flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/20 transition-all disabled:opacity-50"
+                                                        >
+                                                            <Trash2 size={16} />
+                                                        </button>
                                                     </div>
                                                 </div>
 
-                                                <div className="bg-black/20 rounded-xl border border-white/5 overflow-hidden min-h-[300px]">
-                                                    <div className="max-h-[400px] overflow-y-auto scrollbar-hide">
+                                                <div className="bg-black/20 rounded-xl border border-white/5 overflow-hidden min-h-[300px] flex flex-col">
+                                                    <div className="max-h-[500px] overflow-y-auto scrollbar-hide overflow-x-auto">
                                                         {loadingLogs ? (
                                                             <div className="flex justify-center py-12">
                                                                 <RefreshCw className="animate-spin text-white/20" size={24} />
@@ -1333,38 +1295,55 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                                                 <span className="italic text-sm">No hay logs para esta fecha.</span>
                                                             </div>
                                                         ) : (
-                                                            <table className="w-full text-left border-collapse">
+                                                            <table className="w-full text-left border-collapse min-w-[500px] md:min-w-full">
                                                                 <thead className="bg-white/5 text-[10px] uppercase font-bold text-white/40 sticky top-0 backdrop-blur-md z-10">
                                                                     <tr>
-                                                                        <th className="p-3">Hora</th>
+                                                                        <th className="p-3 w-20">Hora</th>
                                                                         <th className="p-3">Evento</th>
-                                                                        <th className="p-3 text-center">Estado</th>
-                                                                        <th className="p-3 text-right">Detalle</th>
+                                                                        <th className="p-3 text-center w-24">Estado</th>
+                                                                        <th className="p-3 text-right hidden md:table-cell">Detalle</th>
                                                                     </tr>
                                                                 </thead>
                                                                 <tbody className="divide-y divide-white/5 text-xs text-white/70">
-                                                                    {logsList.map((log, i) => (
-                                                                        <tr key={i} className="hover:bg-white/5 transition-colors group">
-                                                                            <td className="p-3 font-mono text-white/30 whitespace-nowrap text-[10px]">{log.timestamp}</td>
-                                                                            <td className="p-3">
-                                                                                <div className="font-bold text-white group-hover:text-blue-400 transition-colors">{log.match}</div>
-                                                                                <div className="text-[10px] text-white/50">{log.pick}</div>
-                                                                            </td>
-                                                                            <td className="p-3 text-center">
-                                                                                <span className={`inline-flex items-center justify-center w-16 py-0.5 rounded text-[9px] font-bold border ${log.status === 'WON' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                                                                                    log.status === 'LOST' ? 'bg-red-500/10 border-red-500/20 text-red-400' :
-                                                                                        log.status === 'SKIP' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
-                                                                                            log.status === 'ERROR' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
-                                                                                                'bg-white/5 border-white/10 text-white/30'
-                                                                                    }`}>
-                                                                                    {log.status}
-                                                                                </span>
-                                                                            </td>
-                                                                            <td className="p-3 text-right max-w-[200px]">
-                                                                                <span className="text-[10px] text-white/40 truncate block" title={log.message}>{log.message}</span>
-                                                                            </td>
-                                                                        </tr>
-                                                                    ))}
+                                                                    {logsList.map((log, i) => {
+                                                                        // Adjust time +1 hour
+                                                                        let displayTime = log.timestamp;
+                                                                        try {
+                                                                            // Assuming format "HH:mm:ss"
+                                                                            const [h, m, s] = log.timestamp.split(':').map(Number);
+                                                                            const d = new Date();
+                                                                            d.setHours(h, m, s);
+                                                                            d.setHours(d.getHours() + 1);
+                                                                            displayTime = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                                                                        } catch (e) {
+                                                                            // Fallback if format is different
+                                                                        }
+
+                                                                        return (
+                                                                            <tr key={i} className="hover:bg-white/5 transition-colors group">
+                                                                                <td className="p-3 font-mono text-white/30 whitespace-nowrap text-[10px] align-top">{displayTime}</td>
+                                                                                <td className="p-3 align-top">
+                                                                                    <div className="font-bold text-white group-hover:text-blue-400 transition-colors break-words">{log.match}</div>
+                                                                                    <div className="text-[10px] text-white/50 break-words mt-0.5">{log.pick}</div>
+                                                                                    {/* Mobile Only Message */}
+                                                                                    <div className="md:hidden text-[9px] text-white/30 mt-1 truncate">{log.message}</div>
+                                                                                </td>
+                                                                                <td className="p-3 text-center align-top">
+                                                                                    <span className={`inline-flex items-center justify-center w-full py-0.5 rounded text-[9px] font-bold border ${log.status === 'WON' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                                                                                        log.status === 'LOST' ? 'bg-red-500/10 border-red-500/20 text-red-400' :
+                                                                                            log.status === 'SKIP' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
+                                                                                                log.status === 'ERROR' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
+                                                                                                    'bg-white/5 border-white/10 text-white/30'
+                                                                                        }`}>
+                                                                                        {log.status}
+                                                                                    </span>
+                                                                                </td>
+                                                                                <td className="p-3 text-right max-w-[200px] hidden md:table-cell align-top">
+                                                                                    <span className="text-[10px] text-white/40 truncate block" title={log.message}>{log.message}</span>
+                                                                                </td>
+                                                                            </tr>
+                                                                        );
+                                                                    })}
                                                                 </tbody>
                                                             </table>
                                                         )}

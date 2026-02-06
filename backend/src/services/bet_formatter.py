@@ -31,6 +31,10 @@ class BetFormatter:
             "BTTS": "Ambos marcan:", "Corners": "Córners"
         }
         
+        self.TEAM_TRANSLATIONS = {
+            "Crvena zvezda": "Estrella Roja"
+        }
+        
     def clean_team_name(self, name):
         if not name: return "Desconocido"
         name = str(name).replace("(Home)", "").replace("(Away)", "").replace("(Local)", "").replace("(Visitante)", "")
@@ -44,6 +48,11 @@ class BetFormatter:
         
         # Specific Cleanups requested by user
         p = p.replace("Match Ganador:", "").replace("Match Winner:", "").replace("Ganador del Partido:", "").strip()
+        
+        # Apply Team Translations
+        for team, translation in self.TEAM_TRANSLATIONS.items():
+            if team in p:
+                p = p.replace(team, translation)
         
         # Protect specific names that look like markets
         if "Cengiz Under" in p:
@@ -113,6 +122,10 @@ class BetFormatter:
             raw_selections = bet.get("selections", [])
             for sel in raw_selections:
                 # Basic Translation & Cleaning
+                if "match" in sel:
+                    for team, trans in self.TEAM_TRANSLATIONS.items():
+                        sel["match"] = sel["match"].replace(team, trans)
+
                 home = ""
                 away = ""
                 if "vs" in sel.get("match", ""):

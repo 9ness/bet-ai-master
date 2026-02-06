@@ -326,7 +326,9 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
             {/* ... (League Flags) ... */}
 
             <h4 className="font-bold text-sm leading-tight mb-1 flex items-center flex-wrap gap-1">
-                {bet.match}
+                {/* MODIFIED: For single bets, prioritize the REAL Match Name over the AI Title */}
+                {(!hasDetails || details.length === 1) && details[0]?.match ? details[0].match : bet.match}
+
                 {(!hasDetails || details.length === 1) && details[0]?.league && (() => {
                     const sel = details[0];
                     const flagCode = getLeagueFlagCode(sel.league, sel.league_id, sel.country);
@@ -357,12 +359,10 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
                 />
             ) : (
                 <p className={`text-xs text-muted-foreground mb-1 italic ${finalType === 'stakazo' ? 'text-amber-500/80 font-medium' : ''}`}>
-                    {/* FIXED: For single bets labeled 'Combination', show the Match Name instead */}
-                    {((bet.pick === 'Combination' || !bet.pick) && details.length === 1 && details[0]?.match)
-                        ? details[0].match
-                        : (finalType === 'stakazo' && (bet.pick === 'Combination' || !bet.pick) && details[0]?.pick
-                            ? details[0].pick
-                            : bet.pick)}
+                    {/* MODIFIED: For single bets, show the Pick. If it's a combo/multibet, keep original logic */}
+                    {(!hasDetails || details.length === 1) && details[0]?.pick
+                        ? details[0].pick
+                        : bet.pick}
                 </p>
             )}
 
