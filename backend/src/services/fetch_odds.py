@@ -257,17 +257,21 @@ class SportsDataService:
                     "odds": odds
                 }
 
-                # NEW: Fetch H2H and Predictions (Football Only)
+                # NEW: Fetch H2H and Predictions
+                # Football: Predictions + H2H
                 if sport == "football":
                     # Fetch Predictions (Season context)
                     raw_preds = self._fetch_predictions(fix_id)
                     match_entry["predictions"] = self._process_predictions(raw_preds)
+                    self.calls_football += 1
+
+                # Both Sports: Head to Head (History context)
+                if sport in ["football", "basketball"]:
+                    raw_h2h = self._fetch_headtohead(home_id, away_id, sport)
+                    match_entry["h2h"] = self._process_h2h(raw_h2h, sport)
                     
-                    # Fetch Head to Head (History context)
-                    raw_h2h = self._fetch_headtohead(home_id, away_id)
-                    match_entry["h2h"] = self._process_h2h(raw_h2h)
-                    
-                    self.calls_football += 2 # Count the extra calls
+                    if sport == "football": self.calls_football += 1
+                    else: self.calls_basketball += 1
                 
                 matches_found.append(match_entry)
                 time.sleep(0.1) 
@@ -438,13 +442,19 @@ class SportsDataService:
             print(f"      [!] Error fetching predictions for {fixture_id}: {e}")
             return []
 
-    def _fetch_headtohead(self, home_id, away_id):
+    def _fetch_headtohead(self, home_id, away_id, sport="football"):
         """
-        Fetches H2H matches, filtering for Finished status and returning last 10.
+        Fetches H2H matches, returning last 10.
         """
         try:
-            url = f"{self.configs['football']['url']}/fixtures/headtohead"
-            resp = self._call_api(url, params={"h2h": f"{home_id}-{away_id}"})
+            base_url = self.configs[sport]["url"]
+            endpoint = "fixtures/headtohead" if sport == "football" else "games"
+            
+            # API-Basketball uses 'h2h' param just like Football?
+            # User provided: https://v1.basketball.api-sports.io/games?h2h=728-722
+            # Yes, param is 'h2h'.
+            
+            resp = self._call_api(f"{base_url}/{endpoint}", params={"h2h": f"{home_id}-{away_id}"})
             data = resp.json()
             raw_h2h = data.get("response", [])
             
@@ -453,19 +463,28 @@ class SportsDataService:
             filtered = []
             for match in raw_h2h:
                 # check status
-                status = match.get("fixture", {}).get("status", {}).get("short")
+                if sport == "football":
+                    status = match.get("fixture", {}).get("status", {}).get("short")
+                else:
+                    status = match.get("status", {}).get("short")
+                    
                 if status not in ["FT", "AET", "PEN"]:
                     continue
                 filtered.append(match)
                     
             # Sort by date desc (most recent first)
-            filtered.sort(key=lambda x: x["fixture"]["date"], reverse=True)
+            # Football: fixture.date, Basketball: date
+            def get_date(m):
+                if sport == "football": return m["fixture"]["date"]
+                return m.get("date", "1900-01-01")
+                
+            filtered.sort(key=get_date, reverse=True)
             
             # Return last 10
             return filtered[:10]
             
         except Exception as e:
-            print(f"      [!] Error fetching H2H for {home_id}-{away_id}: {e}")
+            print(f"      [!] Error fetching H2H for {home_id}-{away_id} ({sport}): {e}")
             return []
 
     def _process_predictions(self, raw_data):
@@ -520,7 +539,7 @@ class SportsDataService:
             print(f"      [!] Error processing predictions: {e}")
             return None
 
-    def _process_h2h(self, filtered_h2h):
+    def _process_h2h(self, filtered_h2h, sport="football"):
         """
         Simplifies the H2H list to only show Date, Score, Status, and League.
         """
@@ -529,14 +548,24 @@ class SportsDataService:
         processed = []
         for match in filtered_h2h:
             try:
-                date_str = match["fixture"]["date"][:10] # YYYY-MM-DD
-                home = match["teams"]["home"]["name"]
-                away = match["teams"]["away"]["name"]
-                home_goals = match['goals']['home']
-                away_goals = match['goals']['away']
-                score = f"{home_goals}-{away_goals}"
-                league_name = match["league"]["name"]
-                
+                if sport == "football":
+                    date_str = match["fixture"]["date"][:10] # YYYY-MM-DD
+                    home = match["teams"]["home"]["name"]
+                    away = match["teams"]["away"]["name"]
+                    home_goals = match['goals']['home']
+                    away_goals = match['goals']['away']
+                    score = f"{home_goals}-{away_goals}"
+                    league_name = match["league"]["name"]
+                else: # basketball
+                    date_str = match.get("date", "")[:10]
+                    home = match["teams"]["home"]["name"]
+                    away = match["teams"]["away"]["name"]
+                    # Basketball uses 'scores' -> 'home' -> 'total'
+                    home_goals = match.get("scores", {}).get("home", {}).get("total")
+                    away_goals = match.get("scores", {}).get("away", {}).get("total")
+                    score = f"{home_goals}-{away_goals}"
+                    league_name = match.get("league", {}).get("name", "Unknown")
+
                 processed.append({
                     "date": date_str,
                     "league": league_name,
