@@ -15,6 +15,7 @@ class BetFormatter:
             "To Win": "Gana", "to win": "gana",
             "To Gana": "Gana", "to Gana": "gana", # Safety catch
             "Match Winner": "Ganador", "Match Gana": "Ganador",
+            "Del Partido": "Ganador",
             
             # General Terms
             "Player Total Shots": "Remates Totales:",
@@ -108,6 +109,35 @@ class BetFormatter:
                 
         return p
 
+    def format_reason(self, text):
+        if not text: return text
+        t = str(text)
+        
+        # 1. Vectores de Valor (Ensure start)
+        # Often starts with it, just ensure it's bold if needed or just leave it.
+        # The user seems to care about separation.
+        
+        # 2. Key headings to separate
+        headings = [
+            "Auditoría de Descarte:", "Auditoria de Descarte:",
+            "Proyección de Confianza:", "Proyeccion de Confianza:"
+        ]
+        
+        for h in headings:
+            # Replace any whitespace preceding the heading with double newline + heading
+            # We use a simple replace first to safeguard against regex complexity if simple match works
+            if h in t:
+                # If NOT preceded by newline, fix it.
+                # Simplest robust way: remove existing newlines around it, then add fresh ones.
+                # But that might be aggressive.
+                
+                # Regex: Find [any whitespace including newlines] + [heading]
+                # Replace with \n\n + [heading]
+                pattern = r'\s*(' + re.escape(h) + r')'
+                t = re.sub(pattern, r'\n\n\1', t)
+                
+        return t
+
     def process_bets(self, bets_list):
         """
         Main entry point to format a list of bets.
@@ -116,6 +146,10 @@ class BetFormatter:
         
         processed_bets = []
         for bet in bets_list:
+            # 0. Format Reason
+            if "reason" in bet:
+                bet["reason"] = self.format_reason(bet["reason"])
+
             new_selections = []
             
             # 1. Process Selections

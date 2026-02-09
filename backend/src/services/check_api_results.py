@@ -692,7 +692,7 @@ def check_bets():
                              elif is_x2: is_win = away_score >= home_score
                              elif "12" in clean: is_win = home_score != away_score
                         # 2. BTTS
-                        elif "ambos marcan" in pick or "btts" in pick:
+                        elif "ambos marcan" in pick or "btts" in pick or "ambos equipos anotan" in pick or "ambos anotan" in pick:
                              if "sí" in pick or "yes" in pick or "si" in pick: is_win = home_score > 0 and away_score > 0
                              else: is_win = home_score == 0 or away_score == 0
                              

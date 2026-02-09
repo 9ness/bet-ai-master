@@ -481,7 +481,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         else if (displayPick.toLowerCase() === "x2") displayPick = `Empate o ${teams[1] || "Visitante"}`;
         else if (displayPick.toLowerCase() === "12") displayPick = `${teams[0] || "Local"} o ${teams[1] || "Visitante"}`;
         else {
-            displayPick = displayPick.replace(/Apuesta/gi, "").replace(/Ganador/gi, "").replace(/Gana/gi, "").replace(/Doble Oportunidad/gi, "").replace(/\(.*\)/g, "").replace(/\bAH\b/gi, "Hándicap").trim();
+            displayPick = displayPick.replace(/Apuesta/gi, "").replace(/Ganador/gi, "").replace(/Gana/gi, "").replace(/Del Partido/gi, "").replace(/Doble Oportunidad/gi, "").replace(/\(.*\)/g, "").replace(/\bAH\b/gi, "Hándicap").replace(/^[\s\-]+|[\s\-]+$/g, "").trim();
             displayPick = displayPick.replace(/\blocal\b/gi, teams[0] || "Local").replace(/\bvisitante\b/gi, teams[1] || "Visitante");
 
             // Capitalize first letter
