@@ -20,15 +20,15 @@ jobs:
       run: |
         pip install -r backend/requirements.txt
         
-    - name: 1. Fetch Tomorrow's Odds (TikTok Mode)
-      env:
-        API_KEY: ${{ secrets.API_KEY }}
-        REDIS_URL: ${{ secrets.REDIS_URL }}
-        REDIS_TOKEN: ${{ secrets.REDIS_TOKEN }}
-        PROXY_URL: ${{ secrets.PROXY_URL }}
-      run: |
-        cd backend
-        python src/services/fetch_odds_tiktok.py
+#    - name: 1. Fetch Tomorrow's Odds (TikTok Mode)
+#      env:
+#        API_KEY: ${{ secrets.API_KEY }}
+#        REDIS_URL: ${{ secrets.REDIS_URL }}
+#        REDIS_TOKEN: ${{ secrets.REDIS_TOKEN }}
+#        PROXY_URL: ${{ secrets.PROXY_URL }}
+#      run: |
+#        cd backend
+#        python src/services/fetch_odds_tiktok.py
 
     - name: 2. Analyze Viral Bets (TikTok Mode)
       env:
