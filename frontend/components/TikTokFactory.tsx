@@ -44,7 +44,48 @@ const TabButton = ({ id, label, icon: Icon, activeTab, setActiveTab }: any) => {
 export default function TikTokFactory({ predictions, formattedDate, rawDate }: TikTokFactoryProps) {
     // --- STATE ---
     const [activeTab, setActiveTab] = useState<'editor' | 'portada' | 'bets' | 'outro' | 'bg'>('editor');
-    const [onlyFootball, setOnlyFootball] = useState(true); // NEW: Football Only Filter
+    const [onlyFootball, setOnlyFootball] = useState(true);
+
+    // --- NEW: VIRAL MODE (Today vs Tomorrow) ---
+    const [viewMode, setViewMode] = useState<'today' | 'tomorrow'>('today');
+    const [localPredictions, setLocalPredictions] = useState(predictions);
+
+    useEffect(() => {
+        setLocalPredictions(predictions);
+    }, [predictions]);
+
+    // Fetch Data on Mode Change
+    useEffect(() => {
+        const fetchData = async () => {
+            if (viewMode === 'today') {
+                // Restore props and today's social
+                setLocalPredictions(predictions);
+                fetch('/api/social/tiktok').then(res => res.ok ? res.json() : null).then(data => data?.title && setSocialContent(data));
+            } else {
+                // Fetch Tomorrow's Data
+                try {
+                    const [predsRes, socialRes] = await Promise.all([
+                        fetch('/api/predictions-tomorrow'),
+                        fetch('/api/social/tiktok-tomorrow')
+                    ]);
+
+                    if (predsRes.ok) {
+                        const predsData = await predsRes.json();
+                        setLocalPredictions(predsData);
+                    }
+
+                    if (socialRes.ok) {
+                        const socialData = await socialRes.json();
+                        if (socialData?.title) setSocialContent(socialData);
+                    }
+                } catch (e) {
+                    console.error("Error fetching viral mode data", e);
+                }
+            }
+        };
+        fetchData();
+    }, [viewMode, predictions]);
+
 
     const [generating, setGenerating] = useState(false);
     const [images, setImages] = useState<string[]>([]);
@@ -241,7 +282,8 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
     }, [isDragging, textPositions, textScales]);
 
     useEffect(() => {
-        fetch('/api/social/tiktok').then(res => res.ok ? res.json() : null).then(data => data?.title && setSocialContent(data));
+        // Initial Fetch for Today (managed by viewMode effect now, but keep distinct if needed)
+        // fetch('/api/social/tiktok').then(res => res.ok ? res.json() : null).then(data => data?.title && setSocialContent(data));
         fetch('/api/backgrounds').then(res => res.json()).then(data => data.files && setAvailableFiles(data.files));
     }, []);
 
@@ -442,16 +484,35 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
     };
 
     useEffect(() => {
+        const titleText = viewMode === 'tomorrow' ? "JUBILADORA PARA MAÑANA" : "JUBILADORA PARA HOY";
+
         if (config.useFullDate) {
-            setConfig(prev => ({ ...prev, introTitle: `JUBILADORA PARA HOY\n${getFormattedDateLong()}`, introEmoji1: '⚽', introEmoji2: '📅' }));
+            // Calculate date based on viewMode
+            let dateToUse = new Date(rawDate || formattedDate);
+            if (viewMode === 'tomorrow') {
+                dateToUse.setDate(dateToUse.getDate() + 1);
+            }
+
+            // Format manually to ensure correct display
+            const dayName = new Intl.DateTimeFormat('es-ES', { weekday: 'long' }).format(dateToUse);
+            const dayNum = dateToUse.getDate();
+            const monthName = new Intl.DateTimeFormat('es-ES', { month: 'short' }).format(dateToUse);
+            const dateString = `${dayName.charAt(0).toUpperCase() + dayName.slice(1)} ${dayNum} ${monthName.charAt(0).toUpperCase() + monthName.slice(1)}`;
+
+            setConfig(prev => ({ ...prev, introTitle: `${titleText}\n${dateString}`, introEmoji1: '⚽', introEmoji2: '📅' }));
         } else {
-            setConfig(prev => ({ ...prev, introTitle: `JUBILADORA PARA HOY\n(${getDayName()})`, introEmoji1: '🤫', introEmoji2: '✅' }));
+            // Calculate day name
+            let dateToUse = new Date();
+            if (viewMode === 'tomorrow') dateToUse.setDate(dateToUse.getDate() + 1);
+            const dayName = ['DOMINGO', 'LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'][dateToUse.getDay()];
+
+            setConfig(prev => ({ ...prev, introTitle: `${titleText}\n(${dayName})`, introEmoji1: '🤫', introEmoji2: '✅' }));
         }
-    }, [config.useFullDate]);
+    }, [config.useFullDate, viewMode]);
 
     const calculateInitialOdds = (addHundred: boolean) => {
         let totalOdd = 1;
-        const rawBets = predictions?.bets || (Array.isArray(predictions) ? predictions : []);
+        const rawBets = localPredictions?.bets || (Array.isArray(localPredictions) ? localPredictions : []);
         let found = false;
         if (rawBets.length > 0) {
             rawBets.forEach((b: any) => { const odd = parseFloat(b.total_odd || b.odd); if (!isNaN(odd) && odd > 0) { totalOdd *= odd; found = true; } });
@@ -466,7 +527,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         return `+${oddValue} 📈`;
     };
 
-    useEffect(() => setConfig(prev => ({ ...prev, introSubtitle: calculateInitialOdds(prev.addHundred) })), [predictions]);
+    useEffect(() => setConfig(prev => ({ ...prev, introSubtitle: calculateInitialOdds(prev.addHundred) })), [localPredictions, viewMode]);
 
     const parseBetDisplay = (match: string, pick: string) => {
         if (!match) return { match: "Evento Desconocido", pick: pick || "" };
@@ -492,11 +553,11 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
 
     const getAllSelections = () => {
         const flatBets: any[] = [];
-        const rawBets = predictions?.bets || (Array.isArray(predictions) ? predictions : []);
+        const rawBets = localPredictions?.bets || (Array.isArray(localPredictions) ? localPredictions : []);
         if (rawBets.length === 0) {
-            if (predictions?.safe) rawBets.push(predictions.safe);
-            if (predictions?.value) rawBets.push(predictions.value);
-            if (predictions?.funbet) rawBets.push(predictions.funbet);
+            if (localPredictions?.safe) rawBets.push(localPredictions.safe);
+            if (localPredictions?.value) rawBets.push(localPredictions.value);
+            if (localPredictions?.funbet) rawBets.push(localPredictions.funbet);
         }
         rawBets.forEach((bet: any) => {
             if (!bet) return;
@@ -631,7 +692,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
 
     useEffect(() => {
         setSlideGroups(getAllSelections());
-    }, [predictions, onlyFootball, availableFiles]);
+    }, [localPredictions, onlyFootball, availableFiles, viewMode]);
 
 
     // slidesData moved up
@@ -834,6 +895,26 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                     <TabButton id="outro" label="Cierre" icon={Megaphone} activeTab={activeTab} setActiveTab={setActiveTab} />
                 </div>
 
+                {/* VIRAL MODE TOGGLE (MOBILE) */}
+                <div className="px-4">
+                    <div className="flex bg-[#1a1a1a] rounded-xl border border-white/10 p-1">
+                        <button
+                            onClick={() => setViewMode('today')}
+                            className={`flex-1 py-3 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all
+                                ${viewMode === 'today' ? 'bg-white text-black shadow-lg' : 'text-white/40 hover:text-white'}`}
+                        >
+                            HOY
+                        </button>
+                        <button
+                            onClick={() => setViewMode('tomorrow')}
+                            className={`flex-1 py-3 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1
+                                ${viewMode === 'tomorrow' ? 'bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white shadow-lg' : 'text-white/40 hover:text-white'}`}
+                        >
+                            <span>MAÑANA</span>
+                        </button>
+                    </div>
+                </div>
+
                 {/* 2. CONTENT AREA */}
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 min-h-[500px]">
                     {/* TAB 1: EDITOR */}
@@ -960,6 +1041,26 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                         </button>
                     </div>
 
+                    {/* VIRAL MODE TOGGLE (GLOBAL) */}
+                    <div className="p-3 border-b border-white/5 bg-[#121212]">
+                        <div className="flex bg-[#1a1a1a] rounded-xl border border-white/10 p-1">
+                            <button
+                                onClick={() => setViewMode('today')}
+                                className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all
+                                ${viewMode === 'today' ? 'bg-white text-black shadow-lg' : 'text-white/40 hover:text-white'}`}
+                            >
+                                HOY
+                            </button>
+                            <button
+                                onClick={() => setViewMode('tomorrow')}
+                                className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1
+                                ${viewMode === 'tomorrow' ? 'bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white shadow-lg' : 'text-white/40 hover:text-white'}`}
+                            >
+                                <span>MAÑANA</span>
+                            </button>
+                        </div>
+                    </div>
+
                     {/* PC CONTENT */}
                     <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-4">
 
@@ -1000,6 +1101,8 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                             }`} />
                                     </div>
                                 </button>
+
+
                                 {slideGroups.map((group, idx) => (
                                     <div key={idx} className="bg-black/30 p-3 rounded-xl border border-white/5 hover:border-sky-500/20 transition-all">
                                         <div className="flex gap-2 mb-2"><input value={group.matchDisplay} onChange={e => { const n = [...slideGroups]; n[idx].matchDisplay = e.target.value; setSlideGroups(n) }} className="bg-transparent border-b border-white/10 w-full text-xs font-bold text-sky-300 focus:border-sky-500 outline-none pb-1" /><button onClick={() => { const n = [...slideGroups]; n[idx].isFeatured = !n[idx].isFeatured; setSlideGroups(n) }} className={`p-1 rounded ${group.isFeatured ? 'bg-sky-500 text-white' : 'text-white/20'}`}><ScanEye size={12} /></button></div>
@@ -1083,18 +1186,20 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                         </div>
                     </div>
                 </div>
-            </div>
+            </div >
 
             {/* MODAL & RENDERER (Cleaned up) */}
-            {showSocialModal && processedSocialContent && (
-                <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur p-4 text-left">
-                    <div className="bg-[#1a1a1a] border border-white/10 rounded-3xl p-6 w-full max-w-md space-y-4">
-                        <div className="flex justify-between items-center"><h3 className="font-bold text-white flex gap-2 items-center">📱 Viral Content {onlyFootball && <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 rounded-full border border-emerald-500/30">FÚTBOL</span>}</h3><button onClick={() => setShowSocialModal(false)} className="text-white/50"><X size={24} /></button></div>
-                        <div className="space-y-2"><label className="text-[10px] text-emerald-400 font-bold uppercase">Título</label><div className="flex gap-2"><div className="flex-1 bg-black/50 p-2 rounded text-white text-sm">{processedSocialContent.title}</div><button onClick={() => handleCopyText(processedSocialContent.title, 't')} className="p-2 bg-white/10 rounded hover:bg-white/20 text-white">{copiedStates['t'] ? <Check size={16} /> : <Copy size={16} />}</button></div></div>
-                        <div className="space-y-2"><label className="text-[10px] text-purple-400 font-bold uppercase">Caption</label><div className="flex gap-2"><div className="flex-1 bg-black/50 p-2 rounded text-white/80 text-xs max-h-32 overflow-y-auto whitespace-pre-line">{processedSocialContent.description}</div><button onClick={() => handleCopyText(processedSocialContent.description, 'c')} className="p-2 bg-white/10 rounded hover:bg-white/20 text-white h-fit">{copiedStates['c'] ? <Check size={16} /> : <Copy size={16} />}</button></div></div>
+            {
+                showSocialModal && processedSocialContent && (
+                    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur p-4 text-left">
+                        <div className="bg-[#1a1a1a] border border-white/10 rounded-3xl p-6 w-full max-w-md space-y-4">
+                            <div className="flex justify-between items-center"><h3 className="font-bold text-white flex gap-2 items-center">📱 Viral Content {onlyFootball && <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 rounded-full border border-emerald-500/30">FÚTBOL</span>}</h3><button onClick={() => setShowSocialModal(false)} className="text-white/50"><X size={24} /></button></div>
+                            <div className="space-y-2"><label className="text-[10px] text-emerald-400 font-bold uppercase">Título</label><div className="flex gap-2"><div className="flex-1 bg-black/50 p-2 rounded text-white text-sm">{processedSocialContent.title}</div><button onClick={() => handleCopyText(processedSocialContent.title, 't')} className="p-2 bg-white/10 rounded hover:bg-white/20 text-white">{copiedStates['t'] ? <Check size={16} /> : <Copy size={16} />}</button></div></div>
+                            <div className="space-y-2"><label className="text-[10px] text-purple-400 font-bold uppercase">Caption</label><div className="flex gap-2"><div className="flex-1 bg-black/50 p-2 rounded text-white/80 text-xs max-h-32 overflow-y-auto whitespace-pre-line">{processedSocialContent.description}</div><button onClick={() => handleCopyText(processedSocialContent.description, 'c')} className="p-2 bg-white/10 rounded hover:bg-white/20 text-white h-fit">{copiedStates['c'] ? <Check size={16} /> : <Copy size={16} />}</button></div></div>
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {previewImg && <div className="fixed inset-0 z-[2000] bg-black/95 backdrop-blur flex items-center justify-center p-4" onClick={() => setPreviewImg(null)}><img src={previewImg} className="h-full object-contain rounded-xl shadow-2xl" /></div>}
 
@@ -1130,202 +1235,203 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
             </div>
 
             {/* IMAGE SELECTOR MODAL */}
-            {imageSelector.idx !== null && (
-                <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/90 backdrop-blur p-4">
-                    <div className="bg-[#1a1a1a] border border-white/10 rounded-3xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
-                        <div className="p-6 border-b border-white/10 space-y-4 bg-[#1a1a1a] z-10">
-                            <div className="flex justify-between items-center">
-                                <div>
-                                    <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                                        <ImageIcon size={20} className="text-amber-500" />
-                                        Seleccionar Fondo {imageSelector.idx === 0 ? "(Portada)" : `(Slide ${imageSelector.idx + 1})`}
-                                    </h3>
-                                    <p className="text-xs text-white/40 mt-1">Elige una imagen de la galería para reemplazar</p>
+            {
+                imageSelector.idx !== null && (
+                    <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/90 backdrop-blur p-4">
+                        <div className="bg-[#1a1a1a] border border-white/10 rounded-3xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+                            <div className="p-6 border-b border-white/10 space-y-4 bg-[#1a1a1a] z-10">
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                            <ImageIcon size={20} className="text-amber-500" />
+                                            Seleccionar Fondo {imageSelector.idx === 0 ? "(Portada)" : `(Slide ${imageSelector.idx + 1})`}
+                                        </h3>
+                                        <p className="text-xs text-white/40 mt-1">Elige una imagen de la galería para reemplazar</p>
+                                    </div>
+                                    <button onClick={() => setImageSelector({ idx: null })} className="p-2 hover:bg-white/10 rounded-full transition"><X size={24} className="text-white/70" /></button>
                                 </div>
-                                <button onClick={() => setImageSelector({ idx: null })} className="p-2 hover:bg-white/10 rounded-full transition"><X size={24} className="text-white/70" /></button>
-                            </div>
 
-                            {/* --- ACTION BAR (Removed) --- */}
+                                {/* --- ACTION BAR (Removed) --- */}
 
-                            {/* ... (Existing Filters) ... */}
-                            <div className="flex flex-wrap items-center gap-2 border-t border-white/5 pt-4">
-                                <button
-                                    onClick={() => { setBgFilter('all'); setBgTeamSelected(null); }}
-                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border
+                                {/* ... (Existing Filters) ... */}
+                                <div className="flex flex-wrap items-center gap-2 border-t border-white/5 pt-4">
+                                    <button
+                                        onClick={() => { setBgFilter('all'); setBgTeamSelected(null); }}
+                                        className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border
                                         ${bgFilter === 'all' ? 'bg-white text-black border-white' : 'bg-white/5 text-white/60 border-white/10 hover:bg-white/10'}`}
-                                >
-                                    Todas ({availableFiles.length})
-                                </button>
-                                {/* ... other filters ... */}
-                                <button
-                                    onClick={() => { setBgFilter('futbol'); setBgTeamSelected(null); }}
-                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border
+                                    >
+                                        Todas ({availableFiles.length})
+                                    </button>
+                                    {/* ... other filters ... */}
+                                    <button
+                                        onClick={() => { setBgFilter('futbol'); setBgTeamSelected(null); }}
+                                        className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border
                                         ${bgFilter === 'futbol' ? 'bg-sky-500 text-white border-sky-500' : 'bg-sky-500/10 text-sky-400 border-sky-500/20 hover:bg-sky-500/20'}`}
-                                >
-                                    ⚽ Fútbol ({availableFiles.filter(f => getFilename(f).includes('futbol') && !getFilename(f).includes('portada')).length})
-                                </button>
-                                <button
-                                    onClick={() => { setBgFilter('basket'); setBgTeamSelected(null); }}
-                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border
+                                    >
+                                        ⚽ Fútbol ({availableFiles.filter(f => getFilename(f).includes('futbol') && !getFilename(f).includes('portada')).length})
+                                    </button>
+                                    <button
+                                        onClick={() => { setBgFilter('basket'); setBgTeamSelected(null); }}
+                                        className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border
                                         ${bgFilter === 'basket' ? 'bg-orange-500 text-white border-orange-500' : 'bg-orange-500/10 text-orange-400 border-orange-500/20 hover:bg-orange-500/20'}`}
-                                >
-                                    🏀 Basket ({availableFiles.filter(f => getFilename(f).includes('basket') && !getFilename(f).includes('portada')).length})
-                                </button>
-                                <button
-                                    onClick={() => { setBgFilter('portada'); setBgTeamSelected(null); }}
-                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border
+                                    >
+                                        🏀 Basket ({availableFiles.filter(f => getFilename(f).includes('basket') && !getFilename(f).includes('portada')).length})
+                                    </button>
+                                    <button
+                                        onClick={() => { setBgFilter('portada'); setBgTeamSelected(null); }}
+                                        className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border
                                         ${bgFilter === 'portada' ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'}`}
-                                >
-                                    🖼️ Portada ({availableFiles.filter(f => getFilename(f).includes('portada')).length})
-                                </button>
-                                <button
-                                    onClick={() => { setBgFilter('comodin'); setBgTeamSelected(null); }}
-                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border
+                                    >
+                                        🖼️ Portada ({availableFiles.filter(f => getFilename(f).includes('portada')).length})
+                                    </button>
+                                    <button
+                                        onClick={() => { setBgFilter('comodin'); setBgTeamSelected(null); }}
+                                        className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border
                                         ${bgFilter === 'comodin' ? 'bg-purple-500 text-white border-purple-500' : 'bg-purple-500/10 text-purple-400 border-purple-500/20 hover:bg-purple-500/20'}`}
-                                >
-                                    🃏 Comodín ({availableFiles.filter(f => getFilename(f).includes('comodin')).length})
-                                </button>
-                                <button
-                                    onClick={() => setBgFilter('equipo')}
-                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border
+                                    >
+                                        🃏 Comodín ({availableFiles.filter(f => getFilename(f).includes('comodin')).length})
+                                    </button>
+                                    <button
+                                        onClick={() => setBgFilter('equipo')}
+                                        className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border
                                         ${bgFilter === 'equipo' ? 'bg-amber-500 text-black border-amber-500' : 'bg-amber-500/10 text-amber-500 border-amber-500/20 hover:bg-amber-500/20'}`}
-                                >
-                                    🛡️ Equipos ({new Set(availableFiles.filter(f => {
-                                        const n = getFilename(f);
-                                        return (n.includes('futbol') || n.includes('basket')) && !n.includes('comodin') && !n.includes('portada');
-                                    }).map(f => getFilename(f).split('-')[2])).size})
-                                </button>
+                                    >
+                                        🛡️ Equipos ({new Set(availableFiles.filter(f => {
+                                            const n = getFilename(f);
+                                            return (n.includes('futbol') || n.includes('basket')) && !n.includes('comodin') && !n.includes('portada');
+                                        }).map(f => getFilename(f).split('-')[2])).size})
+                                    </button>
+                                </div>
+
+                                {/* --- TEAM SELECTOR (Conditional) --- */}
+                                {bgFilter === 'equipo' && (
+                                    <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-200 border-t border-white/5 pt-3">
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => { setBgSportForTeam('futbol'); setBgTeamSelected(null); }}
+                                                className={`flex-1 py-1 rounded-md text-[9px] font-black uppercase tracking-tighter transition-all
+                                                ${bgSportForTeam === 'futbol' ? 'bg-sky-500 text-white' : 'bg-white/5 text-white/30'}`}
+                                            >
+                                                Fútbol
+                                            </button>
+                                            <button
+                                                onClick={() => { setBgSportForTeam('basket'); setBgTeamSelected(null); }}
+                                                className={`flex-1 py-1 rounded-md text-[9px] font-black uppercase tracking-tighter transition-all
+                                                ${bgSportForTeam === 'basket' ? 'bg-orange-500 text-white' : 'bg-white/5 text-white/30'}`}
+                                            >
+                                                Basket
+                                            </button>
+                                        </div>
+                                        {/* Team List with Search */}
+                                        <div className="space-y-2">
+                                            <div className="relative">
+                                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={12} />
+                                                <input
+                                                    type="text"
+                                                    placeholder="Buscar equipo..."
+                                                    value={teamSearch}
+                                                    onChange={(e) => setTeamSearch(e.target.value)}
+                                                    className="w-full bg-black/40 border border-white/10 rounded-lg py-2 pl-9 pr-3 text-xs text-white focus:border-white/30 outline-none placeholder:text-white/20"
+                                                />
+                                            </div>
+                                            <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-h-[140px] overflow-y-auto custom-scrollbar p-1">
+                                                {Array.from(new Set(availableFiles
+                                                    .filter(f => {
+                                                        const lower = getFilename(f).toLowerCase();
+                                                        const sport = bgSportForTeam === 'futbol' ? 'futbol' : 'basket';
+                                                        return lower.startsWith(`bg-${sport}-`) && !lower.includes('comodin') && !lower.includes('portada');
+                                                    })
+                                                    .map(f => {
+                                                        const parts = getFilename(f).split('-');
+                                                        return (parts[2] || "").toLowerCase();
+                                                    })
+                                                    .filter(Boolean)
+                                                ))
+                                                    .filter(team => team.toLowerCase().includes(teamSearch.toLowerCase()))
+                                                    .sort((a, b) => {
+                                                        const nameA = formatTeamName(a);
+                                                        const nameB = formatTeamName(b);
+                                                        return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+                                                    }).map(team => (
+                                                        <div key={team} className="relative group/btn flex items-stretch">
+                                                            <button
+                                                                onClick={() => setBgTeamSelected(team)}
+                                                                className={`flex-1 px-3 py-2 rounded-l-lg text-[9px] font-bold uppercase border-y border-l transition-all text-left truncate
+                                                    ${bgTeamSelected === team ? 'bg-white text-black border-white' : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/10'}`}
+                                                            >
+                                                                {formatTeamName(team)}
+                                                            </button>
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); handleDeleteFolder(team, bgSportForTeam === 'futbol' ? 'futbol' : 'basket'); }}
+                                                                className={`px-2 rounded-r-lg border-y border-r transition-colors flex items-center justify-center
+                                                    ${bgTeamSelected === team ? 'bg-white border-white text-black/50 hover:text-red-600' : 'bg-white/5 border-white/10 text-white/20 hover:text-red-500 hover:bg-white/10'}`}
+                                                            >
+                                                                <Trash2 size={10} />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                {/* Empty state */}
+                                                {teamSearch && !Array.from(new Set(availableFiles.map(f => getFilename(f).split('-')[2]))).some(t => t?.toLowerCase().includes(teamSearch.toLowerCase())) && (
+                                                    <p className="col-span-full text-center text-[10px] text-white/30 py-2">No se encontraron equipos</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
-                            {/* --- TEAM SELECTOR (Conditional) --- */}
-                            {bgFilter === 'equipo' && (
-                                <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-200 border-t border-white/5 pt-3">
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={() => { setBgSportForTeam('futbol'); setBgTeamSelected(null); }}
-                                            className={`flex-1 py-1 rounded-md text-[9px] font-black uppercase tracking-tighter transition-all
-                                                ${bgSportForTeam === 'futbol' ? 'bg-sky-500 text-white' : 'bg-white/5 text-white/30'}`}
-                                        >
-                                            Fútbol
-                                        </button>
-                                        <button
-                                            onClick={() => { setBgSportForTeam('basket'); setBgTeamSelected(null); }}
-                                            className={`flex-1 py-1 rounded-md text-[9px] font-black uppercase tracking-tighter transition-all
-                                                ${bgSportForTeam === 'basket' ? 'bg-orange-500 text-white' : 'bg-white/5 text-white/30'}`}
-                                        >
-                                            Basket
-                                        </button>
-                                    </div>
-                                    {/* Team List with Search */}
-                                    <div className="space-y-2">
-                                        <div className="relative">
-                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={12} />
-                                            <input
-                                                type="text"
-                                                placeholder="Buscar equipo..."
-                                                value={teamSearch}
-                                                onChange={(e) => setTeamSearch(e.target.value)}
-                                                className="w-full bg-black/40 border border-white/10 rounded-lg py-2 pl-9 pr-3 text-xs text-white focus:border-white/30 outline-none placeholder:text-white/20"
-                                            />
-                                        </div>
-                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-h-[140px] overflow-y-auto custom-scrollbar p-1">
-                                            {Array.from(new Set(availableFiles
-                                                .filter(f => {
-                                                    const lower = getFilename(f).toLowerCase();
-                                                    const sport = bgSportForTeam === 'futbol' ? 'futbol' : 'basket';
-                                                    return lower.startsWith(`bg-${sport}-`) && !lower.includes('comodin') && !lower.includes('portada');
-                                                })
-                                                .map(f => {
-                                                    const parts = getFilename(f).split('-');
-                                                    return (parts[2] || "").toLowerCase();
-                                                })
-                                                .filter(Boolean)
-                                            ))
-                                                .filter(team => team.toLowerCase().includes(teamSearch.toLowerCase()))
-                                                .sort((a, b) => {
-                                                    const nameA = formatTeamName(a);
-                                                    const nameB = formatTeamName(b);
-                                                    return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
-                                                }).map(team => (
-                                                    <div key={team} className="relative group/btn flex items-stretch">
-                                                        <button
-                                                            onClick={() => setBgTeamSelected(team)}
-                                                            className={`flex-1 px-3 py-2 rounded-l-lg text-[9px] font-bold uppercase border-y border-l transition-all text-left truncate
-                                                    ${bgTeamSelected === team ? 'bg-white text-black border-white' : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/10'}`}
-                                                        >
-                                                            {formatTeamName(team)}
-                                                        </button>
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); handleDeleteFolder(team, bgSportForTeam === 'futbol' ? 'futbol' : 'basket'); }}
-                                                            className={`px-2 rounded-r-lg border-y border-r transition-colors flex items-center justify-center
-                                                    ${bgTeamSelected === team ? 'bg-white border-white text-black/50 hover:text-red-600' : 'bg-white/5 border-white/10 text-white/20 hover:text-red-500 hover:bg-white/10'}`}
-                                                        >
-                                                            <Trash2 size={10} />
-                                                        </button>
-                                                    </div>
-                                                ))}
-                                            {/* Empty state */}
-                                            {teamSearch && !Array.from(new Set(availableFiles.map(f => getFilename(f).split('-')[2]))).some(t => t?.toLowerCase().includes(teamSearch.toLowerCase())) && (
-                                                <p className="col-span-full text-center text-[10px] text-white/30 py-2">No se encontraron equipos</p>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-black/20">
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                                {/* ... grid items ... */}
-                                {availableFiles
-                                    .filter(f => {
-                                        const fname = getFilename(f);
-                                        const lowerName = fname.toLowerCase();
-                                        if (bgFilter === 'all') return true;
-                                        if (bgFilter === 'portada') return fname.includes('portada');
-                                        if (bgFilter === 'comodin') return fname.includes('comodin');
-                                        if (bgFilter === 'futbol' && !fname.includes('portada')) return fname.includes('futbol');
-                                        if (bgFilter === 'basket' && !fname.includes('portada')) return fname.includes('basket');
-                                        if (bgFilter === 'equipo') {
-                                            if (!bgTeamSelected) return false;
-                                            return lowerName.includes(`bg-${bgSportForTeam}-${bgTeamSelected.toLowerCase()}-`);
-                                        }
-                                        return true;
-                                    })
-                                    .sort((a, b) => {
-                                        if (a === config.bgSelection[imageSelector.idx!]) return -1;
-                                        if (b === config.bgSelection[imageSelector.idx!]) return 1;
-                                        return a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true });
-                                    }).map((file, i) => (
-                                        <div
-                                            key={i}
-                                            onClick={() => {
-                                                handleBgChange(imageSelector.idx!, file);
-                                                setImageSelector({ idx: null });
-                                            }}
-                                            className={`
+                            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-black/20">
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                    {/* ... grid items ... */}
+                                    {availableFiles
+                                        .filter(f => {
+                                            const fname = getFilename(f);
+                                            const lowerName = fname.toLowerCase();
+                                            if (bgFilter === 'all') return true;
+                                            if (bgFilter === 'portada') return fname.includes('portada');
+                                            if (bgFilter === 'comodin') return fname.includes('comodin');
+                                            if (bgFilter === 'futbol' && !fname.includes('portada')) return fname.includes('futbol');
+                                            if (bgFilter === 'basket' && !fname.includes('portada')) return fname.includes('basket');
+                                            if (bgFilter === 'equipo') {
+                                                if (!bgTeamSelected) return false;
+                                                return lowerName.includes(`bg-${bgSportForTeam}-${bgTeamSelected.toLowerCase()}-`);
+                                            }
+                                            return true;
+                                        })
+                                        .sort((a, b) => {
+                                            if (a === config.bgSelection[imageSelector.idx!]) return -1;
+                                            if (b === config.bgSelection[imageSelector.idx!]) return 1;
+                                            return a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true });
+                                        }).map((file, i) => (
+                                            <div
+                                                key={i}
+                                                onClick={() => {
+                                                    handleBgChange(imageSelector.idx!, file);
+                                                    setImageSelector({ idx: null });
+                                                }}
+                                                className={`
                                                 group relative aspect-[9/16] rounded-xl overflow-hidden border-2 cursor-pointer transition-all duration-200 hover:scale-105
                                                 ${config.bgSelection[imageSelector.idx!] === file ? 'border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.3)] ring-2 ring-amber-500/20' : 'border-white/5 hover:border-white/30'}
                                             `}
-                                        >
-                                            <img src={getImageSrc(file)} className="w-full h-full object-cover" loading="lazy" />
-                                            <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/90 via-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <p className="text-[10px] text-white font-mono truncate">
-                                                    {formatTeamName(getFilename(file).split('-')[2] || getFilename(file).replace('bg-', '').replace('.png', ''))}
-                                                </p>
-                                            </div>
-                                            {config.bgSelection[imageSelector.idx!] === file && (
-                                                <div className="absolute top-2 right-2 bg-amber-500 text-black p-1 rounded-full shadow-lg">
-                                                    <Check size={12} strokeWidth={4} />
+                                            >
+                                                <img src={getImageSrc(file)} className="w-full h-full object-cover" loading="lazy" />
+                                                <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/90 via-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <p className="text-[10px] text-white font-mono truncate">
+                                                        {formatTeamName(getFilename(file).split('-')[2] || getFilename(file).replace('bg-', '').replace('.png', ''))}
+                                                    </p>
                                                 </div>
-                                            )}
-                                        </div>
-                                    ))}
+                                                {config.bgSelection[imageSelector.idx!] === file && (
+                                                    <div className="absolute top-2 right-2 bg-amber-500 text-black p-1 rounded-full shadow-lg">
+                                                        <Check size={12} strokeWidth={4} />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            )
+                )
             }
 
             {/* SEARCH ONLINE MODAL */}
