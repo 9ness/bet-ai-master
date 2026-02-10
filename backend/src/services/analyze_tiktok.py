@@ -64,11 +64,17 @@ def _analyze_logic(rs):
     print(f"\n[STEP 1] Fetching Data for TikTok (Date: {target_date_str})...")
     
     # Try Redis specifically for TikTok key (HASH: betai:raw_matches:YYYY-MM_tiktok)
-    redis_hash_key = f"betai:raw_matches:{month_key}_tiktok"
+    # Removing 'betai:' manual prefix to rely on RedisService auto-prefixing
+    redis_hash_key = f"raw_matches:{month_key}_tiktok"
+    
+    print(f"[DEBUG] Fetching HASH Key: '{rs._get_key(redis_hash_key)}' | Field: '{target_date_str}'")
     raw_json = rs.client.hget(redis_hash_key, target_date_str)
     
     if not raw_json:
-        print(f"[ERROR] No raw matches found for {target_date_str}_tiktok.")
+        print(f"[ERROR] No raw matches found for {target_date_str}_tiktok in key {redis_hash_key}.")
+        # Debug: Check if hash exists at all
+        exists = rs.client.keys(redis_hash_key)
+        print(f"[DEBUG] Key Exists Check: {exists}")
         return
 
     raw_matches = json.loads(raw_json)
@@ -157,11 +163,16 @@ INPUT DATA (MATCHES FOR {target_date_str}):
         "bets": valid_bets
     }
     
-    redis_key = f"betai:daily_bets:{target_date_str}_tiktok"
-    # Using raw set because RedisService might not have a specialized method for this custom key
-    rs.client.set(redis_key, json.dumps(output_payload))
+    today = datetime.now()
+    month_key = tomorrow.strftime("%Y-%m")
     
-    print(f"[SUCCESS] Saved {len(valid_bets)} viral bets to Redis: {redis_key}")
+    # Save to HASH: daily_bets:YYYY-MM_tiktok
+    # Field: YYYY-MM-DD
+    redis_hash_key = f"daily_bets:{month_key}_tiktok"
+    
+    rs.client.hset(redis_hash_key, target_date_str, json.dumps(output_payload))
+    
+    print(f"[SUCCESS] Saved {len(valid_bets)} viral bets to Redis Hash: {rs._get_key(redis_hash_key)} -> Field: {target_date_str}")
 
 if __name__ == "__main__":
     analyze_tiktok()

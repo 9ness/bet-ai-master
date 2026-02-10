@@ -114,10 +114,11 @@ class SportsDataServiceTikTok:
         rs = RedisService()
         
         month_key = tomorrow.strftime("%Y-%m")
-        redis_hash_key = f"betai:raw_matches:{month_key}_tiktok"
+        # Removing 'betai:' manual prefix to rely on RedisService auto-prefixing
+        redis_hash_key = f"raw_matches:{month_key}_tiktok"
         
         rs.client.hset(redis_hash_key, target_date_str, json.dumps(all_matches))
-        print(f"[REDIS] Guardado en Hash {redis_hash_key} -> Field {target_date_str}")
+        print(f"[REDIS] Guardado en Hash {rs._get_key(redis_hash_key)} -> Field {target_date_str}")
             
         print(f"\n[FINISH] Total partidos guardados: {len(all_matches)}")
         print(f"[CONSUMO] Fútbol: {self.calls_football}")
