@@ -65,15 +65,18 @@ def _analyze_logic(rs):
     
     # Try Redis specifically for TikTok key (HASH: betai:raw_matches:YYYY-MM_tiktok)
     # Removing 'betai:' manual prefix to rely on RedisService auto-prefixing
-    redis_hash_key = f"raw_matches:{month_key}_tiktok"
+    raw_key = f"raw_matches:{month_key}_tiktok"
+    redis_hash_key = rs._get_key(raw_key)
     
-    print(f"[DEBUG] Fetching HASH Key: '{rs._get_key(redis_hash_key)}' | Field: '{target_date_str}'")
-    raw_json = rs.client.hget(redis_hash_key, target_date_str)
+    print(f"[DEBUG] Fetching HASH Key: '{redis_hash_key}' | Field: '{target_date_str}'")
+    
+    # Use direct _send_command to avoid wrapper confusion
+    raw_json = rs._send_command("HGET", redis_hash_key, target_date_str)
     
     if not raw_json:
         print(f"[ERROR] No raw matches found for {target_date_str}_tiktok in key {redis_hash_key}.")
         # Debug: Check if hash exists at all
-        exists = rs.client.keys(redis_hash_key)
+        exists = rs._send_command("KEYS", redis_hash_key)
         print(f"[DEBUG] Key Exists Check: {exists}")
         return
 
