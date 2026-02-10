@@ -21,9 +21,9 @@ def generate_viral_caption_tiktok():
     tomorrow = now + timedelta(days=1)
     target_date_str = tomorrow.strftime("%Y-%m-%d")
     
-    # Use the specific accessor for Hash structure (New Format: daily_bets:YYYY-MM_tiktok -> Field: YYYY-MM-DD)
+    # Use the specific accessor for Hash structure (New Format: daily_bets_tiktok:YYYY-MM -> Field: YYYY-MM-DD)
     month_key = tomorrow.strftime("%Y-%m")
-    redis_hash_key = f"daily_bets:{month_key}_tiktok"
+    redis_hash_key = f"daily_bets_tiktok:{month_key}"
     
     console_log(f"🔍 Buscando apuestas en Hash: '{redis._get_key(redis_hash_key)}' Field: '{target_date_str}'")
     

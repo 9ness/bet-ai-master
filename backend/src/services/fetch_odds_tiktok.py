@@ -115,7 +115,8 @@ class SportsDataServiceTikTok:
         
         month_key = tomorrow.strftime("%Y-%m")
         # Removing 'betai:' manual prefix to rely on RedisService auto-prefixing
-        redis_hash_key = f"raw_matches:{month_key}_tiktok"
+        # New Format: raw_matches_tiktok:YYYY-MM
+        redis_hash_key = f"raw_matches_tiktok:{month_key}"
         
         rs.client.hset(redis_hash_key, target_date_str, json.dumps(all_matches))
         print(f"[REDIS] Guardado en Hash {rs._get_key(redis_hash_key)} -> Field {target_date_str}")

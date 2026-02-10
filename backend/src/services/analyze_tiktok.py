@@ -63,14 +63,14 @@ def _analyze_logic(rs):
     
     print(f"\n[STEP 1] Fetching Data for TikTok (Date: {target_date_str})...")
     
-    # Try Redis specifically for TikTok key (HASH: betai:raw_matches:YYYY-MM_tiktok)
-    # Removing 'betai:' manual prefix to rely on RedisService auto-prefixing
-    raw_key = f"raw_matches:{month_key}_tiktok"
+    print(f"\n[STEP 1] Fetching Data for TikTok (Date: {target_date_str})...")
+    
+    # New Format: raw_matches_tiktok:YYYY-MM
+    # Removed Fuzzy Logic - Using Strict Key as requested
+    raw_key = f"raw_matches_tiktok:{month_key}"
     redis_hash_key = rs._get_key(raw_key)
-    
-    print(f"[DEBUG] Fetching HASH Key: '{redis_hash_key}' | Field: '{target_date_str}'")
-    
-    # Use direct _send_command to avoid wrapper confusion
+
+    print(f"[DEBUG] Fetching Field: '{target_date_str}' from Key: '{redis_hash_key}'")
     raw_json = rs._send_command("HGET", redis_hash_key, target_date_str)
     
     if not raw_json:
@@ -169,9 +169,9 @@ INPUT DATA (MATCHES FOR {target_date_str}):
     today = datetime.now()
     month_key = tomorrow.strftime("%Y-%m")
     
-    # Save to HASH: daily_bets:YYYY-MM_tiktok
+    # Save to HASH: daily_bets_tiktok:YYYY-MM
     # Field: YYYY-MM-DD
-    redis_hash_key = f"daily_bets:{month_key}_tiktok"
+    redis_hash_key = f"daily_bets_tiktok:{month_key}"
     
     rs.client.hset(redis_hash_key, target_date_str, json.dumps(output_payload))
     
