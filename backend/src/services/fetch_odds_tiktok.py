@@ -38,16 +38,15 @@ class SportsDataServiceTikTok:
             "football": {
                 "url": "https://v3.football.api-sports.io",
                 "leagues": [
-                    39, 40, 41, 42, 45, 48,          # Inglaterra
-                    140, 141, 143,                   # España
-                    135, 136, 137,                   # Italia
-                    78, 79,                          # Alemania
-                    61, 62,                          # Francia
-                    88, 89,                          # Países Bajos
-                    94, 203, 529, 253,               # Portugal, Turquía, Arabia, MLS
-                    13, 103, 113, 144, 197,          # Libertadores, Noruega, Suecia, Bélgica, Grecia
-                    2, 3, 848, 11,                   # UCL, UEL, UECL, Sudamericana
-                    71, 128, 130, 262, 265, 292      # Brasil, Argentina, México, Chile, Corea
+                    # PRINCIPALES (Top 5 + Eredivisie + Portugal + Copas)
+                    39, 140, 135, 78, 61, 88, 94, 253, 
+                    13, 103, 2, 3, 848, 11, 71, 128, 130, 262, 265,
+                    # SECUNDARIAS (2ª Divisiones Importantes - Relleno si faltan principales)
+                    40, 41, 42,       # Championship, League One, League Two
+                    141,              # LaLiga 2
+                    136,              # Serie B
+                    79,               # 2. Bundesliga
+                    62                # Ligue 2
                 ],
                 "markets": [1, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 16, 17, 21, 25, 27, 28, 31, 45, 50, 54, 57, 58, 59, 80, 82, 83, 87, 173],
                 "bookmaker": 8 
@@ -108,12 +107,17 @@ class SportsDataServiceTikTok:
         with open(self.output_file, 'w', encoding='utf-8') as f:
             json.dump(all_matches, f, indent=4, ensure_ascii=False)
 
-        # Save to Redis
+        # Save to Redis (HASH Structure)
+        # Key: betai:raw_matches:YYYY-MM_tiktok
+        # Field: YYYY-MM-DD
         from src.services.redis_service import RedisService
         rs = RedisService()
-        redis_key = f"raw_matches:{target_date_str}_tiktok"
-        rs.client.set(redis_key, json.dumps(all_matches))
-        print(f"[REDIS] Guardado en {redis_key}")
+        
+        month_key = tomorrow.strftime("%Y-%m")
+        redis_hash_key = f"betai:raw_matches:{month_key}_tiktok"
+        
+        rs.client.hset(redis_hash_key, target_date_str, json.dumps(all_matches))
+        print(f"[REDIS] Guardado en Hash {redis_hash_key} -> Field {target_date_str}")
             
         print(f"\n[FINISH] Total partidos guardados: {len(all_matches)}")
         print(f"[CONSUMO] Fútbol: {self.calls_football}")
@@ -145,15 +149,44 @@ class SportsDataServiceTikTok:
             if total_on_date == 0:
                 print(f"      [WARN] Respuesta vacía de API para {date_str}.")
             
-            passed_filter_count = 0
-            
+            # 1. First Pass: Identify Candidates (No Extra API Cost)
+            candidates = []
             for item in items:
-                # SAFETY LIMIT: Max 30 calls total
-                if self.calls_football >= 28:
-                    print(f"      [LIMIT] Se ha alcanzado el límite de seguridad de llamadas (30). Deteniendo...")
+                lid = item["league"]["id"]
+                match_ts = item["fixture"]["timestamp"]
+                
+                # League Filter
+                if lid not in target_leagues: continue
+                # Time Filter
+                if not (min_ts <= match_ts <= max_ts): continue
+                
+                candidates.append(item)
+            
+            print(f"      [INFO] Partidos encontrados: {total_on_date}")
+            print(f"      [INFO] Candidatos TOTALES (Filtro Liga + Hora): {len(candidates)}")
+            
+            # --- PRIORITY LOGIC ---
+            # Priorizamos ligas principales. Si faltan, rellenamos con secundarias hasta 14 partidos.
+            PRIORITY_LEAGUES = [39, 140, 135, 78, 61, 88, 94, 253, 13, 103, 2, 3, 848, 11, 71, 128, 130, 262, 265]
+            
+            # Sort: Priority leagues first (True comes before False in reverse sort? No, True=1, False=0. Reverse=True puts Priority first)
+            candidates.sort(key=lambda x: x["league"]["id"] in PRIORITY_LEAGUES, reverse=True)
+            
+            # Limit to 14 Matches (14 * 2 calls = 28 calls + 1 init = 29 calls < 30 Limit)
+            final_candidates = candidates[:14]
+            print(f"      [INFO] Selección FINAL: {len(final_candidates)} partidos (Priorizando ligoas top).")
+
+            # 2. Second Pass: Process Candidates (Expensive API Calls)
+            processed_count = 0
+            
+            for item in final_candidates:
+                # SAFETY LIMIT: Max 30 calls total (Estricto)
+                if self.calls_football >= 30:
+                    print(f"      [LIMIT] Se ha alcanzado el límite estricto de llamadas (30). Deteniendo...")
+                    print(f"      [STATS] Procesados {processed_count} de {len(final_candidates)} candidatos seleccionados.")
                     break
 
-                # 1. Extract Metadata
+                # Extract Metadata
                 lid = item["league"]["id"]
                 match_ts = item["fixture"]["timestamp"]
                 fix_id = item["fixture"]["id"]
@@ -169,20 +202,12 @@ class SportsDataServiceTikTok:
                 venue = f"{venue_obj.get('name', '')}, {venue_obj.get('city', '')}".strip(', ')
                 round_name = item["league"].get("round")
 
-                # 2. League Filter (Whitelist Check)
-                if lid not in target_leagues:
-                    continue
-
-                # 3. Timestamp Filter (Strict for TikTok 17:45 - 23:59)
-                if not (min_ts <= match_ts <= max_ts):
-                    continue
-
-                passed_filter_count += 1
+                # (Filters are already passed)
                 
                 # Fetch Odds (Filtered)
                 odds = self._get_odds(sport, base_url, fix_id, whitelist_markets, bookmaker_id)
                 self.calls_football += 1
-                print(f"      [API] Usadas: {self.calls_football}/30 (Odds)")
+                print(f"      [API] Usadas: {self.calls_football}/30 (Odds) | Partido: {home} vs {away}")
                         
                 match_entry = {
                     "sport": sport, 
@@ -203,23 +228,20 @@ class SportsDataServiceTikTok:
                     "odds": odds
                 }
 
-                # Predictions + H2H
-                raw_preds = self._fetch_predictions(fix_id)
-                match_entry["predictions"] = self._process_predictions(raw_preds)
-                self.calls_football += 1
-                print(f"      [API] Usadas: {self.calls_football}/30 (Predicciones)")
+                # Predictions (DISABLED)
+                match_entry["predictions"] = None
 
+                # H2H
                 raw_h2h = self._fetch_headtohead(home_id, away_id, sport)
                 match_entry["h2h"] = self._process_h2h(raw_h2h, sport)
                 self.calls_football += 1
                 print(f"      [API] Usadas: {self.calls_football}/30 (H2H)")
                 
                 matches_found.append(match_entry)
+                processed_count += 1
                 
                 # Small delay to respect rate limits if needed
-                time.sleep(0.05) 
-            
-            print(f"      -> Encontrados {total_on_date} partidos totales. {passed_filter_count} pasan filtros (Liga+Hora).")
+                time.sleep(0.05)
 
         except Exception as e:
             print(f"    [!] Error fetching {sport} for {date_str}: {e}")

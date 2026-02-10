@@ -48,7 +48,7 @@ def _analyze_logic(rs):
             raise ValueError("GEMINI_API_KEY no encontrada")
             
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-1.5-pro-002') # Using smart model for complex reasoning
+        model = genai.GenerativeModel('gemini-3-pro-preview') # Using smart model for complex reasoning
         print("[INIT] Model configured")
         
     except Exception as e:
@@ -59,11 +59,13 @@ def _analyze_logic(rs):
     now = datetime.now()
     tomorrow = now + timedelta(days=1)
     target_date_str = tomorrow.strftime("%Y-%m-%d")
+    month_key = tomorrow.strftime("%Y-%m")
     
     print(f"\n[STEP 1] Fetching Data for TikTok (Date: {target_date_str})...")
     
-    # Try Redis specifically for TikTok key
-    raw_json = rs.client.get(f"raw_matches:{target_date_str}_tiktok")
+    # Try Redis specifically for TikTok key (HASH: betai:raw_matches:YYYY-MM_tiktok)
+    redis_hash_key = f"betai:raw_matches:{month_key}_tiktok"
+    raw_json = rs.client.hget(redis_hash_key, target_date_str)
     
     if not raw_json:
         print(f"[ERROR] No raw matches found for {target_date_str}_tiktok.")
