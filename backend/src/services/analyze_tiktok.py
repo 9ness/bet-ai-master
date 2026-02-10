@@ -74,10 +74,10 @@ def _analyze_logic(rs):
     raw_json = rs._send_command("HGET", redis_hash_key, target_date_str)
     
     if not raw_json:
-        print(f"[ERROR] No raw matches found for {target_date_str}_tiktok in key {redis_hash_key}.")
+        print(f"[ERROR] No raw matches found for Field '{target_date_str}' in Key '{redis_hash_key}'.")
         # Debug: Check if hash exists at all
         exists = rs._send_command("KEYS", redis_hash_key)
-        print(f"[DEBUG] Key Exists Check: {exists}")
+        print(f"[DEBUG] Key Exists Check for '{redis_hash_key}': {exists}")
         return
 
     raw_matches = json.loads(raw_json)
