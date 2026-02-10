@@ -118,7 +118,9 @@ class SportsDataServiceTikTok:
         # New Format: raw_matches_tiktok:YYYY-MM
         redis_hash_key = f"raw_matches_tiktok:{month_key}"
         
-        rs.client.hset(redis_hash_key, target_date_str, json.dumps(all_matches))
+        # FIX: RedisService.hset expects (key, mapping_dict)
+        rs.client.hset(redis_hash_key, {target_date_str: json.dumps(all_matches)})
+        
         print(f"[REDIS] Guardado en Hash {rs._get_key(redis_hash_key)} -> Field {target_date_str}")
             
         print(f"\n[FINISH] Total partidos guardados: {len(all_matches)}")

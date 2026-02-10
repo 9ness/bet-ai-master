@@ -173,7 +173,8 @@ INPUT DATA (MATCHES FOR {target_date_str}):
     # Field: YYYY-MM-DD
     redis_hash_key = f"daily_bets_tiktok:{month_key}"
     
-    rs.client.hset(redis_hash_key, target_date_str, json.dumps(output_payload))
+    # FIX: RedisService.hset expects (key, mapping_dict)
+    rs.client.hset(redis_hash_key, {target_date_str: json.dumps(output_payload)})
     
     print(f"[SUCCESS] Saved {len(valid_bets)} viral bets to Redis Hash: {rs._get_key(redis_hash_key)} -> Field: {target_date_str}")
 
