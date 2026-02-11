@@ -156,27 +156,72 @@ INPUT DATA (MATCHES FOR {target_date_str}):
         print("[ERROR] Failed to generate bets.")
         return
 
-    # 5. Save
-    # We save to a specific TikTok key: 'daily_bets:YYYY-MM-DD_tiktok'
-    # We do NOT use the standard 'daily_bets' key to avoid overwriting the main app data.
+    # 5. Save (MANUAL STANDARD STRUCTURE)
+    # User requested EXACT format match with main app, but isolated logic.
+    # We manually construct the dictionary to match 'daily_bets' schema.
+
+    final_bets_list = []
     
+    for bet in valid_bets:
+        # Calculate derived fields
+        stake = float(bet.get("stake", 10)) # Default high stake for viral
+        odd = float(bet.get("total_odd", 0))
+        estimated_units = round(stake * (odd - 1), 2) if odd > 1 else 0
+
+        # Normalize Selections
+        norm_selections = []
+        for sel in bet.get("selections", []):
+            norm_sel = {
+                "fixture_id": sel.get("fixture_id"),
+                "sport": sel.get("sport", "football"),
+                "league": sel.get("league", "Unknown"),
+                "match": sel.get("match", "Unknown vs Unknown"),
+                "time": sel.get("time", "00:00"),
+                "pick": sel.get("pick", ""),
+                "odd": float(sel.get("odd", 0)),
+                "status": "PENDING",
+                "result": None
+            }
+            norm_selections.append(norm_sel)
+
+        # Build Bet Object
+        bet_entry = {
+            "betType": "viral", # Keep 'viral' internal type but structure matches
+            "sport": "Football",
+            "startTime": norm_selections[0]["time"] if norm_selections else "00:00",
+            "match": bet.get("match", "Viral Bet"),
+            "pick": "Combination",
+            "stake": stake,
+            "total_odd": odd,
+            "estimated_units": estimated_units,
+            "reason": bet.get("reason", ""),
+            "status": "PENDING",
+            "profit": 0,
+            "selections": norm_selections
+        }
+        final_bets_list.append(bet_entry)
+
+    # OUTPUT PAYLOAD (STANDARD SCHEMA)
     output_payload = {
         "date": target_date_str,
-        "generated_at": datetime.now().isoformat(),
-        "bets": valid_bets
+        "is_real": True,
+        "day_profit": 0,
+        "status": "PENDING",
+        "bets": final_bets_list,
+        # Metadata mostly for debugging
+        "generated_at": datetime.now().isoformat()
     }
     
-    today = datetime.now()
-    month_key = tomorrow.strftime("%Y-%m")
-    
-    # Save to HASH: daily_bets_tiktok:YYYY-MM
-    # Field: YYYY-MM-DD
+    # Save to Redis
+    # HASH: daily_bets_tiktok:YYYY-MM -> Field: YYYY-MM-DD
     redis_hash_key = f"daily_bets_tiktok:{month_key}"
     
-    # FIX: RedisService.hset expects (key, mapping_dict)
-    rs.client.hset(redis_hash_key, {target_date_str: json.dumps(output_payload)})
-    
-    print(f"[SUCCESS] Saved {len(valid_bets)} viral bets to Redis Hash: {rs._get_key(redis_hash_key)} -> Field: {target_date_str}")
+    # Using low-level client.hset to ensure no side-effects from helper methods
+    try:
+        rs.client.hset(redis_hash_key, {target_date_str: json.dumps(output_payload)})
+        print(f"[SUCCESS] Saved {len(final_bets_list)} viral bets to Redis Hash: {rs._get_key(redis_hash_key)} -> Field: {target_date_str}")
+    except Exception as e:
+        print(f"[ERROR] Failed to save to Redis: {e}")
 
 if __name__ == "__main__":
     analyze_tiktok()
