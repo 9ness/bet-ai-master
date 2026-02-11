@@ -59,10 +59,17 @@ def generate_viral_caption_tiktok():
                  'date': bet.get('date', '')
              }]
         
+        # Capture parent reason if available (for new schema)
+        parent_reason = bet.get('reason', 'No analysis provided')
+
         for sel in selections:
             # Flatten for the prompt
-            analysis = sel.get('reason', 'No analysis provided')
-            # If reason is object (TikTok mode), stringify or extract content
+            # Try to get reason from selection, otherwise use parent reason
+            analysis = sel.get('reason')
+            if not analysis:
+                analysis = parent_reason
+            
+            # If reason is object (Old TikTok mode), stringify or extract content
             if isinstance(analysis, dict):
                  blocks = analysis.get('blocks', [])
                  analysis = " ".join([b.get('content', '') for b in blocks])
