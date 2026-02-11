@@ -41,6 +41,7 @@ class SportsDataServiceTikTok:
                     # PRINCIPALES (Top 5 + Eredivisie + Portugal + Copas)
                     39, 140, 135, 78, 61, 88, 94, 253, 
                     13, 103, 2, 3, 848, 11, 71, 128, 130, 262, 265,
+                    137, 143, 45, 48, # Copa Italia, Copa del Rey, FA Cup, EFL Cup
                     # SECUNDARIAS (2ª Divisiones Importantes - Relleno si faltan principales)
                     40, 41, 42,       # Championship, League One, League Two
                     141,              # LaLiga 2
@@ -171,7 +172,11 @@ class SportsDataServiceTikTok:
             
             # --- PRIORITY LOGIC ---
             # Priorizamos ligas principales. Si faltan, rellenamos con secundarias hasta 14 partidos.
-            PRIORITY_LEAGUES = [39, 140, 135, 78, 61, 88, 94, 253, 13, 103, 2, 3, 848, 11, 71, 128, 130, 262, 265]
+            PRIORITY_LEAGUES = [
+                39, 140, 135, 78, 61, 88, 94, 253, 
+                13, 103, 2, 3, 848, 11, 71, 128, 130, 262, 265,
+                137, 143, 45, 48
+            ]
             
             # Sort: Priority leagues first (True comes before False in reverse sort? No, True=1, False=0. Reverse=True puts Priority first)
             candidates.sort(key=lambda x: x["league"]["id"] in PRIORITY_LEAGUES, reverse=True)
