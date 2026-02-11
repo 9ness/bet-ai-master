@@ -941,7 +941,17 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                             </div>
                                             <button onClick={() => setCurrentPreviewIdx(Math.min((slidesData.length + 1), currentPreviewIdx + 1))} className="p-2 bg-white/20 hover:bg-white/30 rounded-full backdrop-blur"><ChevronRight className="text-white" size={16} /></button>
                                         </div>
-                                        <div className="absolute top-4 right-4 bg-black/60 px-2 py-0.5 rounded text-[10px] text-white/50 border border-white/5 z-20 pointer-events-none">{currentPreviewIdx + 1}/{slidesData.length + 2}</div>
+                                        <div className="absolute top-4 right-4 flex gap-2 z-20 pointer-events-none">
+                                            {images[currentPreviewIdx] && (
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); download(images[currentPreviewIdx], currentPreviewIdx); }}
+                                                    className="pointer-events-auto p-1.5 bg-black/60 hover:bg-emerald-500 rounded-full border border-white/10 text-white/70 hover:text-white transition-all shadow-lg backdrop-blur"
+                                                >
+                                                    <Download size={12} />
+                                                </button>
+                                            )}
+                                            <div className="px-2 py-0.5 bg-black/60 rounded text-[10px] text-white/50 border border-white/5 flex items-center">{currentPreviewIdx + 1}/{slidesData.length + 2}</div>
+                                        </div>
                                     </div>
                                 </div>
                                 <div className="flex flex-col gap-2 w-[100px] shrink-0">
@@ -1171,7 +1181,18 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                 <button onClick={() => setCurrentPreviewIdx(Math.max(0, currentPreviewIdx - 1))} className="p-3 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur transition"><ChevronLeft className="text-white" size={24} /></button>
                                 <button onClick={() => setCurrentPreviewIdx(Math.min(slidesData.length + 1, currentPreviewIdx + 1))} className="p-3 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur transition"><ChevronRight className="text-white" size={24} /></button>
                             </div>
-                            <div className="absolute top-6 right-6 px-3 py-1 bg-black/60 rounded-full border border-white/10 text-xs font-bold text-white/70 z-30">{currentPreviewIdx + 1} / {slidesData.length + 2}</div>
+                            <div className="absolute top-6 right-6 flex gap-2 z-30 pointer-events-none">
+                                {images[currentPreviewIdx] && (
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); download(images[currentPreviewIdx], currentPreviewIdx); }}
+                                        className="pointer-events-auto p-2 bg-black/60 hover:bg-emerald-500 rounded-full border border-white/10 text-white/70 hover:text-white transition-all shadow-lg backdrop-blur group/dl"
+                                        title="Descargar esta imagen"
+                                    >
+                                        <Download size={16} className="group-hover/dl:scale-110 transition-transform" />
+                                    </button>
+                                )}
+                                <div className="px-3 py-1 bg-black/60 rounded-full border border-white/10 text-xs font-bold text-white/70 flex items-center">{currentPreviewIdx + 1} / {slidesData.length + 2}</div>
+                            </div>
                         </div>
                     </div>
 

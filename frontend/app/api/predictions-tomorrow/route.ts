@@ -16,10 +16,20 @@ export async function GET(req: NextRequest) {
         const dd = String(tomorrow.getDate()).padStart(2, '0');
         const tomDateStr = `${yyyy}-${mm}-${dd}`;
 
-        const key = `betai:daily_bets:${tomDateStr}_tiktok`;
+        // NEW LOGIC: Fetch from HASH 'betai:daily_bets_tiktok:YYYY-MM'
+        // Field: 'YYYY-MM-DD'
+        const hashKey = `betai:daily_bets_tiktok:${yyyy}-${mm}`;
+        const field = tomDateStr;
 
-        const data = await redis.get(key);
+        console.log(`[API] Fetching from Hash: ${hashKey} -> Field: ${field}`);
 
+        // Upstash Redis 'hget'
+        const data = await redis.hget(hashKey, field);
+
+        // Data from hget comes already parsed if it's JSON? 
+        // In Upstash SDK, hget returns the value. If stored as stringified JSON, we might need to parse it?
+        // Actually, redis-py stores it as string. Upstash SDK usually auto-parses if response is JSON, 
+        // but let's be safe.
         let parsedData = data;
         if (typeof data === 'string') {
             try { parsedData = JSON.parse(data); } catch (e) { }

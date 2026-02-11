@@ -30,7 +30,7 @@ El campo "reason" debe ser un texto persuasivo y directo, explicando por qué es
 - Menciona el dato clave (ej: "Promedian 12 córners por partido").
 
 FORMATO DE SALIDA (JSON ARRAY):
-Devuelve ÚNICAMENTE un array JSON `[...]` con 5 objetos.
+Devuelve ÚNICAMENTE un array JSON `[...]` con 6 objetos.
 EL FORMATO DEBE SER IDÉNTICO AL DEL ANALIZADOR GENERAL.
 
 SCHEMA OBLIGATORIO:
@@ -61,5 +61,5 @@ SCHEMA OBLIGATORIO:
       }
     ]
   },
-  // ... hasta 5 objetos
+  // ... hasta 6 objetos
 ]
