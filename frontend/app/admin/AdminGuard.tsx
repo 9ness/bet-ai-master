@@ -120,6 +120,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
     const [stakazoStatus, setStakazoStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [collectStatus, setCollectStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [socialStatus, setSocialStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+    const [tiktokViralStatus, setTikTokViralStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [showControls, setShowControls] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [actionModal, setActionModal] = useState<{
@@ -324,6 +325,11 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
     // Button 4: TikTok Social -> calls /api/admin/trigger-social
     const handleSocial = () => {
         triggerGitHubAction('/api/admin/trigger-social', {}, setSocialStatus);
+    };
+
+    // Button 5: TikTok Viral Automation -> calls /api/admin/trigger-tiktok-viral
+    const handleTikTokViral = () => {
+        triggerGitHubAction('/api/admin/trigger-tiktok-viral', {}, setTikTokViralStatus);
     };
 
     const getStatusBadge = (scriptName: string) => {
@@ -1133,6 +1139,33 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                                         onClick={handleCheckBets}
                                                         disabled={checkStatus === 'loading'}
                                                         className="px-4 py-2 bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/50 text-emerald-400 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 disabled:opacity-50"
+                                                    >
+                                                        <Play size={12} fill="currentColor" />
+                                                        Ejecutar Ahora
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* 5. TikTok Viral Automation */}
+                                            <div className="p-4 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-colors flex flex-col gap-3">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <h4 className="font-bold text-base text-pink-400">5º - TikTok Viral Automation</h4>
+                                                        <p className="text-xs text-white/50 font-mono mt-0.5">tiktok_viral_automated.yml</p>
+                                                    </div>
+                                                    {tiktokViralStatus === 'loading' ? <RefreshCw className="animate-spin text-pink-500" size={16} /> : getStatusBadge('TikTok Viral Automation')}
+                                                </div>
+
+                                                <div className="flex items-center gap-2 text-xs text-white/60 bg-white/5 p-2 rounded-lg">
+                                                    <Clock size={14} className="text-white/40" />
+                                                    <span>Todos los días a las 04:00 PM (España)</span>
+                                                </div>
+
+                                                <div className="flex justify-end mt-2">
+                                                    <button
+                                                        onClick={handleTikTokViral}
+                                                        disabled={tiktokViralStatus === 'loading'}
+                                                        className="px-4 py-2 bg-pink-600/20 hover:bg-pink-600/40 border border-pink-500/50 text-pink-400 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 disabled:opacity-50"
                                                     >
                                                         <Play size={12} fill="currentColor" />
                                                         Ejecutar Ahora

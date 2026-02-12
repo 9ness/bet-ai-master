@@ -136,12 +136,16 @@ def generate_viral_caption_tiktok():
             redis.set_data("tiktokfactory_tomorrow", output_payload)
             console_log("💾 Guardado en Redis key: betai:tiktokfactory_tomorrow")
             
+            # [ADMIN PANEL STATUS]
+            redis.log_status("TikTok Viral Automation", "SUCCESS", "Generated 1 caption")
+            
         except json.JSONDecodeError:
             console_log("❌ Error al parsear la respuesta JSON.")
             console_log(f"Respuesta cruda: {response_text}")
             
     else:
         console_log("⚠️ Fallo al generar el caption.")
+        redis.log_status("TikTok Viral Automation", "ERROR", "Failed to generate caption")
 
 def console_log(msg):
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
