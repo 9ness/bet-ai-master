@@ -15,6 +15,26 @@ from src.services.redis_service import RedisService
 from src.services.bet_formatter import BetFormatter
 from src.services.json_cleaner import clean_json_matches
 
+# ENV LOADING (Local Dev)
+try:
+    from dotenv import load_dotenv
+    # Look for .env.local in common paths (Root, Frontend, etc.)
+    base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) # backend/src/services -> backend -> root
+    possible_paths = [
+        os.path.join(base_path, '.env.local'),
+        os.path.join(base_path, '../.env.local'),
+        os.path.join(base_path, '../frontend/.env.local'),
+        os.path.join(base_path, 'frontend/.env.local')
+    ]
+    
+    for p in possible_paths:
+        if os.path.exists(p):
+            load_dotenv(p)
+            print(f"[INIT] Loaded env from {p}")
+            break
+except ImportError:
+    pass
+
 def load_system_prompt(filename="system_prompt_analizador.txt"):
     """Carga el prompt maestro desde la carpeta del proyecto."""
     try:
@@ -184,7 +204,11 @@ INPUT DATA (MATCHES):
         if odds:
             bet["total_odd"] = round(math.prod(odds), 2)
             bt = bet.get("betType", "safe").lower()
-            bet["stake"] = 6 if "safe" in bt else (3 if "value" in bt else 1)
+            # [USER UPDATE] Dynamic Stakes or New Defaults
+            if "stake" not in bet:
+                bet["stake"] = 5 if "safe" in bt else (4 if "value" in bt else 1)
+            
+            # Recalculate estimated units based on final stake
             bet["estimated_units"] = round(bet["stake"] * (bet["total_odd"] - 1), 2)
 
     rs.save_daily_bets(today_str, final_output)

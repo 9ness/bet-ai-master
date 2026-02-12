@@ -106,6 +106,11 @@ class BetFormatter:
                 
         # Final cleanup for " or " -> " o " in general if skipped
         p = p.replace(" or ", " o ")
+        
+        # [USER FIX] Remove duplicate terms
+        p = p.replace("Ganador Ganador", "Ganador")
+        p = p.replace("Gana Gana", "Gana")
+        p = p.replace("Winner Winner", "Winner")
                 
         return p
 

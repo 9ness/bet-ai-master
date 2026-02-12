@@ -662,8 +662,21 @@ def check_bets():
                             is_win = combo_pass
                             result_str = f"{home_score}-{away_score} (Combo)"
 
-                        # 1. WINNER 
-                        elif "gana" in pick or "win" in pick or \
+                        # [USER REQUEST] Excepción 1: DNB / Apuesta No Válida -> Si hay EMPATE, es VOID (Nula)
+                        elif home_score == away_score and ("no válida" in pick or "no valida" in pick or "dnb" in pick or "draw no bet" in pick):
+                             print(f"      [DNB RULE] Marcador {home_score}-{away_score} y 'DNB/No Válida' -> VOID")
+                             sel["status"] = "VOID"
+                             sel["result"] = f"{home_score}-{away_score} (Void)"
+                             bets_modified = True
+                             void_count += 1
+                             continue
+
+                        # [USER REQUEST] Excepción 2: Empate Puro -> Si hay EMPATE y apuesta "Empate", es WIN
+                        elif home_score == away_score and ("empate" in pick or "draw" in pick or "x" in pick.split()):
+                             is_win = True
+                             print(f"      [EMPATE RULE] Marcador {home_score}-{away_score} y 'Empate' en pick -> WIN")
+
+                        elif "gana" in pick or "win" in pick or "empate" in pick or "draw" in pick or "x" in pick.split() or \
                              ((home_team_clean and home_team_clean in pick) and not re.search(r'[-+]\d+', pick) and "over" not in pick and "mas" not in pick) or \
                              ((away_team_clean and away_team_clean in pick) and not re.search(r'[-+]\d+', pick) and "over" not in pick and "mas" not in pick):
                             
@@ -691,6 +704,8 @@ def check_bets():
                              if is_1x: is_win = home_score >= away_score
                              elif is_x2: is_win = away_score >= home_score
                              elif "12" in clean: is_win = home_score != away_score
+
+
                         # 2. BTTS
                         elif "ambos marcan" in pick or "btts" in pick or "ambos equipos anotan" in pick or "ambos anotan" in pick:
                              if "sí" in pick or "yes" in pick or "si" in pick: is_win = home_score > 0 and away_score > 0

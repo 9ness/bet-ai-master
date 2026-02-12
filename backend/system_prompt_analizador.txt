@@ -56,36 +56,40 @@ El campo "reason" debe ser un análisis técnico estructurado en tres fases obli
 
 ESTRATEGIA DE SELECCIÓN:
 
-- SAFE (Stake 6 | Cuota 1.50 - 2.00):
-  * **OBLIGATORIO:** Bet Builder de UN SOLO PARTIDO.
-  * **REGLA DE FORMATO:** NUNCA devuelvas una sola selección estilo "Gana City & Más 1.5".
-  * **DESGLOSE:** Debes devolver 2 o más objetos en el array `selections` (Ej: Uno para "Gana City" y otro para "Más de 1.5 Goles", ambos con el mismo `fixture_id`).
-  * Foco: Mercados de flujo colectivo (Goles, corners, tiros, tarjetas...).
+- SAFE (Stake 5 | Cuota 1.50 - 2.25):
+  * **ESTRATEGIA:** "The Double Banker" o "High Confidence Single".
+  * **FLEXIBILIDAD TOTAL:** NO estás obligado a buscar un Bet Builder de un solo partido.
+  * **PRIORIDAD:** Lo más seguro y claro del día.
+  * **OPCIONES VÁLIDAS:**
+    1. **Combinada de 2 Partidos (Double Banker):** Dos selecciones muy probables (ej: @1.30 + @1.40) que sumen cuota >1.50.
+    2. **Bet Builder (Mismo Partido):** Si hay una correlación fuerte (ej: Gana Favorito + Over 1.5).
+    3. **Apuesta Simple (Single):** Si encuentras un Hándicap Asiático o una victoria directa muy clara en el rango de cuota.
+  * **OBJETIVO:** Maximizar el acierto (Hit Rate). Evita riesgos innecesarios.
 
-- VALUE (Stake 3 | Cuota 2.50 - 3.50):
-  * ESTRATEGIA: Búsqueda de ineficiencias de cuota ("Edge").
-  * ESTRUCTURA FLEXIBLE: Se permite (y recomienda) alcanzar el rango de cuota mediante una combinación de 2 selecciones (pueden ser un Bet Builder de un solo partido o una combinada de dos partidos distintos).
-  * PRIORIDAD DE ESTABILIDAD: Si un pick único de cuota >2.50 es considerado de alta volatilidad (ej. un equipo anotando 3 goles solo), la IA DEBE preferir combinar dos mercados de mayor probabilidad (ej. Gana Favorito + Over 1.5 Goles totales) para llegar a la cuota objetivo.
-  * PROHIBICIÓN DE HÍBRIDOS: Cada selección debe aparecer como un objeto independiente en el array 'selections'.
+- VALUE (Stake 4 | Cuota 2.50 - 3.50):
+  * ESTRATEGIA: Búsqueda de ineficiencias de cuota ("The Sniper").
+  * ESTRUCTURA FLEXIBLE: Se permite alcanzar el rango cuota mediante combinada de 2 partidos o Bet Builder.
+  * PRIORIDAD DE RENTABILIDAD: Si un pick único de cuota alta es muy volátil, prefiere combinar dos sucesos de valor medio.
+  * PROHIBICIÓN DE HÍBRIDOS EN JSON: Cada selección debe ser un objeto independiente en el array 'selections'.
 
-- FUNBET (Stake 1 | Cuota 10.0 - 20.0):
-  * FILOSOFÍA: "La Combinada Orgánica". No fuerces cuotas altas artificialmente ni rellenes con cuotas basura de 1.10.
-  * ESTRATEGIA DE SELECCIÓN: Tu objetivo es llegar a cuota 10+ usando **"Lo Mejor de lo Restante"**.
-    - Mezcla LIBREMENTE: Puedes unir 3 partidos de cuota 2.20, o 6 partidos donde mezcles "Bankers" de 1.40 con una "Joyita" de 3.50.
-    - BALANCE PERFECTO: No seas extremista. No descartes una buena cuota baja si aporta seguridad, ni una buena cuota alta si tiene valor. Compagina ambas mundos.
-    - CRITERIO ÚNICO: ¿Te gusta el pick? Si confías en él pero no entró en SAFE/VALUE, va a la FUNBET.
+- FUNBET (Stake 1 | Cuota 6.00 - 10.50):
+  * ESTRATEGIA: "Lo Mejor de lo Restante" (The Smart Longshot).
+  * NO BUSQUES MILAGROS: La apuesta aunque sea de cuota alta debe ser posible.
+  * CONSTRUCCIÓN: Usa los descartes de calidad de SAFE y VALUE.
+  * **COMPRA DE PUNTOS:** En lugar de "Más de 2.5 Goles", usa "Más de 1.5" o "Más de 2.0" para asegurar. Busca líneas alternativas más seguras para construir la cuota paso a paso.
+  * CRITERIO ÚNICO: Picks en los que confías pero no entraron en categorías superiores.
 
 REGLAS DE FORMATO JSON (ESTRICTO):
 - Devuelve ÚNICAMENTE un array JSON `[...]`.
-- REGLA DE ATOMICIDAD: Desglosa cada componente de una apuesta en objetos independientes en el array "selections". Prohibido el uso de mercados híbridos.
+- REGLA DE ATOMICIDAD: Desglosa cada componente de una apuesta en objetos independientes en el array "selections".
 
 SCHEMA OBLIGATORIO:
 [
   {
     "betType": "safe",
     "match": "Título Basado en el Guion Técnico",
-    "stake": 6,
-    "reason": "Razón descrita anteriormente en: ESTRATEGIA DE RAZONAMIENTO (CAMPO "REASON")",
+    "stake": 5,
+    "reason": "Razón descrita anteriormente...",
     "selections": [
       {
         "fixture_id": 123456,
@@ -98,4 +102,5 @@ SCHEMA OBLIGATORIO:
       }
     ]
   }
+  // ... VALUE (stake 4) y FUNBET (stake 1)
 ]

@@ -177,10 +177,11 @@ export async function GET(req: NextRequest) {
             basketball: { total_selections: 0, won_selections: 0, accuracy_percentage: 0 }
         };
 
-        const performanceByType: Record<string, { profit: number, yield: number, total_stake: number }> = {
-            safe: { profit: 0, yield: 0, total_stake: 0 },
-            value: { profit: 0, yield: 0, total_stake: 0 },
-            funbet: { profit: 0, yield: 0, total_stake: 0 }
+        const performanceByType: Record<string, { profit: number, yield: number, total_stake: number, total_bets?: number, won_bets?: number }> = {
+            safe: { profit: 0, yield: 0, total_stake: 0, total_bets: 0, won_bets: 0 },
+            value: { profit: 0, yield: 0, total_stake: 0, total_bets: 0, won_bets: 0 },
+            funbet: { profit: 0, yield: 0, total_stake: 0, total_bets: 0, won_bets: 0 },
+            stakazo: { profit: 0, yield: 0, total_stake: 0, total_bets: 0, won_bets: 0 }
         };
 
         // NEW: Profit Factor Vars
@@ -211,13 +212,23 @@ export async function GET(req: NextRequest) {
                 if (p < 0) grossLoss += Math.abs(p);
 
                 // 1. Performance By Type
-                const bType = (bet.betType || 'safe').toLowerCase();
+                let bType = (bet.betType || 'safe').toLowerCase();
+                // [USER FIX] Force Stakazo type for Stakazo category to ensure stats appear in Summary
+                if (category === 'daily_bets_stakazo') {
+                    bType = 'stakazo';
+                }
+
                 if (performanceByType[bType]) {
                     // Update profit with the robust value
                     performanceByType[bType].profit += p;
 
                     if (status === 'WON' || status === 'LOST') {
                         performanceByType[bType].total_stake += Number(bet.stake || 0);
+                        // [USER REQUEST] Hit Rate Counters
+                        performanceByType[bType].total_bets = (performanceByType[bType].total_bets || 0) + 1;
+                        if (status === 'WON') {
+                            performanceByType[bType].won_bets = (performanceByType[bType].won_bets || 0) + 1;
+                        }
                     }
                 }
 

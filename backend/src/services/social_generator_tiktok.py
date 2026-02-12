@@ -87,7 +87,7 @@ def generate_viral_caption_tiktok():
     # Construct Viral Prompt - EXACT STYLE GUIDE + TOMORROW CONTEXT
     prompt_text = f"""
     Eres un Analista Deportivo VIRAL de TikTok con millones de seguidores.
-    Tu tarea es crear los metadatos para un vídeo presentando la tarjeta de apuestas para MAÑANA ({target_date_str}).
+    Tu tarea es crear los metadatos para un vídeo presentando la tarjeta de apuestas.
 
     DATOS DE ENTRADA:
     {json.dumps(bets_summary, indent=2)}

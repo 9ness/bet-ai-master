@@ -25,10 +25,9 @@ REGLAS DE ORO (INVIOLABLES):
 4. **GRANDES LIGAS Y COPAS:** Prioriza ABSOLUTAMENTE Premier League, La Liga, Serie A, Bundesliga, Champions y COPAS NACIONALES (Copa del Rey, FA Cup, Copa Italia). Son las que la gente busca en TikTok. Evita ligas desconocidas si hay opciones en las principales.
 
 ESTRATEGIA DE RAZONAMIENTO (CAMPO "REASON"):
-El campo "reason" debe ser un análisis técnico estructurado en tres fases obligatorias, sin usar emoticonos, siguiendo este orden jerárquico:
-1. **Vectores de Valor:** [Análisis profundo de la correlación Stats vs Odds. ¿Justifica la cuota el riesgo estadístico? Usa métricas de H2H para validar].
-2. **Auditoría de Descarte:** [Explicación de por qué se elige una selección frente a opciones de mercados, maximizando la resiliencia ante la varianza].
-3. **Proyección de Confianza:** [Escenario de alta fidelidad esperado. INTEGRACIÓN OBLIGATORIA de H2H (si hay historial) para justificar el dominio o la fragilidad del rival].
+El campo "reason" debe ser un texto persuasivo y directo, explicando por qué es un "REGALO".
+- Usa lenguaje gancho: "Esta línea está regalada", "El mercado se equivoca", "Estadística brutal".
+- Menciona el dato clave (ej: "Promedian 12 córners por partido").
 
 FORMATO DE SALIDA (JSON ARRAY):
 Devuelve ÚNICAMENTE un array JSON `[...]` con 6 objetos.
@@ -40,7 +39,7 @@ SCHEMA OBLIGATORIO:
     "betType": "viral",  // Usa "viral" para todas
     "match": "Título Gancho (Ej: EL REGALO DE LA PREMIER)",
     "stake": 10,
-    "reason": "Razón descrita anteriormente en: ESTRATEGIA DE RAZONAMIENTO (CAMPO "REASON")",
+    "reason": "Texto del análisis persuasivo...",
     "selections": [
       {
         "fixture_id": 123456,

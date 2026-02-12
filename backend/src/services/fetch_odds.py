@@ -174,6 +174,14 @@ class SportsDataService:
                     away = item["teams"]["away"]["name"]
                     away_id = item["teams"]["away"]["id"]
                     league_name = item["league"]["name"]
+                    # [USER FIX] Desambiguación Serie A (Italia vs Brasil)
+                    if lid == 71 and league_name == "Serie A":
+                        league_name = "Brasileirão Betano"
+
+                    # [USER FIX] Eerste Divisie (2nd Div) vs Eredivisie
+                    if lid == 89 or league_name == "Eerste Divisie":
+                        league_name = "Keuken Kampioen Divisie"
+                    
                     league_name = self.league_name_mapping.get(league_name, league_name)
                     # Metadata Context
                     referee = item["fixture"].get("referee")

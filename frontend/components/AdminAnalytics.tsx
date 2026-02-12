@@ -340,8 +340,8 @@ export default function AdminAnalytics({ showStakazoToggle = false }: { showStak
                                         </linearGradient>
                                     </defs>
                                     <CartesianGrid strokeDasharray="3 3" strokeWidth={1} stroke="var(--border)" vertical={false} opacity={0.3} />
-                                    <XAxis dataKey="date" stroke="var(--muted-foreground)" fontSize={10} tickLine={false} axisLine={false} />
-                                    <YAxis stroke="var(--muted-foreground)" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `${val}u`} />
+                                    <XAxis dataKey="date" stroke="#9ca3af" fontSize={10} tickLine={false} axisLine={false} />
+                                    <YAxis stroke="#9ca3af" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `${val}u`} />
                                     <Tooltip
                                         contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '12px', color: 'var(--foreground)' }}
                                         itemStyle={{ color: 'var(--foreground)' }}
@@ -365,44 +365,105 @@ export default function AdminAnalytics({ showStakazoToggle = false }: { showStak
                 {/* 3. DESGLOSE TAB */}
                 {activeTab === 'desglose' && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* 1. PERFORMANCE BY TYPE (Bar Chart) */}
+                        {/* 1. PERFORMANCE BY TYPE (Bar Chart OR Stakazo Summary) */}
                         <div className="bg-secondary/20 border border-border/20 rounded-2xl p-4">
                             <h3 className="text-sm font-bold mb-4 text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-                                <TrendingUp size={14} className="text-emerald-400" />
-                                Rentabilidad por Estrategia
+                                <TrendingUp size={14} className={category === 'daily_bets_stakazo' ? 'text-amber-400' : 'text-emerald-400'} />
+                                {category === 'daily_bets_stakazo' ? 'Rendimiento Stakazo' : 'Rentabilidad por Estrategia'}
                             </h3>
 
-                            {stats?.performance_by_type ? (
-                                <div className="h-[200px] w-full">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={[
-                                            { name: 'Safe', profit: stats.performance_by_type.safe.profit, fill: '#10b981' }, // Emerald
-                                            { name: 'Value', profit: stats.performance_by_type.value.profit, fill: '#f59e0b' }, // Amber
-                                            { name: 'Funbet', profit: stats.performance_by_type.funbet.profit, fill: '#ec4899' }, // Pink
-                                        ]}>
-                                            <CartesianGrid strokeDasharray="3 3" strokeWidth={1} stroke="var(--border)" vertical={false} opacity={0.3} />
-                                            <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={10} tickLine={false} axisLine={false} />
-                                            <YAxis stroke="var(--muted-foreground)" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `${val}u`} />
-                                            <Tooltip
-                                                cursor={{ fill: 'var(--muted)', opacity: 0.1 }}
-                                                contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', color: 'var(--foreground)' }}
-                                                itemStyle={{ color: 'var(--foreground)' }}
-                                                labelStyle={{ color: 'var(--muted-foreground)' }}
-                                            />
-                                            <Bar dataKey="profit" radius={[4, 4, 0, 0]}>
-                                                {
-                                                    [{ profit: stats.performance_by_type.safe.profit }, { profit: stats.performance_by_type.value.profit }, { profit: stats.performance_by_type.funbet.profit }].map((entry, index) => (
-                                                        <Cell key={`cell-${index}`} fill={entry.profit >= 0 ? ['#10b981', '#f59e0b', '#ec4899'][index] : '#f43f5e'} />
-                                                    ))
-                                                }
-                                            </Bar>
-                                        </BarChart>
-                                    </ResponsiveContainer>
+                            {category === 'daily_bets_stakazo' && stats?.performance_by_type?.stakazo ? (
+                                <div className="h-[200px] w-full flex flex-col justify-center items-center gap-4">
+                                    <div className="text-center">
+                                        <p className="text-xs text-muted-foreground font-bold uppercase mb-1">Profit Total</p>
+                                        <p className="text-4xl font-black text-amber-500">
+                                            {stats.performance_by_type.stakazo.profit > 0 ? '+' : ''}{stats.performance_by_type.stakazo.profit.toFixed(2)} u
+                                        </p>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-8 w-full max-w-[200px]">
+                                        <div className="text-center">
+                                            <p className="text-[10px] text-muted-foreground font-bold uppercase mb-1">Aciertos</p>
+                                            <p className="text-xl font-bold text-white">
+                                                {stats.performance_by_type.stakazo.won_bets}/{stats.performance_by_type.stakazo.total_bets}
+                                            </p>
+                                        </div>
+                                        <div className="text-center">
+                                            <p className="text-[10px] text-muted-foreground font-bold uppercase mb-1">Yield</p>
+                                            <p className="text-xl font-bold text-white">
+                                                {stats.performance_by_type.stakazo.yield}%
+                                            </p>
+                                        </div>
+                                    </div>
                                 </div>
                             ) : (
-                                <div className="flex items-center justify-center h-[200px] text-muted-foreground text-xs">
-                                    Sin datos detallados
-                                </div>
+                                stats?.performance_by_type ? (
+                                    <div className="h-[200px] w-full">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={[
+                                                {
+                                                    name: 'Safe',
+                                                    profit: stats.performance_by_type.safe.profit,
+                                                    fill: '#10b981',
+                                                    won: stats.performance_by_type.safe.won_bets || 0,
+                                                    total: stats.performance_by_type.safe.total_bets || 0
+                                                },
+                                                {
+                                                    name: 'Value',
+                                                    profit: stats.performance_by_type.value.profit,
+                                                    fill: '#f59e0b',
+                                                    won: stats.performance_by_type.value.won_bets || 0,
+                                                    total: stats.performance_by_type.value.total_bets || 0
+                                                },
+                                                {
+                                                    name: 'Funbet',
+                                                    profit: stats.performance_by_type.funbet.profit,
+                                                    fill: '#ec4899',
+                                                    won: stats.performance_by_type.funbet.won_bets || 0,
+                                                    total: stats.performance_by_type.funbet.total_bets || 0
+                                                },
+                                            ]}>
+                                                <CartesianGrid strokeDasharray="3 3" strokeWidth={1} stroke="var(--border)" vertical={false} opacity={0.3} />
+                                                <XAxis dataKey="name" stroke="#9ca3af" fontSize={10} tickLine={false} axisLine={false} />
+                                                <YAxis stroke="#9ca3af" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `${val}u`} />
+                                                <Tooltip
+                                                    cursor={{ fill: 'var(--muted)', opacity: 0.1 }}
+                                                    content={({ active, payload, label }) => {
+                                                        if (active && payload && payload.length) {
+                                                            const data = payload[0].payload;
+                                                            return (
+                                                                <div className="bg-card border border-border rounded-xl p-3 shadow-xl">
+                                                                    <p className="text-xs font-bold text-muted-foreground uppercase mb-1">{label}</p>
+                                                                    <p className="text-lg font-black text-foreground mb-1">
+                                                                        {Number(data.profit) > 0 ? '+' : ''}{Number(data.profit).toFixed(2)} u
+                                                                    </p>
+                                                                    <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border/50">
+                                                                        <div className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                                                                        <p className="text-[10px] font-medium text-foreground/80">
+                                                                            {data.won}/{data.total} aciertos
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        }
+                                                        return null;
+                                                    }}
+                                                />
+                                                <Bar dataKey="profit" radius={[4, 4, 0, 0]}>
+                                                    {
+                                                        [{ profit: stats.performance_by_type.safe.profit }, { profit: stats.performance_by_type.value.profit }, { profit: stats.performance_by_type.funbet.profit }].map((entry, index) => (
+                                                            <Cell key={`cell-${index}`} fill={entry.profit >= 0 ? ['#10b981', '#f59e0b', '#ec4899'][index] : '#f43f5e'} />
+                                                        ))
+                                                    }
+                                                </Bar>
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center justify-center h-[200px] text-muted-foreground text-xs">
+                                        Sin datos detallados
+                                    </div>
+                                )
                             )}
                         </div>
 
