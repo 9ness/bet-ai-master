@@ -852,7 +852,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                             {group.picks.map((pick: string, pIdx: number) => (
                                 pick.split('\n').filter(l => l.trim()).map((line, lIdx) => (
                                     <div key={`${pIdx}-${lIdx}`} className="text-left w-full">
-                                        <span className="text-4xl text-black italic font-bold tracking-wide leading-snug" style={{ fontFamily: 'var(--font-retro)' }}>
+                                        <span className="text-4xl text-black italic font-black tracking-wide leading-snug" style={{ fontFamily: 'var(--font-retro)' }}>
                                             {line}
                                         </span>
                                     </div>
