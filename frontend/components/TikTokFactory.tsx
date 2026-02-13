@@ -124,8 +124,8 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         introSubtitle: "",
         introEmoji1: '🤫',
         introEmoji2: '✅',
-        outroTitle: "LA MEJOR DE TODAS\nLA DEJAMOS EN\nNUESTRO CANAL",
-        outroSub: "ACCEDE DESDE EL PERFIL 🔗",
+        outroTitle: "GRUPO GRATIS EN\nLA DESCRIPCIÓN",
+        outroSub: "ACCEDE DESDE EL PERFIL",
         bgSelection: [] as string[],
         addHundred: true,
         useFullDate: true,
@@ -838,13 +838,27 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         return (
             <div className="relative z-10 w-full h-full flex flex-col items-center justify-center p-8 gap-16 pb-[80px]" style={style} {...handlers}>
                 {chunk.map((group: any, bIdx: number) => (
-                    <div key={bIdx} className="w-full flex flex-col items-center gap-4 pointer-events-none">
-                        <div className="bg-black px-8 pt-2 pb-4 rounded-xl max-w-[95%] border-2 border-black flex items-center justify-center text-center"><h3 className="text-3xl font-black text-white uppercase tracking-tight leading-tight whitespace-pre-wrap break-words pb-5">{group.matchDisplay}</h3></div>
-                        {group.picks.map((pick: string, pIdx: number) => (
-                            pick.split('\n').filter(l => l.trim()).map((line, lIdx) => (
-                                <div key={`${pIdx}-${lIdx}`} className="bg-white px-8 pt-2 pb-4 rounded-xl max-w-[95%] flex items-center justify-center text-center mt-[-10px]"><span className="text-3xl font-black text-black tracking-tight leading-tight whitespace-pre-wrap break-words pb-5">{line}</span></div>
-                            ))
-                        ))}
+                    <div key={bIdx} className="w-full flex flex-col items-center relative filter drop-shadow-xl">
+
+                        {/* TÍTULO PARTIDO - Estilo Etiqueta Negra (TikTok Retro - Kurale) */}
+                        <div className="bg-black px-8 py-4 rounded-xl z-20 mb-4 border-[3px] border-white drop-shadow-lg">
+                            <h3 className="text-4xl text-white italic font-bold tracking-normal leading-none text-center" style={{ fontFamily: 'var(--font-retro)' }}>
+                                {group.matchDisplay}
+                            </h3>
+                        </div>
+
+                        {/* BLOQUE DE APUESTAS - TikTok Retro - Kurale */}
+                        <div className="bg-white px-6 py-8 rounded-2xl w-fit max-w-[95%] flex flex-col items-start gap-3 z-10 shadow-2xl border-4 border-white">
+                            {group.picks.map((pick: string, pIdx: number) => (
+                                pick.split('\n').filter(l => l.trim()).map((line, lIdx) => (
+                                    <div key={`${pIdx}-${lIdx}`} className="text-left w-full">
+                                        <span className="text-4xl text-black italic font-bold tracking-wide leading-snug" style={{ fontFamily: 'var(--font-retro)' }}>
+                                            {line}
+                                        </span>
+                                    </div>
+                                ))
+                            ))}
+                        </div>
                     </div>
                 ))}
             </div>
