@@ -129,7 +129,12 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         bgSelection: [] as string[],
         addHundred: true,
         useFullDate: true,
-        showOdds: false // NEW: Visibility toggle for odds
+        showOdds: false, // NEW: Visibility toggle for odds
+        titleScale: 1.05,
+        betsScale: 0.7,
+        oddsScale: 0.8,
+        showTitleBorder: false,
+        showPickOdds: false
     });
 
     const [imageSelector, setImageSelector] = useState<{ idx: number | null }>({ idx: null });
@@ -354,12 +359,19 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
 
     const confirmDeleteFolder = async () => {
         const { team, sport } = deleteFolderModal;
-        const rawTeamName = team.replace(/\s+/g, '').toLowerCase(); // Rough reverse format or better to pass original. 
-        // Actually we need the original 'team' identifier used in filter.
-        // Let's re-find files using the logic from handleDeleteFolder but safer.
-        // Wait, 'team' in state is formatted. I should pass raw team to state.
-
-        // RE-IMPLEMENTING handleDeleteFolder slightly to pass raw team
+        try {
+            const res = await fetch('/api/admin/delete-folder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ team, sport })
+            });
+            if (res.ok) {
+                setAvailableFiles(prev => prev.filter(f => !getFilename(f).toLowerCase().startsWith(`bg-${sport}-${team.replace(/\s+/g, '').toLowerCase()}`)));
+                setDeleteFolderModal(prev => ({ ...prev, show: false }));
+            }
+        } catch (e) {
+            console.error("Error deleting folder:", e);
+        }
     };
 
     const performSearch = async () => {
@@ -542,7 +554,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         else if (displayPick.toLowerCase() === "x2") displayPick = `Empate o ${teams[1] || "Visitante"}`;
         else if (displayPick.toLowerCase() === "12") displayPick = `${teams[0] || "Local"} o ${teams[1] || "Visitante"}`;
         else {
-            displayPick = displayPick.replace(/Apuesta/gi, "").replace(/Ganador/gi, "").replace(/Gana/gi, "").replace(/Del Partido/gi, "").replace(/Doble Oportunidad/gi, "").replace(/\(.*\)/g, "").replace(/\bAH\b/gi, "Hándicap").replace(/^[\s\-]+|[\s\-]+$/g, "").trim();
+            displayPick = displayPick.replace(/Apuesta/gi, "").replace(/Ganador/gi, "").replace(/Gana/gi, "").replace(/Del Partido/gi, "").replace(/Doble Oportunidad/gi, "").replace(/\(.*\)/g, "").replace(/\bAH\b/gi, "Hándicap").replace(/^[\s\-\:]+|[\s\-\:]+$/g, "").trim();
             displayPick = displayPick.replace(/\blocal\b/gi, teams[0] || "Local").replace(/\bvisitante\b/gi, teams[1] || "Visitante");
 
             // Capitalize first letter
@@ -571,8 +583,22 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         flatBets.forEach(bet => {
             const { match, pick } = parseBetDisplay(bet.match, bet.pick);
             const key = match.toLowerCase().replace(/\s+/g, '');
-            if (!groups[key]) groups[key] = { matchDisplay: match, sport: bet.sport, picks: [], originalBets: [] };
-            groups[key].picks.push(pick);
+            if (!groups[key]) groups[key] = { matchDisplay: match, sport: bet.sport, picks: [] };
+
+            // Format Odd: ensure it has + if it's American style or just clear
+            let rawOdd = bet.total_odd || bet.odd || bet.price || '';
+            let displayOdd = "";
+            if (rawOdd) {
+                const num = parseFloat(rawOdd);
+                if (!isNaN(num)) {
+                    if (num > 10) displayOdd = `+${Math.round(num)}`;
+                    else displayOdd = `+${num.toFixed(2)}`;
+                } else {
+                    displayOdd = rawOdd.toString().startsWith('+') ? rawOdd.toString() : `+${rawOdd}`;
+                }
+            }
+
+            groups[key].picks.push({ rawPick: pick, odd: displayOdd });
         });
 
         const groupedList = Object.values(groups);
@@ -657,25 +683,22 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
             return {
                 ...g,
                 matchDisplay: rawMatchDisplay,
-                picks: g.picks.map((p: string) => {
-                    const { pick } = parseBetDisplay(g.matchDisplay, p);
+                picks: g.picks.map((item: any) => {
+                    const { pick } = parseBetDisplay(g.matchDisplay, item.rawPick);
 
                     // 1. Shorthand replacement (+ / -)
                     let cleanPick = pick.replace(/más de\s*/gi, '+')
                         .replace(/menos de\s*/gi, '-');
 
                     // 2. Title Case for players/names
-                    // We split by spaces, capitalize words longer than 2 chars or that aren't common lower-case words
                     const formattedPick = cleanPick.split(/\s+/)
-                        .map(word => {
-                            const lower = word.toLowerCase();
-                            // Keep small prepositions in lowercase if not first word? 
-                            // Actually, better to just capitalize everything for a clean "Title Case" as per user request
-                            return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-                        })
+                        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
                         .join(' ');
 
-                    return `${getPickIcon(formattedPick, g.sport || '', g.matchDisplay)}${formattedPick}`;
+                    return {
+                        text: `${getPickIcon(formattedPick, g.sport || '', g.matchDisplay)}${formattedPick}`,
+                        odd: item.odd
+                    };
                 }),
                 isFeatured
             };
@@ -745,10 +768,28 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
     const generate = async () => {
         if (!containerRef.current) return;
         setGenerating(true); setImages([]);
+
+        // Aseguramos que las fuentes estén cargadas antes de capturar
+        if (typeof document !== 'undefined') {
+            await document.fonts.ready;
+        }
+
         await new Promise(r => setTimeout(r, 800));
         const imgs = [];
         for (let c of Array.from(containerRef.current.children) as HTMLElement[]) {
-            try { const cvs = await html2canvas(c, { scale: 1, useCORS: true, width: 1080, height: 1350 }); imgs.push(cvs.toDataURL('image/png')); } catch (e) { }
+            try {
+                const cvs = await html2canvas(c, {
+                    scale: 2, // Mayor calidad para evitar pixelado y mejorar alineación
+                    useCORS: true,
+                    width: 1080,
+                    height: 1350,
+                    backgroundColor: null, // Evita fondos sólidos inesperados
+                    logging: false
+                });
+                imgs.push(cvs.toDataURL('image/png'));
+            } catch (e) {
+                console.error("Error generating slide:", e);
+            }
         }
         setImages(imgs); setGenerating(false);
     }
@@ -802,6 +843,21 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
             touchAction: 'none'
         };
 
+        const titleBoxStyle = {
+            transform: `scale(${config.titleScale || 1.0})`,
+            transformOrigin: 'center'
+        };
+
+        const betsBoxStyle = {
+            transform: `scale(${config.betsScale || 1.0})`,
+            transformOrigin: 'center'
+        };
+
+        const oddsBoxStyle = {
+            transform: `scale(${config.oddsScale || 1.0})`,
+            transformOrigin: 'center'
+        };
+
         const handlers = isPreview ? {
             onMouseDown: (e: any) => handleDragStart(e, index),
             onTouchStart: (e: any) => handleDragStart(e, index)
@@ -812,10 +868,28 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
             return (
                 <div className="relative z-10 w-full flex flex-col items-center gap-14 p-8" style={style} {...handlers}>
                     <div className="flex flex-col items-center gap-4 w-full">
-                        <div className="bg-white px-12 pt-2 pb-6 rounded-2xl w-fit max-w-[90%] flex items-center justify-center pointer-events-none"><h1 className="text-6xl font-black text-black tracking-tighter leading-tight whitespace-nowrap text-center pb-5">{config.introTitle.split('\n')[0]}</h1></div>
-                        <div className="bg-white px-12 pt-2 pb-4 rounded-2xl flex items-center justify-center gap-6 w-fit max-w-[95%] pointer-events-none"><h1 className="text-5xl font-black text-black tracking-tighter leading-tight whitespace-nowrap pb-5">{config.introTitle.split('\n')[1] || ''}</h1><div className="flex items-center gap-4 pb-5">{config.introEmoji1 && <span className="text-5xl filter drop-shadow">{config.introEmoji1}</span>}{config.introEmoji2 && <span className="text-5xl filter drop-shadow">{config.introEmoji2}</span>}</div></div>
+                        <div className="bg-white px-12 pt-0 pb-8 rounded-2xl w-fit max-w-[90%] flex items-center justify-center pointer-events-none">
+                            <h1 className="text-5xl font-black text-black tracking-tighter leading-none whitespace-nowrap text-center uppercase">
+                                {config.introTitle.split('\n')[0]}
+                            </h1>
+                        </div>
+                        <div className="bg-white px-12 pt-0 pb-8 rounded-2xl flex items-center justify-center gap-6 w-fit max-w-[95%] pointer-events-none">
+                            <h1 className="text-4xl font-black text-black tracking-tighter leading-none whitespace-nowrap uppercase">
+                                {config.introTitle.split('\n')[1] || ''}
+                            </h1>
+                            <div className="flex items-center gap-4">
+                                {config.introEmoji1 && <span className="text-5xl filter drop-shadow">{config.introEmoji1}</span>}
+                                {config.introEmoji2 && <span className="text-5xl filter drop-shadow">{config.introEmoji2}</span>}
+                            </div>
+                        </div>
                     </div>
-                    {config.showOdds && config.introSubtitle && <div className="bg-white px-14 pt-4 pb-8 rounded-2xl mt-8 flex items-center justify-center pointer-events-none"><span className="text-6xl font-black text-black uppercase tracking-tighter leading-none pb-5">{config.introSubtitle}</span></div>}
+                    {config.showOdds && config.introSubtitle && (
+                        <div className="bg-white px-14 py-8 rounded-2xl mt-8 flex items-center justify-center pointer-events-none">
+                            <span className="text-6xl font-black text-black uppercase tracking-tighter leading-none" style={{ fontFamily: 'var(--font-retro)' }}>
+                                {config.introSubtitle}
+                            </span>
+                        </div>
+                    )}
                 </div>
             );
         }
@@ -838,25 +912,39 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         return (
             <div className="relative z-10 w-full h-full flex flex-col items-center justify-center p-8 gap-16 pb-[80px]" style={style} {...handlers}>
                 {chunk.map((group: any, bIdx: number) => (
-                    <div key={bIdx} className="w-full flex flex-col items-center relative filter drop-shadow-xl">
+                    <div key={bIdx} className="w-full flex flex-col items-center relative">
 
                         {/* TÍTULO PARTIDO - Estilo Etiqueta Negra (TikTok Retro - Kurale) */}
-                        <div className="bg-black px-8 py-4 rounded-xl z-20 mb-4 border-[3px] border-white drop-shadow-lg">
-                            <h3 className="text-4xl text-white italic font-bold tracking-normal leading-none text-center" style={{ fontFamily: 'var(--font-retro)' }}>
+                        <div className={`bg-black px-10 pt-0 pb-6 rounded-xl z-20 mb-1 shadow-lg flex items-center justify-center ${config.showTitleBorder ? 'border-[3px] border-white' : ''}`} style={titleBoxStyle}>
+                            <h3 className="text-4xl text-white italic font-black tracking-normal leading-none text-center" style={{ fontFamily: 'var(--font-retro)' }}>
                                 {group.matchDisplay}
                             </h3>
                         </div>
 
-                        {/* BLOQUE DE APUESTAS - TikTok Retro - Kurale */}
-                        <div className="bg-white px-6 py-8 rounded-2xl w-fit max-w-[95%] flex flex-col items-start gap-3 z-10 shadow-2xl border-4 border-white">
-                            {group.picks.map((pick: string, pIdx: number) => (
-                                pick.split('\n').filter(l => l.trim()).map((line, lIdx) => (
-                                    <div key={`${pIdx}-${lIdx}`} className="text-left w-full">
-                                        <span className="text-4xl text-black italic font-black tracking-wide leading-snug" style={{ fontFamily: 'var(--font-retro)' }}>
-                                            {line}
-                                        </span>
+                        {/* BLOQUES DE APUESTAS Y CUOTAS SEPARADOS */}
+                        <div className="w-full flex flex-col items-center justify-center gap-5 z-10">
+                            {group.picks.map((item: any, pIdx: number) => (
+                                <div key={pIdx} className="flex flex-col items-center gap-4 w-full">
+                                    {/* BLOQUE ASIPUESTA (Texto más grande) */}
+                                    <div className="bg-white px-12 pt-5 pb-8 rounded-[32px] w-fit max-w-[98%] flex flex-col items-center justify-center shadow-2xl border-[6px] border-white" style={betsBoxStyle}>
+                                        {item.text.split('\n').filter((l: string) => l.trim()).map((line: string, lIdx: number) => (
+                                            <div key={`${pIdx}-${lIdx}`} className="text-center w-full flex items-center justify-center">
+                                                <span className="text-6xl text-black italic font-black tracking-tight leading-none" style={{ fontFamily: 'var(--font-retro)' }}>
+                                                    {line}
+                                                </span>
+                                            </div>
+                                        ))}
                                     </div>
-                                ))
+
+                                    {/* BLOQUE CUOTA (Como elemento independiente) */}
+                                    {config.showPickOdds && item.odd && (
+                                        <div className="bg-white px-10 py-3 rounded-2xl flex items-center justify-center shadow-xl border-[4px] border-white z-20" style={oddsBoxStyle}>
+                                            <span className="text-4xl text-black italic font-black tracking-tighter" style={{ fontFamily: 'var(--font-retro)', lineHeight: '1' }}>
+                                                {item.odd}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
                             ))}
                         </div>
                     </div>
@@ -966,6 +1054,26 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                             )}
                                             <div className="px-2 py-0.5 bg-black/60 rounded text-[10px] text-white/50 border border-white/5 flex items-center">{currentPreviewIdx + 1}/{slidesData.length + 2}</div>
                                         </div>
+
+                                        {/* SLIDERS (Mobile) */}
+                                        {currentPreviewIdx > 0 && currentPreviewIdx < slidesData.length + 1 && (
+                                            <>
+                                                <div className="absolute top-12 left-1/2 -translate-x-1/2 w-[80%] z-30 flex flex-col gap-1 items-center bg-black/40 backdrop-blur-sm p-2 rounded-xl border border-white/10">
+                                                    <div className="flex justify-between w-full text-[7px] font-black text-white/60 uppercase px-1"><span>Título</span><span>{Math.round(config.titleScale * 100)}%</span></div>
+                                                    <input type="range" min="0.5" max="1.8" step="0.01" value={config.titleScale} onChange={e => setConfig({ ...config, titleScale: parseFloat(e.target.value) })} className="w-full h-1 accent-emerald-500 bg-white/10 rounded-full appearance-none" />
+                                                </div>
+                                                <div className="absolute bottom-16 left-1/2 -translate-x-1/2 w-[80%] z-30 flex flex-col gap-1 items-center bg-black/40 backdrop-blur-sm p-2 rounded-xl border border-white/10">
+                                                    <div className="flex justify-between w-full text-[7px] font-black text-white/60 uppercase px-1"><span>Apuestas</span><span>{Math.round(config.betsScale * 100)}%</span></div>
+                                                    <input type="range" min="0.5" max="1.8" step="0.01" value={config.betsScale} onChange={e => setConfig({ ...config, betsScale: parseFloat(e.target.value) })} className="w-full h-1 accent-sky-500 bg-white/10 rounded-full appearance-none" />
+                                                </div>
+                                                {config.showPickOdds && (
+                                                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[80%] z-40 flex flex-col gap-1 items-center bg-black/40 backdrop-blur-sm p-2 rounded-xl border border-white/10">
+                                                        <div className="flex justify-between w-full text-[7px] font-black text-white/60 uppercase px-1"><span>Cuotas</span><span>{Math.round(config.oddsScale * 100)}%</span></div>
+                                                        <input type="range" min="0.5" max="1.5" step="0.01" value={config.oddsScale} onChange={e => setConfig({ ...config, oddsScale: parseFloat(e.target.value) })} className="w-full h-1 accent-amber-500 bg-white/10 rounded-full appearance-none" />
+                                                    </div>
+                                                )}
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                                 <div className="flex flex-col gap-2 w-[100px] shrink-0">
@@ -993,6 +1101,10 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                 <div><label className="text-[10px] font-bold text-emerald-500 dark:text-emerald-400 uppercase tracking-wider block mb-2">Título Principal</label><textarea value={config.introTitle} onChange={e => setConfig({ ...config, introTitle: e.target.value })} className="w-full bg-secondary/30 dark:bg-black/50 border border-border/10 dark:border-white/10 rounded-xl p-3 text-foreground dark:text-white text-sm font-bold min-h-[80px] focus:border-emerald-500/50 outline-none" /><div className="mt-2 flex items-center gap-2"><input type="checkbox" checked={config.useFullDate} onChange={(e) => setConfig({ ...config, useFullDate: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><label className="text-[10px] text-muted-foreground dark:text-white/50">Fecha Larga + Iconos</label></div></div>
                                 <div className="grid grid-cols-2 gap-3"><div><label className="text-[9px] text-muted-foreground dark:text-white/30 uppercase mb-1 block">Emoji 1</label><input value={config.introEmoji1} onChange={e => setConfig({ ...config, introEmoji1: e.target.value })} className="w-full bg-secondary/30 dark:bg-black/50 border border-border/10 dark:border-white/10 rounded-lg p-2 text-center text-foreground dark:text-white" /></div><div><label className="text-[9px] text-muted-foreground dark:text-white/30 uppercase mb-1 block">Emoji 2</label><input value={config.introEmoji2} onChange={e => setConfig({ ...config, introEmoji2: e.target.value })} className="w-full bg-secondary/30 dark:bg-black/50 border border-border/10 dark:border-white/10 rounded-lg p-2 text-center text-foreground dark:text-white" /></div></div>
                                 <div><div className="flex justify-between mb-1"><label className="text-[10px] font-bold text-emerald-500 dark:text-emerald-400 uppercase">Cuota Sticker</label><div className="flex items-center gap-1"><input type="checkbox" checked={config.showOdds} onChange={(e) => setConfig({ ...config, showOdds: e.target.checked })} className="accent-emerald-500 w-3 h-3" /><span className="text-[9px] text-muted-foreground dark:text-white/50">Mostrar</span></div><div className="flex items-center gap-1"><input type="checkbox" checked={config.addHundred} onChange={(e) => { const c = e.target.checked; let val = parseInt(config.introSubtitle.replace(/\D/g, '')) || 0; setConfig({ ...config, addHundred: c, introSubtitle: `+${c ? val * 10 : Math.round(val / 10)} 📈` }) }} className="accent-emerald-500 w-3 h-3" /><span className="text-[9px] text-muted-foreground dark:text-white/50">x10</span></div></div><input value={config.introSubtitle} onChange={e => setConfig({ ...config, introSubtitle: e.target.value })} className="w-full bg-secondary/30 dark:bg-black/50 border border-border/10 dark:border-white/10 rounded-xl p-3 text-foreground dark:text-white text-sm font-bold outline-none focus:border-emerald-500/50" /></div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="flex items-center gap-2 bg-secondary/30 dark:bg-black/50 p-3 rounded-xl border border-border/10 dark:border-white/5"><input type="checkbox" checked={config.showTitleBorder} onChange={(e) => setConfig({ ...config, showTitleBorder: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><label className="text-[10px] font-bold text-emerald-500 dark:text-emerald-400 uppercase">Borde Título</label></div>
+                                    <div className="flex items-center gap-2 bg-secondary/30 dark:bg-black/50 p-3 rounded-xl border border-border/10 dark:border-white/5"><input type="checkbox" checked={config.showPickOdds} onChange={(e) => setConfig({ ...config, showPickOdds: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><label className="text-[10px] font-bold text-emerald-500 dark:text-emerald-400 uppercase">Cuota Apuesta</label></div>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -1001,7 +1113,25 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                         <div className="w-full max-w-lg mx-auto bg-white dark:bg-[#121212] border border-border/10 dark:border-white/10 rounded-2xl p-4 shadow-lg shadow-black/5 dark:shadow-none">
                             <div className="space-y-3 max-h-[60vh] overflow-y-auto custom-scrollbar pr-1">
                                 {!slideGroups.length && <p className="text-center text-xs text-muted-foreground dark:text-white/30 py-8">No hay apuestas cargadas</p>}
-                                {slideGroups.map((group: any, gIdx: number) => (<div key={gIdx} className="bg-secondary/30 dark:bg-black/30 rounded-xl p-3 border border-border/10 dark:border-white/5 hover:border-sky-500/30 transition-colors"><div className="flex items-center gap-2 mb-2"><input value={group.matchDisplay} onChange={(e) => { const n = [...slideGroups]; n[gIdx].matchDisplay = e.target.value; setSlideGroups(n); }} className="bg-transparent border-b border-white/10 w-full text-xs font-bold text-sky-500 dark:text-sky-400 focus:border-sky-500 outline-none pb-1" /><button onClick={() => { const n = [...slideGroups]; n[gIdx].isFeatured = !n[gIdx].isFeatured; setSlideGroups(n); }} className={`p-1.5 rounded-lg border ${group.isFeatured ? 'bg-sky-500 border-sky-500 text-white' : 'bg-white/5 border-white/5 text-muted-foreground dark:text-white/20'}`}><ScanEye size={12} /></button></div><div className="space-y-1 pl-2 border-l border-white/10">{group.picks.map((pick: string, pIdx: number) => (<textarea key={pIdx} value={pick} onChange={(e) => { const n = [...slideGroups]; n[gIdx].picks[pIdx] = e.target.value; setSlideGroups(n); }} rows={2} className="bg-transparent w-full text-[10px] text-foreground/70 dark:text-white/60 focus:text-foreground dark:focus:text-white outline-none resize-y min-h-[40px] whitespace-pre-wrap" />))}</div></div>))}
+                                {slideGroups.map((group: any, gIdx: number) => (
+                                    <div key={gIdx} className="bg-secondary/30 dark:bg-black/30 rounded-xl p-3 border border-border/10 dark:border-white/5 hover:border-sky-500/30 transition-colors">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <input value={group.matchDisplay} onChange={(e) => { const n = [...slideGroups]; n[gIdx].matchDisplay = e.target.value; setSlideGroups(n); }} className="bg-transparent border-b border-white/10 w-full text-xs font-bold text-sky-500 dark:text-sky-400 focus:border-sky-500 outline-none pb-1" />
+                                            <button onClick={() => { const n = [...slideGroups]; n[gIdx].isFeatured = !n[gIdx].isFeatured; setSlideGroups(n); }} className={`p-1.5 rounded-lg border ${group.isFeatured ? 'bg-sky-500 border-sky-500 text-white' : 'bg-white/5 border-white/5 text-muted-foreground dark:text-white/20'}`}><ScanEye size={12} /></button>
+                                        </div>
+                                        <div className="space-y-3 pl-2 border-l border-white/10">
+                                            {group.picks.map((item: any, pIdx: number) => (
+                                                <div key={pIdx} className="space-y-1">
+                                                    <textarea value={item.text} onChange={(e) => { const n = [...slideGroups]; n[gIdx].picks[pIdx].text = e.target.value; setSlideGroups(n); }} rows={2} className="bg-transparent w-full text-[10px] text-foreground/70 dark:text-white/60 focus:text-foreground dark:focus:text-white outline-none resize-y min-h-[40px] whitespace-pre-wrap" />
+                                                    <div className="flex items-center gap-1.5 opacity-60">
+                                                        <span className="text-[8px] font-bold text-sky-400 uppercase">Cuota</span>
+                                                        <input value={item.odd} onChange={(e) => { const n = [...slideGroups]; n[gIdx].picks[pIdx].odd = e.target.value; setSlideGroups(n); }} className="bg-black/20 border border-white/5 rounded px-1.5 py-0.5 text-[9px] text-white/50 w-16" />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     )}
@@ -1095,6 +1225,8 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                 <div className="grid grid-cols-2 gap-2">
                                     <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5"><input type="checkbox" checked={config.useFullDate} onChange={(e) => setConfig({ ...config, useFullDate: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-white/60 font-bold">Fecha Larga</span></div>
                                     <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5"><input type="checkbox" checked={config.showOdds} onChange={(e) => setConfig({ ...config, showOdds: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-white/60 font-bold">Mostrar Cuota</span></div>
+                                    <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5"><input type="checkbox" checked={config.showTitleBorder} onChange={(e) => setConfig({ ...config, showTitleBorder: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-white/60 font-bold">Borde Título</span></div>
+                                    <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5"><input type="checkbox" checked={config.showPickOdds} onChange={(e) => setConfig({ ...config, showPickOdds: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-white/60 font-bold">Cuota Apuesta</span></div>
                                     <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5"><input type="checkbox" checked={config.addHundred} onChange={(e) => { const c = e.target.checked; let val = parseInt(config.introSubtitle.replace(/\D/g, '')) || 0; setConfig({ ...config, addHundred: c, introSubtitle: `+${c ? val * 10 : Math.round(val / 10)} 📈` }) }} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-white/60 font-bold">Cuota x10</span></div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-3">
@@ -1129,8 +1261,21 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
 
                                 {slideGroups.map((group, idx) => (
                                     <div key={idx} className="bg-black/30 p-3 rounded-xl border border-white/5 hover:border-sky-500/20 transition-all">
-                                        <div className="flex gap-2 mb-2"><input value={group.matchDisplay} onChange={e => { const n = [...slideGroups]; n[idx].matchDisplay = e.target.value; setSlideGroups(n) }} className="bg-transparent border-b border-white/10 w-full text-xs font-bold text-sky-300 focus:border-sky-500 outline-none pb-1" /><button onClick={() => { const n = [...slideGroups]; n[idx].isFeatured = !n[idx].isFeatured; setSlideGroups(n) }} className={`p-1 rounded ${group.isFeatured ? 'bg-sky-500 text-white' : 'text-white/20'}`}><ScanEye size={12} /></button></div>
-                                        <div className="pl-2 border-l border-white/10 space-y-1">{group.picks.map((p: string, i: number) => <textarea key={i} value={p} onChange={e => { const n = [...slideGroups]; n[idx].picks[i] = e.target.value; setSlideGroups(n) }} rows={2} className="bg-transparent w-full text-[10px] text-white/50 focus:text-white outline-none resize-y min-h-[40px] whitespace-pre-wrap" />)}</div>
+                                        <div className="flex gap-2 mb-2">
+                                            <input value={group.matchDisplay} onChange={e => { const n = [...slideGroups]; n[idx].matchDisplay = e.target.value; setSlideGroups(n) }} className="bg-transparent border-b border-white/10 w-full text-xs font-bold text-sky-300 focus:border-sky-500 outline-none pb-1" />
+                                            <button onClick={() => { const n = [...slideGroups]; n[idx].isFeatured = !n[idx].isFeatured; setSlideGroups(n) }} className={`p-1 rounded ${group.isFeatured ? 'bg-sky-500 text-white' : 'text-white/20'}`}><ScanEye size={12} /></button>
+                                        </div>
+                                        <div className="pl-2 border-l border-white/10 space-y-3">
+                                            {group.picks.map((item: any, i: number) => (
+                                                <div key={i} className="space-y-1">
+                                                    <textarea value={item.text} onChange={e => { const n = [...slideGroups]; n[idx].picks[i].text = e.target.value; setSlideGroups(n) }} rows={2} className="bg-transparent w-full text-[10px] text-white/50 focus:text-white outline-none resize-y min-h-[40px] whitespace-pre-wrap" />
+                                                    <div className="flex items-center gap-2 opacity-50">
+                                                        <span className="text-[7px] font-black text-sky-400 uppercase tracking-widest">Cuota</span>
+                                                        <input value={item.odd} onChange={e => { const n = [...slideGroups]; n[idx].picks[i].odd = e.target.value; setSlideGroups(n) }} className="bg-black/40 border border-white/10 rounded px-1.5 py-0.5 text-[9px] text-white/70 w-16" />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
                                 ))}
                                 {!slideGroups.length && <p className="text-xs text-center text-white/20 py-4">Sin datos</p>}
@@ -1207,6 +1352,26 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                 )}
                                 <div className="px-3 py-1 bg-black/60 rounded-full border border-white/10 text-xs font-bold text-white/70 flex items-center">{currentPreviewIdx + 1} / {slidesData.length + 2}</div>
                             </div>
+
+                            {/* SLIDERS (Desktop) */}
+                            {currentPreviewIdx > 0 && currentPreviewIdx < slidesData.length + 1 && (
+                                <>
+                                    <div className="absolute top-10 left-1/2 -translate-x-1/2 w-[60%] z-[40] flex flex-col gap-1.5 items-center bg-black/50 backdrop-blur-md p-3 rounded-2xl border border-white/10 shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                        <div className="flex justify-between w-full text-[9px] font-black text-white/70 uppercase tracking-widest px-1"><span>Ajustar Título</span><span>{Math.round(config.titleScale * 100)}%</span></div>
+                                        <input type="range" min="0.5" max="1.8" step="0.01" value={config.titleScale} onChange={e => setConfig({ ...config, titleScale: parseFloat(e.target.value) })} className="w-full h-1.5 accent-emerald-500 bg-white/10 rounded-full appearance-none cursor-pointer" />
+                                    </div>
+                                    <div className="absolute bottom-24 left-1/2 -translate-x-1/2 w-[60%] z-[40] flex flex-col gap-1.5 items-center bg-black/50 backdrop-blur-md p-3 rounded-2xl border border-white/10 shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                        <div className="flex justify-between w-full text-[9px] font-black text-white/70 uppercase tracking-widest px-1"><span>Ajustar Selecciones</span><span>{Math.round(config.betsScale * 100)}%</span></div>
+                                        <input type="range" min="0.5" max="1.8" step="0.01" value={config.betsScale} onChange={e => setConfig({ ...config, betsScale: parseFloat(e.target.value) })} className="w-full h-1.5 accent-sky-500 bg-white/10 rounded-full appearance-none cursor-pointer" />
+                                    </div>
+                                    {config.showPickOdds && (
+                                        <div className="absolute bottom-[20%] left-1/2 -translate-x-1/2 w-[60%] z-[40] flex flex-col gap-1.5 items-center bg-black/50 backdrop-blur-md p-3 rounded-2xl border border-white/10 shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                            <div className="flex justify-between w-full text-[9px] font-black text-white/70 uppercase tracking-widest px-1"><span>Ajustar Cuotas</span><span>{Math.round(config.oddsScale * 100)}%</span></div>
+                                            <input type="range" min="0.5" max="1.5" step="0.01" value={config.oddsScale} onChange={e => setConfig({ ...config, oddsScale: parseFloat(e.target.value) })} className="w-full h-1.5 accent-amber-500 bg-white/10 rounded-full appearance-none cursor-pointer" />
+                                        </div>
+                                    )}
+                                </>
+                            )}
                         </div>
                     </div>
 
@@ -1245,7 +1410,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                        RENDER LOGIC (Identical Structure as before) 
                      */}
                     {/* 1. INTRO (Hidden) */}
-                    <div className="w-[1080px] relative flex flex-col items-center justify-center font-sans overflow-hidden bg-black" style={{ height: 1350 }}>
+                    <div className="w-[1080px] relative flex flex-col items-center justify-center overflow-hidden bg-black" style={{ height: 1350 }}>
                         <img src={getImageSrc(config.bgSelection[0])} width={1080} height={1350} className="absolute inset-0 w-full h-full object-cover z-0 opacity-100" alt="bg" />
                         <div className="absolute inset-0 z-0 bg-black/5" />
                         {renderSlideContent(0, false)}
@@ -1253,7 +1418,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
 
                     {/* 2. CHUNKS (Hidden) */}
                     {slidesData.map((chunk, slideIdx) => (
-                        <div key={slideIdx} className="w-[1080px] relative flex flex-col items-center justify-center font-sans overflow-hidden bg-black" style={{ height: 1350 }}>
+                        <div key={slideIdx} className="w-[1080px] relative flex flex-col items-center justify-center overflow-hidden bg-black" style={{ height: 1350 }}>
                             <img src={getImageSrc(config.bgSelection[slideIdx + 1])} width={1080} height={1350} className="absolute inset-0 w-full h-full object-cover z-0 opacity-100" alt="bg" />
                             <div className="absolute inset-0 z-0 bg-black/5" />
                             {renderSlideContent(slideIdx + 1, false)}
@@ -1261,7 +1426,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                     ))}
 
                     {/* 3. OUTRO (Hidden) */}
-                    <div className="w-[1080px] relative flex flex-col items-center justify-center font-sans overflow-hidden bg-black" style={{ height: 1350 }}>
+                    <div className="w-[1080px] relative flex flex-col items-center justify-center overflow-hidden bg-black" style={{ height: 1350 }}>
                         <img src={getImageSrc(config.bgSelection[slidesData.length + 1])} width={1080} height={1350} className="absolute inset-0 w-full h-full object-cover z-0 opacity-100" alt="bg" />
                         <div className="absolute inset-0 z-0 bg-black/5" />
                         {renderSlideContent(slidesData.length + 1, false)}
