@@ -43,7 +43,7 @@ const TabButton = ({ id, label, icon: Icon, activeTab, setActiveTab }: any) => {
 
 export default function TikTokFactory({ predictions, formattedDate, rawDate }: TikTokFactoryProps) {
     // --- STATE ---
-    const [activeTab, setActiveTab] = useState<'editor' | 'portada' | 'bets' | 'outro' | 'bg'>('editor');
+    const [activeTab, setActiveTab] = useState<'editor' | 'portada' | 'bets' | 'outro' | 'bg' | 'settings'>('editor');
     const [onlyFootball, setOnlyFootball] = useState(true);
 
     // --- NEW: VIRAL MODE (Today vs Tomorrow) ---
@@ -124,8 +124,8 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         introSubtitle: "",
         introEmoji1: '🤫',
         introEmoji2: '✅',
-        outroTitle: "GRUPO GRATIS EN\nLA DESCRIPCIÓN",
-        outroSub: "ACCEDE DESDE EL PERFIL",
+        outroTitle: "ESTAMOS ACERTANDO\n TODO EN EL GRUPO",
+        outroSub: "MÁS INFO EN EL PERFIL",
         bgSelection: [] as string[],
         addHundred: true,
         useFullDate: true,
@@ -134,7 +134,17 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         betsScale: 0.7,
         oddsScale: 0.8,
         showTitleBorder: false,
-        showPickOdds: false
+        showPickOdds: false,
+        // Advance Settings (Sizes in rem, Gap in px)
+        introTitleSize: 3, // text-5xl
+        introSubSize: 2.25, // text-4xl
+        matchTitleSize: 2.25, // text-4xl
+        pickTextSize: 3.75, // text-6xl
+        pickOddSize: 2.8, // Default requested
+        outroTitleSize: 3, // text-5xl
+        outroSubSize: 1.875, // text-3xl
+        gapBody: -16,
+        gapOdds: -13, // New gap for odds box
     });
 
     const [imageSelector, setImageSelector] = useState<{ idx: number | null }>({ idx: null });
@@ -168,6 +178,34 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
     const [isDragging, setIsDragging] = useState(false);
     const dragRef = useRef<{ startX: number, startY: number, initialX: number, initialY: number, idx: number } | null>(null);
     const pinchRef = useRef<{ initialDist: number, initialScale: number, idx: number } | null>(null);
+
+    // --- MOBILE SETTINGS (Overlay) ---
+    const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false);
+    const [currentMobilePropIdx, setCurrentMobilePropIdx] = useState(0);
+
+    const mobileConfigProperties = [
+        // Sizes
+        { key: 'introTitleSize', label: 'Tamaño Título Portada', type: 'range', min: 1.5, max: 5, step: 0.1 },
+        { key: 'introSubSize', label: 'Tamaño Fecha', type: 'range', min: 1, max: 4, step: 0.1 },
+        { key: 'gapBody', label: 'Separación Título-Apuesta', type: 'range', min: -60, max: 20, step: 1 },
+        { key: 'matchTitleSize', label: 'Tamaño Partido', type: 'range', min: 1, max: 4, step: 0.1 },
+        { key: 'pickTextSize', label: 'Tamaño Selección', type: 'range', min: 1.5, max: 6, step: 0.1 },
+        { key: 'gapOdds', label: 'Espacio Caja-Cuota', type: 'range', min: -50, max: 50, step: 1 },
+        { key: 'pickOddSize', label: 'Tamaño Cuota', type: 'range', min: 1, max: 4, step: 0.1 },
+        // Toggles
+        { key: 'showOdds', label: 'Cuota en Portada', type: 'toggle' },
+        { key: 'showTitleBorder', label: 'Borde en Título', type: 'toggle' },
+        { key: 'useFullDate', label: 'Fecha Larga', type: 'toggle' },
+    ];
+
+    const cycleMobileProperty = (dir: number) => {
+        setCurrentMobilePropIdx(prev => {
+            const next = prev + dir;
+            if (next < 0) return mobileConfigProperties.length - 1;
+            if (next >= mobileConfigProperties.length) return 0;
+            return next;
+        });
+    };
 
     useEffect(() => {
         // Sync positions array size
@@ -516,7 +554,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
             // Calculate day name
             let dateToUse = new Date();
             if (viewMode === 'tomorrow') dateToUse.setDate(dateToUse.getDate() + 1);
-            const dayName = ['DOMINGO', 'LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'][dateToUse.getDay()];
+            const dayName = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][dateToUse.getDay()];
 
             setConfig(prev => ({ ...prev, introTitle: `${titleText}\n(${dayName})`, introEmoji1: '🤫', introEmoji2: '✅' }));
         }
@@ -869,12 +907,12 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                 <div className="relative z-10 w-full flex flex-col items-center gap-14 p-8" style={style} {...handlers}>
                     <div className="flex flex-col items-center gap-4 w-full">
                         <div className="bg-white px-12 pt-0 pb-8 rounded-2xl w-fit max-w-[90%] flex items-center justify-center pointer-events-none">
-                            <h1 className="text-5xl font-black text-black tracking-tighter leading-none whitespace-nowrap text-center uppercase">
+                            <h1 className="font-black text-black tracking-tighter leading-none whitespace-nowrap text-center" style={{ fontSize: `${config.introTitleSize}rem` }}>
                                 {config.introTitle.split('\n')[0]}
                             </h1>
                         </div>
                         <div className="bg-white px-12 pt-0 pb-8 rounded-2xl flex items-center justify-center gap-6 w-fit max-w-[95%] pointer-events-none">
-                            <h1 className="text-4xl font-black text-black tracking-tighter leading-none whitespace-nowrap uppercase">
+                            <h1 className="font-black text-black tracking-tighter leading-none whitespace-nowrap" style={{ fontSize: `${config.introSubSize}rem` }}>
                                 {config.introTitle.split('\n')[1] || ''}
                             </h1>
                             <div className="flex items-center gap-4">
@@ -898,8 +936,8 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         if (index === slidesData.length + 1) {
             return (
                 <div className="relative z-10 w-full flex flex-col items-center gap-16 p-12" style={style} {...handlers}>
-                    <div className="bg-white px-10 py-10 rounded-2xl max-w-[95%] text-center pointer-events-none"><h2 className="text-6xl font-black text-black uppercase tracking-tighter leading-tight whitespace-pre-line">{config.outroTitle}</h2></div>
-                    <div className="bg-white px-12 py-6 rounded-2xl pointer-events-none"><p className="text-3xl font-black text-black uppercase tracking-tight">{config.outroSub}</p></div>
+                    <div className="bg-white px-10 py-8 rounded-2xl max-w-[95%] text-center pointer-events-none"><h2 className="font-black text-black uppercase tracking-tighter leading-tight whitespace-pre-line" style={{ fontSize: `${config.outroTitleSize}rem` }}>{config.outroTitle}</h2></div>
+                    <div className="bg-white px-12 py-6 rounded-2xl pointer-events-none"><p className="font-black text-black uppercase tracking-tight" style={{ fontSize: `${config.outroSubSize}rem` }}>{config.outroSub}</p></div>
                 </div>
             );
         }
@@ -915,37 +953,42 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                     <div key={bIdx} className="w-full flex flex-col items-center relative">
 
                         {/* TÍTULO PARTIDO - Estilo Etiqueta Negra (TikTok Retro - Kurale) */}
-                        <div className={`bg-black px-10 pt-0 pb-6 rounded-xl z-20 mb-1 shadow-lg flex items-center justify-center ${config.showTitleBorder ? 'border-[3px] border-white' : ''}`} style={titleBoxStyle}>
-                            <h3 className="text-4xl text-white italic font-black tracking-normal leading-none text-center" style={{ fontFamily: 'var(--font-retro)' }}>
+                        <div className={`bg-black px-10 pt-0 pb-6 rounded-xl z-20 shadow-lg flex items-center justify-center ${config.showTitleBorder ? 'border-[3px] border-white' : ''}`} style={{ ...titleBoxStyle, marginBottom: `${config.gapBody}px` }}>
+                            <h3 className="text-white italic font-black tracking-normal leading-none text-center -mt-3" style={{ fontFamily: 'var(--font-retro)', fontSize: `${config.matchTitleSize}rem` }}>
                                 {group.matchDisplay}
                             </h3>
                         </div>
 
                         {/* BLOQUES DE APUESTAS Y CUOTAS SEPARADOS */}
                         <div className="w-full flex flex-col items-center justify-center gap-5 z-10">
-                            {group.picks.map((item: any, pIdx: number) => (
-                                <div key={pIdx} className="flex flex-col items-center gap-4 w-full">
-                                    {/* BLOQUE ASIPUESTA (Texto más grande) */}
-                                    <div className="bg-white px-12 pt-5 pb-8 rounded-[32px] w-fit max-w-[98%] flex flex-col items-center justify-center shadow-2xl border-[6px] border-white" style={betsBoxStyle}>
-                                        {item.text.split('\n').filter((l: string) => l.trim()).map((line: string, lIdx: number) => (
-                                            <div key={`${pIdx}-${lIdx}`} className="text-center w-full flex items-center justify-center">
-                                                <span className="text-6xl text-black italic font-black tracking-tight leading-none" style={{ fontFamily: 'var(--font-retro)' }}>
+                            <div className="bg-white px-10 pt-1 pb-8 rounded-[32px] w-fit max-w-[95%] flex flex-col items-start justify-center shadow-2xl border-[6px] border-white gap-8" style={betsBoxStyle}>
+                                {group.picks.map((item: any, pIdx: number) => (
+                                    <div key={pIdx} className="w-full flex flex-col items-start py-1">
+                                        <div className="flex flex-col items-start gap-1 w-full">
+                                            {item.text.split('\n').filter((l: string) => l.trim()).map((line: string, lIdx: number) => (
+                                                <span key={`${pIdx}-${lIdx}`} className="text-black italic font-black tracking-tight leading-none text-left -mt-2" style={{ fontFamily: 'var(--font-retro)', fontSize: `${config.pickTextSize}rem` }}>
                                                     {line}
                                                 </span>
-                                            </div>
-                                        ))}
-                                    </div>
-
-                                    {/* BLOQUE CUOTA (Como elemento independiente) */}
-                                    {config.showPickOdds && item.odd && (
-                                        <div className="bg-white px-10 py-3 rounded-2xl flex items-center justify-center shadow-xl border-[4px] border-white z-20" style={oddsBoxStyle}>
-                                            <span className="text-4xl text-black italic font-black tracking-tighter" style={{ fontFamily: 'var(--font-retro)', lineHeight: '1' }}>
-                                                {item.odd}
-                                            </span>
+                                            ))}
                                         </div>
-                                    )}
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* NUEVO BLOQUE DE CUOTA TOTAL SEPARADO */}
+                            {config.showPickOdds && (
+                                <div className="bg-white px-6 py-2 rounded-xl shadow-xl flex items-center justify-center border-[3px] border-white" style={{ ...oddsBoxStyle, marginTop: `${(config as any).gapOdds}px` }}>
+                                    <span className="text-black italic font-black tracking-tighter leading-none" style={{ fontFamily: 'var(--font-retro)', fontSize: `${config.pickOddSize}rem` }}>
+                                        {/* Calcular cuota total o mostrar la del primer pick si es simple */}
+                                        +{group.picks.length > 1
+                                            ? (group.picks.reduce((acc: number, curr: any) => {
+                                                const val = parseFloat((curr.odd || '0').toString().replace(',', '.').replace(/[^\d.-]/g, ''));
+                                                return acc * (isNaN(val) ? 1 : val);
+                                            }, 1)).toFixed(2)
+                                            : parseFloat((group.picks[0]?.odd || '0').toString().replace(',', '.').replace(/[^\d.-]/g, '')).toFixed(2)}
+                                    </span>
                                 </div>
-                            ))}
+                            )}
                         </div>
                     </div>
                 ))}
@@ -995,6 +1038,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                     <TabButton id="portada" label="Portada" icon={LayoutTemplate} activeTab={activeTab} setActiveTab={setActiveTab} />
                     <TabButton id="bets" label="Apuestas" icon={Type} activeTab={activeTab} setActiveTab={setActiveTab} />
                     <TabButton id="outro" label="Cierre" icon={Megaphone} activeTab={activeTab} setActiveTab={setActiveTab} />
+                    <TabButton id="settings" label="Ajustes" icon={Settings2} activeTab={activeTab} setActiveTab={setActiveTab} />
                 </div>
 
                 {/* VIRAL MODE TOGGLE (MOBILE) */}
@@ -1067,25 +1111,82 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                                     <input type="range" min="0.5" max="1.8" step="0.01" value={config.betsScale} onChange={e => setConfig({ ...config, betsScale: parseFloat(e.target.value) })} className="w-full h-1 accent-sky-500 bg-white/10 rounded-full appearance-none" />
                                                 </div>
                                                 {config.showPickOdds && (
-                                                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[80%] z-40 flex flex-col gap-1 items-center bg-black/40 backdrop-blur-sm p-2 rounded-xl border border-white/10">
+                                                    <div className="absolute bottom-24 left-1/2 -translate-x-1/2 w-[80%] z-40 flex flex-col gap-1 items-center bg-black/40 backdrop-blur-sm p-2 rounded-xl border border-white/10">
                                                         <div className="flex justify-between w-full text-[7px] font-black text-white/60 uppercase px-1"><span>Cuotas</span><span>{Math.round(config.oddsScale * 100)}%</span></div>
                                                         <input type="range" min="0.5" max="1.5" step="0.01" value={config.oddsScale} onChange={e => setConfig({ ...config, oddsScale: parseFloat(e.target.value) })} className="w-full h-1 accent-amber-500 bg-white/10 rounded-full appearance-none" />
                                                     </div>
                                                 )}
                                             </>
                                         )}
+
+                                        {/* MOBILE SETTINGS OVERLAY (NEW) */}
+                                        {mobileSettingsOpen && (
+                                            <div className="absolute inset-x-4 bottom-16 z-50 flex flex-col items-center gap-3 bg-black/60 backdrop-blur-md p-4 rounded-2xl border border-white/10 animate-in slide-in-from-bottom-2 fade-in duration-200">
+
+                                                {/* Property Selector */}
+                                                <div className="flex items-center justify-between w-full gap-2 mb-1">
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); cycleMobileProperty(-1); }}
+                                                        className="p-2 bg-white/10 rounded-full hover:bg-white/20 text-white/70"
+                                                    >
+                                                        <ChevronLeft size={16} />
+                                                    </button>
+
+                                                    <div className="flex flex-col items-center">
+                                                        <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Ajustar propiedad</span>
+                                                        <span className="text-sm font-black text-white">{mobileConfigProperties[currentMobilePropIdx].label}</span>
+                                                    </div>
+
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); cycleMobileProperty(1); }}
+                                                        className="p-2 bg-white/10 rounded-full hover:bg-white/20 text-white/70"
+                                                    >
+                                                        <ChevronRight size={16} />
+                                                    </button>
+                                                </div>
+
+                                                {/* Controls */}
+                                                <div className="w-full space-y-2">
+                                                    {mobileConfigProperties[currentMobilePropIdx].type === 'range' ? (
+                                                        <>
+                                                            <div className="flex justify-between w-full text-[9px] font-mono text-white/50 px-1">
+                                                                <span>Min</span>
+                                                                <span className="text-emerald-400 font-bold">{(config as any)[mobileConfigProperties[currentMobilePropIdx].key]}</span>
+                                                                <span>Max</span>
+                                                            </div>
+                                                            <input
+                                                                type="range"
+                                                                min={mobileConfigProperties[currentMobilePropIdx].min}
+                                                                max={mobileConfigProperties[currentMobilePropIdx].max}
+                                                                step={mobileConfigProperties[currentMobilePropIdx].step}
+                                                                value={(config as any)[mobileConfigProperties[currentMobilePropIdx].key]}
+                                                                onChange={(e) => setConfig({ ...config, [mobileConfigProperties[currentMobilePropIdx].key]: parseFloat(e.target.value) })}
+                                                                className="w-full h-2 accent-emerald-500 bg-white/10 rounded-full appearance-none cursor-pointer"
+                                                            />
+                                                        </>
+                                                    ) : (
+                                                        <div className="flex items-center justify-center gap-4 py-2">
+                                                            <button
+                                                                onClick={() => setConfig({ ...config, [mobileConfigProperties[currentMobilePropIdx].key]: !(config as any)[mobileConfigProperties[currentMobilePropIdx].key] })}
+                                                                className={`px-6 py-2 rounded-xl font-bold text-xs uppercase transition-all ${(config as any)[mobileConfigProperties[currentMobilePropIdx].key] ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-white/10 text-white/40'}`}
+                                                            >
+                                                                {(config as any)[mobileConfigProperties[currentMobilePropIdx].key] ? 'ACTIVADO' : 'DESACTIVADO'}
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
                                     </div>
                                 </div>
                                 <div className="flex flex-col gap-2 w-[100px] shrink-0">
                                     <button
-                                        onClick={() => setOnlyFootball(!onlyFootball)}
-                                        className={`btn-active-effect border font-bold py-2 px-1 rounded-xl flex flex-col items-center justify-center gap-1 h-[60px] transition-all ${onlyFootball
-                                            ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400 shadow-[0_0_10px_-2px_rgba(16,185,129,0.3)]'
-                                            : 'bg-black/40 border-white/10 text-white/40'
-                                            }`}
+                                        onClick={() => setMobileSettingsOpen(!mobileSettingsOpen)}
+                                        className={`btn-active-effect border font-bold py-2 px-1 rounded-xl flex flex-col items-center justify-center gap-1 h-[60px] transition-all ${mobileSettingsOpen ? 'bg-zinc-700 text-white border-white/30' : 'bg-black/40 border-white/10 text-white/40 hover:text-white'}`}
                                     >
-                                        <div className={`w-2.5 h-2.5 rounded-full transition-colors mb-0.5 ${onlyFootball ? 'bg-emerald-400 animate-pulse' : 'bg-white/20'}`} />
-                                        <span className="text-[8px] uppercase leading-tight text-center">Solo<br />Fútbol</span>
+                                        <Settings2 size={18} className={mobileSettingsOpen ? 'animate-spin-slow' : ''} />
+                                        <span className="text-[8px] uppercase leading-tight text-center">Ajustes</span>
                                     </button>
                                     <button onClick={() => setShowSocialModal(true)} disabled={!socialContent} className="btn-active-effect bg-purple-100 dark:bg-purple-600/20 hover:bg-purple-200 dark:hover:bg-purple-600/30 border border-purple-200 dark:border-purple-500/30 text-purple-700 dark:text-purple-400 font-bold py-3 px-2 rounded-xl flex flex-col items-center justify-center gap-1 h-[70px]"><ScanEye size={18} /><span className="text-[9px] uppercase">Viral</span></button>
                                     <button onClick={generate} disabled={generating} className="btn-active-effect bg-white hover:bg-gray-100 text-black font-black py-3 px-2 rounded-xl flex flex-col items-center justify-center gap-1 shadow-lg shadow-black/5 dark:shadow-white/10 h-[70px] border border-gray-100"><span className="text-black">{generating ? <Loader2 className="animate-spin" size={18} /> : <ImageIcon size={18} />}</span> <span className="text-[9px] uppercase text-black">{generating ? '...' : 'Generar'}</span></button>
@@ -1101,10 +1202,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                 <div><label className="text-[10px] font-bold text-emerald-500 dark:text-emerald-400 uppercase tracking-wider block mb-2">Título Principal</label><textarea value={config.introTitle} onChange={e => setConfig({ ...config, introTitle: e.target.value })} className="w-full bg-secondary/30 dark:bg-black/50 border border-border/10 dark:border-white/10 rounded-xl p-3 text-foreground dark:text-white text-sm font-bold min-h-[80px] focus:border-emerald-500/50 outline-none" /><div className="mt-2 flex items-center gap-2"><input type="checkbox" checked={config.useFullDate} onChange={(e) => setConfig({ ...config, useFullDate: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><label className="text-[10px] text-muted-foreground dark:text-white/50">Fecha Larga + Iconos</label></div></div>
                                 <div className="grid grid-cols-2 gap-3"><div><label className="text-[9px] text-muted-foreground dark:text-white/30 uppercase mb-1 block">Emoji 1</label><input value={config.introEmoji1} onChange={e => setConfig({ ...config, introEmoji1: e.target.value })} className="w-full bg-secondary/30 dark:bg-black/50 border border-border/10 dark:border-white/10 rounded-lg p-2 text-center text-foreground dark:text-white" /></div><div><label className="text-[9px] text-muted-foreground dark:text-white/30 uppercase mb-1 block">Emoji 2</label><input value={config.introEmoji2} onChange={e => setConfig({ ...config, introEmoji2: e.target.value })} className="w-full bg-secondary/30 dark:bg-black/50 border border-border/10 dark:border-white/10 rounded-lg p-2 text-center text-foreground dark:text-white" /></div></div>
                                 <div><div className="flex justify-between mb-1"><label className="text-[10px] font-bold text-emerald-500 dark:text-emerald-400 uppercase">Cuota Sticker</label><div className="flex items-center gap-1"><input type="checkbox" checked={config.showOdds} onChange={(e) => setConfig({ ...config, showOdds: e.target.checked })} className="accent-emerald-500 w-3 h-3" /><span className="text-[9px] text-muted-foreground dark:text-white/50">Mostrar</span></div><div className="flex items-center gap-1"><input type="checkbox" checked={config.addHundred} onChange={(e) => { const c = e.target.checked; let val = parseInt(config.introSubtitle.replace(/\D/g, '')) || 0; setConfig({ ...config, addHundred: c, introSubtitle: `+${c ? val * 10 : Math.round(val / 10)} 📈` }) }} className="accent-emerald-500 w-3 h-3" /><span className="text-[9px] text-muted-foreground dark:text-white/50">x10</span></div></div><input value={config.introSubtitle} onChange={e => setConfig({ ...config, introSubtitle: e.target.value })} className="w-full bg-secondary/30 dark:bg-black/50 border border-border/10 dark:border-white/10 rounded-xl p-3 text-foreground dark:text-white text-sm font-bold outline-none focus:border-emerald-500/50" /></div>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div className="flex items-center gap-2 bg-secondary/30 dark:bg-black/50 p-3 rounded-xl border border-border/10 dark:border-white/5"><input type="checkbox" checked={config.showTitleBorder} onChange={(e) => setConfig({ ...config, showTitleBorder: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><label className="text-[10px] font-bold text-emerald-500 dark:text-emerald-400 uppercase">Borde Título</label></div>
-                                    <div className="flex items-center gap-2 bg-secondary/30 dark:bg-black/50 p-3 rounded-xl border border-border/10 dark:border-white/5"><input type="checkbox" checked={config.showPickOdds} onChange={(e) => setConfig({ ...config, showPickOdds: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><label className="text-[10px] font-bold text-emerald-500 dark:text-emerald-400 uppercase">Cuota Apuesta</label></div>
-                                </div>
+
                             </div>
                         </div>
                     )}
@@ -1142,7 +1240,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                             <div><label className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider block mb-2">Subtítulo</label><textarea value={config.outroSub} onChange={e => setConfig({ ...config, outroSub: e.target.value })} className="w-full bg-secondary/30 dark:bg-black/50 border border-border/10 dark:border-white/10 rounded-xl p-3 text-foreground dark:text-white text-sm font-bold min-h-[50px] focus:border-purple-500/50 outline-none" /></div>
                         </div>
                     )}
-                    {/* TAB 5: FONDOS */}
+                    {/* TAB 5: FONDOS (Renumbered to 6 technically but kept as is in flow) */}
                     {activeTab === 'bg' && (
                         <div className="w-full max-w-lg mx-auto bg-[#121212] border border-white/10 rounded-2xl p-6">
                             <div className="flex gap-2 mb-4">
@@ -1171,6 +1269,86 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                             </div>
                         </div>
                     )}
+
+                    {/* TAB 6: AJUSTES (RESTORED) */}
+                    {activeTab === 'settings' && (
+                        <div className="w-full max-w-lg mx-auto bg-white dark:bg-[#121212] border border-border/10 dark:border-white/10 rounded-2xl p-6 space-y-6 shadow-lg shadow-black/5 dark:shadow-none animate-in fade-in slide-in-from-bottom-4 duration-300">
+
+                            {/* SECCIÓN 1: VISIBILIDAD */}
+                            <div className="space-y-3">
+                                <h3 className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider mb-2 border-b border-white/10 pb-1">Visualización</h3>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="flex items-center gap-2 bg-secondary/30 dark:bg-black/50 p-2 rounded-lg border border-border/10 dark:border-white/5"><input type="checkbox" checked={config.useFullDate} onChange={(e) => setConfig({ ...config, useFullDate: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-muted-foreground dark:text-white/60 font-bold">Fecha Larga</span></div>
+                                    <div className="flex items-center gap-2 bg-secondary/30 dark:bg-black/50 p-2 rounded-lg border border-border/10 dark:border-white/5"><input type="checkbox" checked={config.showOdds} onChange={(e) => setConfig({ ...config, showOdds: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-muted-foreground dark:text-white/60 font-bold">Cuota Portada</span></div>
+                                    <div className="flex items-center gap-2 bg-secondary/30 dark:bg-black/50 p-2 rounded-lg border border-border/10 dark:border-white/5"><input type="checkbox" checked={config.showTitleBorder} onChange={(e) => setConfig({ ...config, showTitleBorder: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-muted-foreground dark:text-white/60 font-bold">Borde Título</span></div>
+                                    <div className="flex items-center gap-2 bg-secondary/30 dark:bg-black/50 p-2 rounded-lg border border-border/10 dark:border-white/5"><input type="checkbox" checked={config.showPickOdds} onChange={(e) => setConfig({ ...config, showPickOdds: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-muted-foreground dark:text-white/60 font-bold">Cuota Apuesta</span></div>
+                                    <div className="flex items-center gap-2 bg-secondary/30 dark:bg-black/50 p-2 rounded-lg border border-border/10 dark:border-white/5"><input type="checkbox" checked={config.addHundred} onChange={(e) => { const c = e.target.checked; let val = parseInt(config.introSubtitle.replace(/\D/g, '')) || 0; setConfig({ ...config, addHundred: c, introSubtitle: `+${c ? val * 10 : Math.round(val / 10)} 📈` }) }} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-muted-foreground dark:text-white/60 font-bold">Cuota x10</span></div>
+                                </div>
+                            </div>
+
+                            {/* SECCIÓN 2: TAMAÑOS PORTADA */}
+                            <div className="space-y-3">
+                                <h3 className="text-[10px] font-bold text-sky-500 uppercase tracking-wider mb-2 border-b border-white/10 pb-1">Tamaños Portada</h3>
+                                <div className="space-y-4">
+                                    <div>
+                                        <div className="flex justify-between mb-1"><span className="text-[9px] uppercase text-white/50">Título Principal</span><span className="text-[9px] text-white/50">{config.introTitleSize}rem</span></div>
+                                        <input type="range" min="1.5" max="5" step="0.1" value={config.introTitleSize} onChange={e => setConfig({ ...config, introTitleSize: parseFloat(e.target.value) })} className="w-full h-1.5 accent-sky-500 bg-white/10 rounded-full appearance-none cursor-pointer" />
+                                    </div>
+                                    <div>
+                                        <div className="flex justify-between mb-1"><span className="text-[9px] uppercase text-white/50">Subtítulo (Fecha)</span><span className="text-[9px] text-white/50">{config.introSubSize}rem</span></div>
+                                        <input type="range" min="1" max="4" step="0.1" value={config.introSubSize} onChange={e => setConfig({ ...config, introSubSize: parseFloat(e.target.value) })} className="w-full h-1.5 accent-sky-500 bg-white/10 rounded-full appearance-none cursor-pointer" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* SECCIÓN 3: APUESTAS */}
+                            <div className="space-y-3">
+                                <h3 className="text-[10px] font-bold text-amber-500 uppercase tracking-wider mb-2 border-b border-white/10 pb-1">Apuestas & Espaciado</h3>
+                                <div className="space-y-4">
+                                    <div>
+                                        <div className="flex justify-between mb-1"><span className="text-[9px] uppercase text-white/50">Espacio Título-Caja</span><span className="text-[9px] text-white/50">{config.gapBody}px</span></div>
+                                        <input type="range" min="-60" max="20" step="1" value={config.gapBody} onChange={e => setConfig({ ...config, gapBody: parseInt(e.target.value) })} className="w-full h-1.5 accent-amber-500 bg-white/10 rounded-full appearance-none cursor-pointer" />
+                                    </div>
+                                    <div>
+                                        <div className="flex justify-between mb-1"><span className="text-[9px] uppercase text-white/50">Título Partido</span><span className="text-[9px] text-white/50">{config.matchTitleSize}rem</span></div>
+                                        <input type="range" min="1" max="4" step="0.1" value={config.matchTitleSize} onChange={e => setConfig({ ...config, matchTitleSize: parseFloat(e.target.value) })} className="w-full h-1.5 accent-amber-500 bg-white/10 rounded-full appearance-none cursor-pointer" />
+                                    </div>
+                                    <div>
+                                        <div className="flex justify-between mb-1"><span className="text-[9px] uppercase text-white/50">Texto Selección</span><span className="text-[9px] text-white/50">{config.pickTextSize}rem</span></div>
+                                        <input type="range" min="1.5" max="6" step="0.1" value={config.pickTextSize} onChange={e => setConfig({ ...config, pickTextSize: parseFloat(e.target.value) })} className="w-full h-1.5 accent-amber-500 bg-white/10 rounded-full appearance-none cursor-pointer" />
+                                    </div>
+                                    <div>
+                                        <div className="flex justify-between mb-1"><span className="text-[9px] uppercase text-white/50">Tamaño Cuota</span><span className="text-[9px] text-white/50">{config.pickOddSize}rem</span></div>
+                                        <input type="range" min="1" max="4" step="0.1" value={config.pickOddSize} onChange={e => setConfig({ ...config, pickOddSize: parseFloat(e.target.value) })} className="w-full h-1.5 accent-amber-500 bg-white/10 rounded-full appearance-none cursor-pointer" />
+                                    </div>
+                                    <div>
+                                        <div className="flex justify-between mb-1"><span className="text-[9px] uppercase text-white/50">Espacio Caja-Cuota</span><span className="text-[9px] text-white/50">{(config as any).gapOdds}px</span></div>
+                                        <input type="range" min="-50" max="50" step="1" value={(config as any).gapOdds} onChange={e => setConfig({ ...config, gapOdds: parseInt(e.target.value) } as any)} className="w-full h-1.5 accent-amber-500 bg-white/10 rounded-full appearance-none cursor-pointer" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* SECCIÓN 4: CIERRE */}
+                            <div className="space-y-3">
+                                <h3 className="text-[10px] font-bold text-purple-500 uppercase tracking-wider mb-2 border-b border-white/10 pb-1">Cierre</h3>
+                                <div className="space-y-4">
+                                    <div>
+                                        <div className="flex justify-between mb-1"><span className="text-[9px] uppercase text-white/50">Título Cierre</span><span className="text-[9px] text-white/50">{config.outroTitleSize}rem</span></div>
+                                        <input type="range" min="1.5" max="5" step="0.1" value={config.outroTitleSize} onChange={e => setConfig({ ...config, outroTitleSize: parseFloat(e.target.value) })} className="w-full h-1.5 accent-purple-500 bg-white/10 rounded-full appearance-none cursor-pointer" />
+                                    </div>
+                                    <div>
+                                        <div className="flex justify-between mb-1"><span className="text-[9px] uppercase text-white/50">Subtítulo Cierre</span><span className="text-[9px] text-white/50">{config.outroSubSize}rem</span></div>
+                                        <input type="range" min="1" max="4" step="0.1" value={config.outroSubSize} onChange={e => setConfig({ ...config, outroSubSize: parseFloat(e.target.value) })} className="w-full h-1.5 accent-purple-500 bg-white/10 rounded-full appearance-none cursor-pointer" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )
+                    }
+
+
+
+
                 </div>
             </div>
 
@@ -1192,6 +1370,9 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                         </button>
                         <button onClick={() => setActiveTab('bg')} className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase transition flex flex-col items-center gap-1 ${activeTab === 'bg' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'text-white/40 hover:bg-white/5'}`}>
                             <Palette size={14} /> Fondos
+                        </button>
+                        <button onClick={() => setActiveTab('settings')} className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase transition flex flex-col items-center gap-1 ${activeTab === 'settings' ? 'bg-zinc-700/50 text-white border border-white/20' : 'text-white/40 hover:bg-white/5'}`}>
+                            <Settings2 size={14} /> Ajustes
                         </button>
                     </div>
 
@@ -1223,11 +1404,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                             <div className="space-y-4 animate-in fade-in slide-in-from-left-2 duration-300">
                                 <div><label className="text-[10px] text-white/40 font-bold uppercase block mb-1">Título</label><textarea value={config.introTitle} onChange={e => setConfig({ ...config, introTitle: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white text-sm font-bold min-h-[70px] focus:border-emerald-500/50 outline-none" /></div>
                                 <div className="grid grid-cols-2 gap-2">
-                                    <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5"><input type="checkbox" checked={config.useFullDate} onChange={(e) => setConfig({ ...config, useFullDate: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-white/60 font-bold">Fecha Larga</span></div>
-                                    <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5"><input type="checkbox" checked={config.showOdds} onChange={(e) => setConfig({ ...config, showOdds: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-white/60 font-bold">Mostrar Cuota</span></div>
-                                    <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5"><input type="checkbox" checked={config.showTitleBorder} onChange={(e) => setConfig({ ...config, showTitleBorder: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-white/60 font-bold">Borde Título</span></div>
-                                    <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5"><input type="checkbox" checked={config.showPickOdds} onChange={(e) => setConfig({ ...config, showPickOdds: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-white/60 font-bold">Cuota Apuesta</span></div>
-                                    <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5"><input type="checkbox" checked={config.addHundred} onChange={(e) => { const c = e.target.checked; let val = parseInt(config.introSubtitle.replace(/\D/g, '')) || 0; setConfig({ ...config, addHundred: c, introSubtitle: `+${c ? val * 10 : Math.round(val / 10)} 📈` }) }} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-white/60 font-bold">Cuota x10</span></div>
+
                                 </div>
                                 <div className="grid grid-cols-2 gap-3">
                                     <input value={config.introEmoji1} onChange={e => setConfig({ ...config, introEmoji1: e.target.value })} className="bg-black/40 border border-white/10 rounded-lg p-2 text-center text-white" placeholder="Emoji 1" />
@@ -1317,6 +1494,77 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                             <div className="absolute bottom-1 right-1 bg-black/60 px-1.5 py-0 rounded text-[8px] text-white/70">{i + 1}</div>
                                         </div>
                                     ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* SETTINGS TAB (PC) */}
+                        {activeTab === 'settings' && (
+                            <div className="space-y-6 animate-in fade-in slide-in-from-left-2 duration-300">
+
+                                <div className="space-y-3">
+                                    <h3 className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider mb-2 border-b border-white/10 pb-1">Visualización</h3>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5"><input type="checkbox" checked={config.useFullDate} onChange={(e) => setConfig({ ...config, useFullDate: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-white/60 font-bold">Fecha Larga</span></div>
+                                        <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5"><input type="checkbox" checked={config.showOdds} onChange={(e) => setConfig({ ...config, showOdds: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-white/60 font-bold">Cuota Portada</span></div>
+                                        <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5"><input type="checkbox" checked={config.showTitleBorder} onChange={(e) => setConfig({ ...config, showTitleBorder: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-white/60 font-bold">Borde Título</span></div>
+                                        <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5"><input type="checkbox" checked={config.showPickOdds} onChange={(e) => setConfig({ ...config, showPickOdds: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-white/60 font-bold">Cuota Apuesta</span></div>
+                                        <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5"><input type="checkbox" checked={config.addHundred} onChange={(e) => { const c = e.target.checked; let val = parseInt(config.introSubtitle.replace(/\D/g, '')) || 0; setConfig({ ...config, addHundred: c, introSubtitle: `+${c ? val * 10 : Math.round(val / 10)} 📈` }) }} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-white/60 font-bold">Cuota x10</span></div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3">
+                                    <h3 className="text-[10px] font-bold text-sky-500 uppercase tracking-wider mb-2 border-b border-white/10 pb-1">Tamaños Portada</h3>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <div className="flex justify-between mb-1"><span className="text-[9px] uppercase text-white/50">Título Principal</span><span className="text-[9px] text-white/50">{config.introTitleSize}rem</span></div>
+                                            <input type="range" min="1.5" max="5" step="0.1" value={config.introTitleSize} onChange={e => setConfig({ ...config, introTitleSize: parseFloat(e.target.value) })} className="w-full h-1.5 accent-sky-500 bg-white/10 rounded-full appearance-none cursor-pointer" />
+                                        </div>
+                                        <div>
+                                            <div className="flex justify-between mb-1"><span className="text-[9px] uppercase text-white/50">Subtítulo (Fecha)</span><span className="text-[9px] text-white/50">{config.introSubSize}rem</span></div>
+                                            <input type="range" min="1" max="4" step="0.1" value={config.introSubSize} onChange={e => setConfig({ ...config, introSubSize: parseFloat(e.target.value) })} className="w-full h-1.5 accent-sky-500 bg-white/10 rounded-full appearance-none cursor-pointer" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3">
+                                    <h3 className="text-[10px] font-bold text-amber-500 uppercase tracking-wider mb-2 border-b border-white/10 pb-1">Apuestas & Espaciado</h3>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <div className="flex justify-between mb-1"><span className="text-[9px] uppercase text-white/50">Espacio Título-Caja</span><span className="text-[9px] text-white/50">{config.gapBody}px</span></div>
+                                            <input type="range" min="-60" max="20" step="1" value={config.gapBody} onChange={e => setConfig({ ...config, gapBody: parseInt(e.target.value) })} className="w-full h-1.5 accent-amber-500 bg-white/10 rounded-full appearance-none cursor-pointer" />
+                                        </div>
+                                        <div>
+                                            <div className="flex justify-between mb-1"><span className="text-[9px] uppercase text-white/50">Título Partido</span><span className="text-[9px] text-white/50">{config.matchTitleSize}rem</span></div>
+                                            <input type="range" min="1" max="4" step="0.1" value={config.matchTitleSize} onChange={e => setConfig({ ...config, matchTitleSize: parseFloat(e.target.value) })} className="w-full h-1.5 accent-amber-500 bg-white/10 rounded-full appearance-none cursor-pointer" />
+                                        </div>
+                                        <div>
+                                            <div className="flex justify-between mb-1"><span className="text-[9px] uppercase text-white/50">Texto Selección</span><span className="text-[9px] text-white/50">{config.pickTextSize}rem</span></div>
+                                            <input type="range" min="1.5" max="6" step="0.1" value={config.pickTextSize} onChange={e => setConfig({ ...config, pickTextSize: parseFloat(e.target.value) })} className="w-full h-1.5 accent-amber-500 bg-white/10 rounded-full appearance-none cursor-pointer" />
+                                        </div>
+                                        <div>
+                                            <div className="flex justify-between mb-1"><span className="text-[9px] uppercase text-white/50">Tamaño Cuota</span><span className="text-[9px] text-white/50">{config.pickOddSize}rem</span></div>
+                                            <input type="range" min="1" max="4" step="0.1" value={config.pickOddSize} onChange={e => setConfig({ ...config, pickOddSize: parseFloat(e.target.value) })} className="w-full h-1.5 accent-amber-500 bg-white/10 rounded-full appearance-none cursor-pointer" />
+                                        </div>
+                                        <div>
+                                            <div className="flex justify-between mb-1"><span className="text-[9px] uppercase text-white/50">Espacio Caja-Cuota</span><span className="text-[9px] text-white/50">{(config as any).gapOdds}px</span></div>
+                                            <input type="range" min="-50" max="50" step="1" value={(config as any).gapOdds} onChange={e => setConfig({ ...config, gapOdds: parseInt(e.target.value) } as any)} className="w-full h-1.5 accent-amber-500 bg-white/10 rounded-full appearance-none cursor-pointer" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3">
+                                    <h3 className="text-[10px] font-bold text-purple-500 uppercase tracking-wider mb-2 border-b border-white/10 pb-1">Cierre</h3>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <div className="flex justify-between mb-1"><span className="text-[9px] uppercase text-white/50">Título Cierre</span><span className="text-[9px] text-white/50">{config.outroTitleSize}rem</span></div>
+                                            <input type="range" min="1.5" max="5" step="0.1" value={config.outroTitleSize} onChange={e => setConfig({ ...config, outroTitleSize: parseFloat(e.target.value) })} className="w-full h-1.5 accent-purple-500 bg-white/10 rounded-full appearance-none cursor-pointer" />
+                                        </div>
+                                        <div>
+                                            <div className="flex justify-between mb-1"><span className="text-[9px] uppercase text-white/50">Subtítulo Cierre</span><span className="text-[9px] text-white/50">{config.outroSubSize}rem</span></div>
+                                            <input type="range" min="1" max="4" step="0.1" value={config.outroSubSize} onChange={e => setConfig({ ...config, outroSubSize: parseFloat(e.target.value) })} className="w-full h-1.5 accent-purple-500 bg-white/10 rounded-full appearance-none cursor-pointer" />
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         )}
