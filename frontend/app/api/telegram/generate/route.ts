@@ -26,25 +26,24 @@ export async function POST(request: Request) {
 
         console.log(`[API-TS] Generating Telegram Messages for ${targetDate}...`);
 
-        // 1. Fetch Daily Analysis
-        // Try Hash first: betai:daily_bets:YYYY-MM -> YYYY-MM-DD
-        let rawData: any = await redis.hget(`betai:daily_bets:${monthStr}`, targetDate);
+        // 1. Fetch Daily Analysis & Stakazo
+        // Parallel Fetch
+        const [rawData, rawStakazo] = await Promise.all([
+            redis.hget(`betai:daily_bets:${monthStr}`, targetDate),
+            redis.hget(`betai:daily_bets_stakazo:${monthStr}`, targetDate)
+        ]);
 
-        // Fallback or Parse
+        // Fallback or Parse Standard Bets
         let bets: any[] = [];
         if (rawData) {
-            // Upstash usually returns object if stored as JSON, but let's be safe
             const parsed = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
-
             if (Array.isArray(parsed)) {
                 bets = parsed;
             } else if (parsed && parsed.bets && Array.isArray(parsed.bets)) {
                 bets = parsed.bets;
             }
         } else {
-            console.warn(`[API-TS] No bets found for ${targetDate} in Hash, checking legacy key...`);
-            // Fallback to daily_bets specific key if specific date matches logic (rare with new system)
-            // But let's check Master Key if request is for TODAY
+            // ... legacy fallback logic for standard bets check ...
             if (targetDate === todayStr) {
                 const masterData: any = await redis.get('betai:daily_bets');
                 if (masterData) {
@@ -52,6 +51,18 @@ export async function POST(request: Request) {
                     if (parsedMaster && parsedMaster.bets) bets = parsedMaster.bets;
                 }
             }
+        }
+
+        // Parse Stakazo Bets and Merge
+        if (rawStakazo) {
+            const parsedS = typeof rawStakazo === 'string' ? JSON.parse(rawStakazo) : rawStakazo;
+            let sBets: any[] = [];
+            if (Array.isArray(parsedS)) sBets = parsedS;
+            else if (parsedS && parsedS.bets) sBets = parsedS.bets;
+
+            // Force betType 'stakazo' and merge
+            sBets.forEach(b => b.betType = 'stakazo');
+            bets = [...bets, ...sBets];
         }
 
         if (!bets || bets.length === 0) {
@@ -64,7 +75,8 @@ export async function POST(request: Request) {
         const typeMap: Record<string, { icon: string, title: string }> = {
             "safe": { icon: "🛡️", title: "LA APUESTA SEGURA" },
             "value": { icon: "⚡", title: "LA APUESTA DE VALOR" },
-            "funbet": { icon: "💣", title: "LA FUNBET" }
+            "funbet": { icon: "💣", title: "LA FUNBET" },
+            "stakazo": { icon: "‼️", title: "STAKAZO" }
         };
 
         const sportIcons: Record<string, string> = {
@@ -180,24 +192,88 @@ export async function POST(request: Request) {
             // 3. Stake formatting (ensure integer)
             const stakeVal = Math.floor(parseFloat(bet.stake) || 1);
 
-            // 4. Construct Message
-            const msg = `${leagueText}\n\n` +
-                `${matchesBlock}\n\n` +
-                `📊 Cuota ${bet.total_odd || 1.0}   | 📈 STAKE ${stakeVal}\n` +
-                `🏠 Apuesta realizada en Bet365\n` +
-                `<u>🔞 Apuesta con responsabilidad.</u>\n\n` +
-                `🧠 <b>Análisis de BetAiMaster:</b>\n` +
-                `<blockquote>${formattedReason}</blockquote>`;
+            // Determine Time Context (Tarde vs Noche)
+            let timeContext = "noche";
+            if (selections && selections.length > 0 && selections[0].time) {
+                const tStr = selections[0].time;
+                const timePart = tStr.includes(' ') ? tStr.split(' ')[1] : tStr;
+                const [hStr] = timePart.split(':');
+                const h = parseInt(hStr);
+                // User logic: < 21:00 -> tarde, >= 21:00 -> noche.
+                // Assuming standard 24h format
+                if (!isNaN(h) && h < 21) {
+                    timeContext = "tarde";
+                }
+            }
 
-            const item = {
-                id: crypto.randomUUID(),
-                tipo: info.title.replace("LA ", ""),
-                bet_type_key: bType,
-                enviado: false,
-                mensaje: msg,
-                timestamp: new Date().toISOString()
-            };
-            telegramItems.push(item);
+            // 4. Construct Message(s)
+
+            if (bType === 'stakazo') {
+                // SPECIAL FORMAT FOR STAKAZO - 2 MESSAGGER: PROMO & BET
+
+                // --- 1. PROMO MESSAGE ---
+                // No analysis needed here? Usually promo is pure hype.
+                const promoMsg = `‼️ STAKAZO ${stakeVal} CUOTA ${bet.total_odd || 1.0} ‼️\n\n` +
+                    `➡️ Para esta ${timeContext} voy con un puto stakazo ${stakeVal} con el que vamos a ganar dinero seguro, espero veros a todos dentro que vamos a repetir el dia de ayer.\n\n` +
+                    `⚡ Os dejo esta bomba, esta ${timeContext} vamos a forrarnos 💸\n\n` +
+                    `📊 Stake ${stakeVal} cuota ${bet.total_odd || 1.0}\n` +
+                    `🔒 Incluye seguro antifallo\n` +
+                    `🏠 Está en todas las casas\n\n` +
+                    `👇 Háblame para poder adquirir el STAKAZO\n\n` +
+                    `@BetAi_Master`;
+
+                telegramItems.push({
+                    id: crypto.randomUUID(),
+                    tipo: "STAKAZO (PROMO)",
+                    bet_type_key: bType,
+                    enviado: false,
+                    mensaje: promoMsg,
+                    timestamp: new Date().toISOString()
+                });
+
+                // --- 2. BET MESSAGE (SCREENSHOT STYLE) ---
+                // Format:
+                // 🔥 STAKAZO {stake} 🔥
+                // Match
+                // Pick
+                // Stats + Betting House + Analysis
+
+                const betMsg = `🔥 STAKAZO ${stakeVal} 🔥\n\n` +
+                    `${matchesBlock}\n\n` + // Matches block already has icons ⚽/👉
+                    `📊 Cuota ${bet.total_odd || 1.0}   | 📈 STAKE ${stakeVal}\n` +
+                    `🏠 Apuesta realizada en Bet365\n` +
+                    `<u>🔞 Apuesta con responsabilidad.</u>\n\n` +
+                    `🧠 <b>Análisis de BetAiMaster:</b>\n` +
+                    `<blockquote>${formattedReason}</blockquote>`;
+
+                telegramItems.push({
+                    id: crypto.randomUUID(),
+                    tipo: "STAKAZO (APUESTA)",
+                    bet_type_key: bType,
+                    enviado: false,
+                    mensaje: betMsg,
+                    timestamp: new Date().toISOString() // same timestamp is fine?
+                });
+
+            } else {
+                // STANDARD FORMAT (SINGLE MESSAGE)
+                const msg = `${leagueText}\n\n` +
+                    `${matchesBlock}\n\n` +
+                    `📊 Cuota ${bet.total_odd || 1.0}   | 📈 STAKE ${stakeVal}\n` +
+                    `🏠 Apuesta realizada en Bet365\n` +
+                    `<u>🔞 Apuesta con responsabilidad.</u>\n\n` +
+                    `🧠 <b>Análisis de BetAiMaster:</b>\n` +
+                    `<blockquote>${formattedReason}</blockquote>`;
+
+                telegramItems.push({
+                    id: crypto.randomUUID(),
+                    tipo: info.title.replace("LA ", ""),
+                    bet_type_key: bType,
+                    enviado: false,
+                    mensaje: msg,
+                    timestamp: new Date().toISOString()
+                });
+            }
         });
 
         // 3. Monthly Stats Report (Auto-include)
@@ -260,6 +336,138 @@ export async function POST(request: Request) {
                 currentDates.shift();
             }
         }
+
+        // 5. Generate 3 "Buenos Días" Intelligent Versions
+        const daysMap: Record<string, string> = {
+            "Monday": "Lunes", "Tuesday": "Martes", "Wednesday": "Miércoles",
+            "Thursday": "Jueves", "Friday": "Viernes", "Saturday": "Sábado", "Sunday": "Domingo"
+        };
+        const dayName = daysMap[new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: 'Europe/Madrid' }).format(now)] || "hoy";
+
+        const hasChampions = bets.some(b => b.selections?.some((s: any) => s.league?.toLowerCase().includes('champions')));
+        const importantMatches = bets.slice(0, 2).map(b => b.match).join(', ');
+
+        const morningVersions = [
+            `☕ <b>¡BUENOS DÍAS FAMILIA!</b>☀️\n\n` +
+            `👦 Vamos a por el ${dayName} haciendo dinero como debe ser, el equipo ha analizado los mejores mercados y ya tenemos lista la selección de hoy.‼️\n\n` +
+            `📊 ${hasChampions ? "¡Hoy hay noche de Champions y no vamos a perdonar! Tenemos partidazos con mucho valor analizado. ⚽🔥" : "Hoy hay auténticos partidazos, tenemos mercado completo de ligas con mucho valor que tengo ya analizado. ✅‼️"}\n\n` +
+            `📲 No os podéis perder el día de hoy, activen notificaciones 🔔✅`,
+
+            `☕ <b>¡BUENOS DÍAS EQUIPO!</b>☀️\n\n` +
+            `👦 Seguimos la semana ganando dinero, vaya día tenemos hoy... Vamos con todo en este ${dayName}. Os va a encantar lo que se viene.‼️\n\n` +
+            `📊 ${hasChampions ? "Empieza la Champions y tengo claro que va a salir redondo, vamos a hacer dinero fácil como nosotros sabemos. 🏆🔥" : "La jornada de hoy viene cargada de oportunidades claras y la IA ha detectado movimientos de mercado muy interesantes. 📈✅"}\n\n` +
+            `📲 No os podéis perder lo que viene hoy, activen notificaciones 🔔🚀`,
+
+            `☕ <b>¡BUENOS DÍAS A TODOS!</b>☀️\n\n` +
+            `👦 Arrancamos el ${dayName} con la mente fría y los objetivos claros. Todos atentos al móvil a lo que se viene hoy.‼️\n\n` +
+            `📊 ${hasChampions ? "Noche de gala con la Champions League, jornada analizada al detalle para reventar el mercado. 💣✅" : "Tenemos una jornada con mucho potencial, mercado estudiado y listo para empezar en breves momentos. ‼️🔥"}\n\n` +
+            `📲 No os podéis perder la jornada de hoy, activen notificaciones 🔔✨`
+        ];
+
+        await redis.set(`betai:morning_messages:${targetDate}`, morningVersions);
+
+        // 6. Generate 5 Victory Versions for 4 types (Stake 1, 4, 5, Stakazo)
+        const getWinVersions = (type: string, stake: number, odd: number, mesUnidades: number) => {
+            const tag = type === 'stakazo' ? `STAKAZO ${stake}` : `STAKE ${stake}`;
+            const header = `✅✅ <b>${tag} ACERTADO</b> ✅✅`;
+            const profitStr = mesUnidades > 0 ? `Llevamos +${mesUnidades} unidades este mes 📈` : "Seguimos sumando unidades este mes 📈";
+            const oddStr = `<b>Cuota ${odd.toFixed(2)}</b>`;
+
+            if (type === 'stakazo') {
+                return [
+                    `${header}\n\n` +
+                    `✅ <b>¡QUE FÁCIL PARA DENTRO!</b> ✅\n` +
+                    `Para dentro la apuesta familiar, una mejor lectura era imposible para volver a ganar dinero de forma fácil. ¡Cazada esa ${oddStr} al milímetro! 🤑💰`,
+
+                    `${header}\n\n` +
+                    `✅✅ <b>¡LO TENÍA MUY CLARO!</b> ✅✅\n` +
+                    `Pues nada os avisé, tenía el trabajo hecho para este partido y como recompensa acertamos esta ${oddStr} muy fácil. Seguid confiando, esto es así. 👑‼️`,
+
+                    `${header}\n\n` +
+                    `✅ <b>¡LECTURA MUY TOP!</b> ✅\n` +
+                    `Para dentro la apuesta de hoy, lectura perfecta que nos hace seguir generando bank. ${profitStr}. ¡Vamos a por más! 🎯💸`,
+
+                    `${header}\n\n` +
+                    `🔥 <b>¡EXPLOSIÓN DE VERDE!</b> 🔥\n` +
+                    `Dije que esta noche nos forrábamos y no he mentido. Otra masterclass de lectura deportiva con ${oddStr} para la saca. ¡A CELEBRARLO! 🥂‼️`,
+
+                    `${header}\n\n` +
+                    `🏦 <b>¡VISITA AL BANCO!</b> 🏦\n` +
+                    `Señores, esto ya es costumbre. Cerramos el Stakazo con un beneficio brutal. Quien me sigue gana, así de simple. ¡A cobrar esa ${oddStr}! 🤑✅`
+                ];
+            }
+
+            return [
+                `${header}\n\n` +
+                `✅ <b>¡SUMA Y SIGUE!</b> ✅\n` +
+                `Ahí está muchachos, ${tag.toLowerCase()}, cobrada esa ${oddStr}. Quien no gana dinero es porque no quiere... ¡PARA DENTRO! 🤑‼️`,
+
+                `${header}\n\n` +
+                `✅ <b>¡LECTURA IMPECABLE!</b> ✅\n` +
+                `Muchachos que locura, un verdazo señores para cerrar la jornada con ${oddStr}. Esto no va a parar, ${profitStr} 🤑‼️`,
+
+                `${header}\n\n` +
+                `✅ <b>¡SI SI SI Y OTRA MAAAAS!</b> ✅\n` +
+                `Para dentro la apuesta que la tenía muy muy clara. Ha tardado en entrar pero era un verde seguro a ${oddStr}. ¡La fiesta no para! 🤑‼️`,
+
+                `${header}\n\n` +
+                `📈 <b>OTRA MÁS A LA SACA</b> 📈\n` +
+                `Otro acierto más para la saca. Gestión de bank perfecta y lectura impecable de esta ${oddStr}. ¡Seguimos con el plan! ✅💪`,
+
+                `${header}\n\n` +
+                `💎 <b>¡JOYA DEL DÍA!</b> 💎\n` +
+                `Verdazo limpio y sin sufrir demasiado con esa ${oddStr}. Así es como se trabaja aquí. ${profitStr}. ¡Atentos a lo que viene! 🔥💰`
+            ];
+        };
+
+        const winMessages: Record<string, string[]> = {
+            stake1: [],
+            stake4: [],
+            stake5: [],
+            stakazo: []
+        };
+
+        // Get monthly profit for variables
+        let monthlyProfit = 0;
+        let stakazoProfit = 0;
+        try {
+            const [statsRaw, stakazoStatsRaw]: any = await Promise.all([
+                redis.hget('betai_stats', monthStr),
+                redis.hget('betai:stats_stakazo', monthStr)
+            ]);
+
+            if (statsRaw) {
+                const stats = typeof statsRaw === 'string' ? JSON.parse(statsRaw) : statsRaw;
+                monthlyProfit = stats.total_profit || 0;
+            }
+            if (stakazoStatsRaw) {
+                const statsS = typeof stakazoStatsRaw === 'string' ? JSON.parse(stakazoStatsRaw) : stakazoStatsRaw;
+                stakazoProfit = statsS.total_profit || 0;
+            }
+        } catch (e) {
+            console.error("Error fetching stats for victory messages:", e);
+        }
+
+        const findBet = (stake: number, isStakazo = false) => {
+            return bets.find(b => {
+                const bStake = Math.floor(parseFloat(b.stake) || 0);
+                const bType = (b.betType || '').toLowerCase();
+                if (isStakazo) return bType === 'stakazo';
+                return bStake === stake && bType !== 'stakazo';
+            });
+        };
+
+        const stakesToGen = [1, 4, 5];
+        stakesToGen.forEach(s => {
+            const b = findBet(s);
+            winMessages[`stake${s}`] = getWinVersions(`stake${s}`, s, b?.total_odd || 1.80, monthlyProfit);
+        });
+
+        const sBet = findBet(0, true);
+        const sStake = Math.floor(parseFloat(sBet?.stake) || 30);
+        winMessages.stakazo = getWinVersions('stakazo', sStake, sBet?.total_odd || 2.50, stakazoProfit);
+
+        await redis.set(`betai:win_messages:${targetDate}`, winMessages);
 
         // Save
         const payloadJson = JSON.stringify(telegramItems);

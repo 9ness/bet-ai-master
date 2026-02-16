@@ -16,8 +16,40 @@ export async function POST(request: Request) {
         }
 
         const prefix = process.env.REDIS_PREFIX || 'betai:';
-        const storeKey = `${prefix}telegram_store`;
 
+        // --- MORNING MESSAGE SUPPORT ---
+        if (id.startsWith('morning_')) {
+            const index = parseInt(id.split('_')[1]);
+            const morningKey = `${prefix}morning_messages:${date}`;
+            const morningData = await redis.get(morningKey) as string[] | null;
+
+            if (!morningData) {
+                return NextResponse.json({ error: 'Morning messages not found for this date' }, { status: 404 });
+            }
+
+            morningData[index] = mensaje;
+            await redis.set(morningKey, morningData);
+            return NextResponse.json({ success: true });
+        }
+
+        // --- VICTORY MESSAGE SUPPORT ---
+        if (id.startsWith('win_')) {
+            const parts = id.split('_');
+            const type = parts[1]; // stake1, stake4, stake5, stakazo
+            const index = parseInt(parts[2]);
+            const winKey = `${prefix}win_messages:${date}`;
+            const winData = await redis.get(winKey) as Record<string, string[]> | null;
+
+            if (!winData || !winData[type]) {
+                return NextResponse.json({ error: 'Victory messages not found for this date' }, { status: 404 });
+            }
+
+            winData[type][index] = mensaje;
+            await redis.set(winKey, winData);
+            return NextResponse.json({ success: true });
+        }
+
+        const storeKey = `${prefix}telegram_store`;
         // 1. Get data
         const dateData = await redis.hget(storeKey, date) as string | null;
 
@@ -38,7 +70,6 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Message ID not found' }, { status: 404 });
         }
 
-        // Prevent editing sent messages? Maybe allow corrections? Let's allow it but warn in UI.
         items[itemIndex].mensaje = mensaje;
 
         // 3. Save

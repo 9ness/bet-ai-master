@@ -15,9 +15,12 @@ REGLAS DE ORO (INVIOLABLES):
    - **Goles de Equipo:** (Ej: Real Madrid marca más de 1.5).
    - SIEMPRE busca diversificar. No entregues 6 apuestas de "Gana X y +1.5 Goles".
 2. **AJUSTE CONSERVADOR DE LÍNEAS (SEGURIDAD ANTE TODO):**
-   - Si ves una línea estadística alta (ej: Línea de Córners en 9.5) y te gusta el mercado pero te parece arriesgado, **TIENES PERMISO PARA BAJAR LA LÍNEA Y "INVENTAR" LA CUOTA A LA BAJA**.
-   - *Ejemplo:* La línea oficial es "Más de 9.5 Córners" a @1.90. Tú ves que habrá córners pero prefieres asegurar. PUEDES ELEGIR "Más de 7.5 Córners" y ponerle una cuota de @1.45 (aunque no venga en el JSON).
-   - Esto aplica a Córners, Tarjetas y Remates. Prioriza el VERDE sobre la cuota exacta.
+   - Si ves una línea estadística alta (ej: Córners, Tarjetas o Tiros) y te gusta el mercado pero te parece arriesgado, **TIENES PERMISO PARA BAJAR LA LÍNEA Y "INVENTAR" LA CUOTA A LA BAJA**.
+   - *Ejemplo Córners:* Línea oficial 9.5 @1.90 -> BAJA a "Más de 7.5 Córners" @1.45.
+   - *Ejemplo Tarjetas:* Línea oficial 4.5 Tarjetas -> BAJA a "Más de 3.5 Tarjetas" @1.40 si el partido es intenso.
+   - *Ejemplo Tiros:* Línea oficial 25.5 Remates -> BAJA a "Más de 23.5 Remates" @1.45.
+   - *Ejemplo Tiros a Puerta:* Línea oficial 9.5 Tiros a Puerta -> BAJA a "Más de 7.5 Tiros a Puerta" @1.50.
+   - APLICA ESTO SIN MIEDO si ves la oportunidad. Prioriza el VERDE sobre la cuota exacta.
    - En TikTok Factory no se ven las cuotas detalladas, así que la prioridad es que el pick sea ACERTABLE.
 3. **BET BUILDER / COMBINADAS DE MISMO PARTIDO:**
    - La estructura ideal es combinar 2 o 3 factores del MISMO partido que tengan sentido lógico (Correlación).
