@@ -673,7 +673,7 @@ export default function BetCard({ type, data, isAdmin, date }: BetCardProps) {
             <div className={`absolute inset-x-0 top-0 h-1 ${config.headerBg} rounded-t-3xl`} />
 
             {/* Status & Countdown (Unified for Admin/User) */}
-            <div className="absolute top-4 right-6 flex flex-col items-end gap-1 z-20">
+            <div className="absolute top-4 right-3 flex flex-col items-end gap-1 z-20">
                 {/* 1. Status Badge (Only if WON/LOST) */}
                 {(data.status === 'WON' || data.status === 'GANADA' || data.status === 'LOST' || data.status === 'PERDIDA' || data.status === 'VOID' || data.status === 'NULA') && (
                     <div className={`flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-full border 

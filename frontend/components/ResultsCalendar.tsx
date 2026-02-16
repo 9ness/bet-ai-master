@@ -121,12 +121,14 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
 
     // State for Editing Text (Admin)
     const [editedPick, setEditedPick] = useState(bet.pick);
+    const [editedStake, setEditedStake] = useState(bet.stake?.toString() || (bet.type === 'safe' ? '6' : bet.type === 'value' ? '3' : bet.type === 'funbet' ? '1' : '10'));
     const [editedResults, setEditedResults] = useState<Record<string, string>>({});
     const [reasonOpen, setReasonOpen] = useState(false);
 
     useEffect(() => {
         setEditedPick(bet.pick);
-    }, [bet.pick]);
+        setEditedStake(bet.stake?.toString() || (bet.type === 'safe' ? '6' : bet.type === 'value' ? '3' : bet.type === 'funbet' ? '1' : '10'));
+    }, [bet.pick, bet.stake, bet.type]);
 
     // Sync state when prop changes (e.g. after full refresh)
     useEffect(() => {
@@ -244,7 +246,8 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
                     betType: finalType, // Use normalized type
                     updates,
                     newStatus: status, // Send the derived status too
-                    newPick: editedPick !== bet.pick ? editedPick : undefined
+                    newPick: editedPick !== bet.pick ? editedPick : undefined,
+                    newStake: editedStake !== bet.stake?.toString() ? editedStake : undefined
                 })
             });
 
@@ -276,7 +279,8 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
                     betType: finalType,
                     selectionId: null,
                     newStatus,
-                    newPick: editedPick !== bet.pick ? editedPick : undefined
+                    newPick: editedPick !== bet.pick ? editedPick : undefined,
+                    newStake: editedStake !== bet.stake?.toString() ? editedStake : undefined
                 })
             });
             // ... (existing error handling) ...
@@ -292,8 +296,19 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
     };
 
     // Derived state for changes (including text)
-    const hasTextChanges = editedPick !== bet.pick || Object.keys(editedResults).length > 0;
+    const hasTextChanges = editedPick !== bet.pick || Object.keys(editedResults).length > 0 || editedStake !== (bet.stake?.toString() || '0');
     const showSave = hasChanges || hasTextChanges;
+
+    // LIVE PROFIT CALCULATION
+    const currentOdd = bet.total_odd || (bet as any).odd || 0;
+    const currentStakeNum = parseFloat(editedStake) || 0;
+    let liveProfit = 0;
+
+    if (status === 'WON') liveProfit = currentStakeNum * (currentOdd - 1);
+    else if (status === 'LOST') liveProfit = -currentStakeNum;
+    else liveProfit = 0;
+
+    const displayProfit = (status === 'WON' || status === 'LOST') ? liveProfit : (bet.profit || 0);
 
 
     return (
@@ -318,8 +333,8 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
                         </button>
                     )}
                 </span>
-                <span className={`font-mono font-bold ${bet.profit > 0 ? 'text-emerald-500' : bet.profit < 0 ? 'text-rose-500' : 'text-muted-foreground'}`}>
-                    {(bet.profit || 0) > 0 ? '+' : ''}{(bet.profit || 0).toFixed(2)}u
+                <span className={`font-mono font-bold ${displayProfit > 0 ? 'text-emerald-500' : displayProfit < 0 ? 'text-rose-500' : 'text-muted-foreground'}`}>
+                    {(displayProfit || 0) > 0 ? '+' : ''}{(displayProfit || 0).toFixed(2)}u
                 </span>
             </div>
 
@@ -522,8 +537,20 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
 
 
             <div className="flex justify-between items-center text-xs border-t border-border/30 pt-2">
-                <div className="flex gap-4">
-                    <span>Stake: <b className="text-foreground">{bet.stake || (bet.type === 'safe' ? 6 : bet.type === 'value' ? 3 : 1)}</b></span>
+                <div className="flex gap-4 items-center">
+                    <span className="flex items-center gap-1">
+                        Stake:
+                        {isAdmin ? (
+                            <input
+                                type="number"
+                                value={editedStake}
+                                onChange={(e) => setEditedStake(e.target.value)}
+                                className="w-12 bg-black/20 border border-white/10 rounded px-1 py-0.5 text-xs font-bold text-center focus:ring-1 focus:ring-primary outline-none"
+                            />
+                        ) : (
+                            <b className="text-foreground">{bet.stake || (bet.type === 'safe' ? 6 : bet.type === 'value' ? 3 : 1)}</b>
+                        )}
+                    </span>
                     <span>Cuota: <b className="text-foreground">{bet.total_odd || (bet as any).odd || 0}</b></span>
                 </div>
                 <div className="flex items-center gap-1 font-bold">
@@ -568,7 +595,7 @@ const BetDetailCard = ({ bet, date, isAdmin, onUpdate, onLocalChange }: { bet: B
     );
 };
 
-export default function ResultsCalendar({ showStakazoToggle = false }: { showStakazoToggle?: boolean }) {
+export default function ResultsCalendar({ showStakazoToggle = false, activeCategory }: { showStakazoToggle?: boolean, activeCategory?: string }) {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [stats, setStats] = useState<MonthStats | null>(null);
     const [history, setHistory] = useState<Record<string, DayHistory>>({});
@@ -576,7 +603,14 @@ export default function ResultsCalendar({ showStakazoToggle = false }: { showSta
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const [isAdmin, setIsAdmin] = useState(false);
     // STAKAZO SWITCH
-    const [category, setCategory] = useState("daily_bets");
+    const [category, setCategory] = useState(activeCategory || "daily_bets");
+
+    // Sync prop changes to state
+    useEffect(() => {
+        if (activeCategory) {
+            setCategory(activeCategory);
+        }
+    }, [activeCategory]);
 
 
     // LOCAL MUTABLE STATE FOR MODAL

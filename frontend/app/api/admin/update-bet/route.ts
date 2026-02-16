@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'; // Ensure no caching
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        let { date, betType, selectionId, newStatus, updates, newPick } = body;
+        let { date, betType, selectionId, newStatus, updates, newPick, newStake } = body;
 
         // HELPER: Normalize Status
         const normalizeStatus = (s: string | undefined | null) => {
@@ -94,6 +94,11 @@ export async function POST(request: Request) {
         // A) Global Pick Text
         if (newPick) {
             bet.pick = newPick;
+        }
+
+        // A.1) Global Stake (Manual Edit)
+        if (newStake !== undefined && newStake !== null) {
+            bet.stake = Number(newStake);
         }
 
         // B) Selections

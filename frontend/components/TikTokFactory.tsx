@@ -136,15 +136,17 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         showTitleBorder: false,
         showPickOdds: false,
         // Advance Settings (Sizes in rem, Gap in px)
-        introTitleSize: 3, // text-5xl
-        introSubSize: 2.25, // text-4xl
-        matchTitleSize: 2.25, // text-4xl
-        pickTextSize: 3.75, // text-6xl
-        pickOddSize: 2.8, // Default requested
-        outroTitleSize: 3, // text-5xl
-        outroSubSize: 1.875, // text-3xl
-        gapBody: -16,
-        gapOdds: -13, // New gap for odds box
+        introTitleSize: 2.8, // TÍTULO PRINCIPAL (Default: 3)
+        introSubSize: 2.4, // SUBTÍTULO (FECHA) (Default: 2.25)
+        matchTitleSize: 2.25, // TÍTULO PARTIDO (Default: 2.25)
+        pickTextSize: 3, // TEXTO SELECCIÓN (Default: 3.3)
+        pickOddSize: 2.8, // TAMAÑO CUOTA (Default: 2.8)
+        outroTitleSize: 3, // TÍTULO CIERRE (Default: 3)
+        outroSubSize: 1.875, // SUBTÍTULO CIERRE (Default: 1.875)
+        gapBody: -8, // ESPACIO TÍTULO-CAJA (Default: -8)
+        gapOdds: -18, // ESPACIO CAJA-CUOTA (Default: -18)
+        boxPaddingY: 18, // ALTURA RECUADROS (Default: 18)
+        introItalic: true, // ESTILO CURSIVA PORTADA (Default: true)
     });
 
     const [imageSelector, setImageSelector] = useState<{ idx: number | null }>({ idx: null });
@@ -192,10 +194,12 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         { key: 'pickTextSize', label: 'Tamaño Selección', type: 'range', min: 1.5, max: 6, step: 0.1 },
         { key: 'gapOdds', label: 'Espacio Caja-Cuota', type: 'range', min: -50, max: 50, step: 1 },
         { key: 'pickOddSize', label: 'Tamaño Cuota', type: 'range', min: 1, max: 4, step: 0.1 },
+        { key: 'boxPaddingY', label: 'Altura Recuadros', type: 'range', min: -10, max: 30, step: 1 }, // NEW
         // Toggles
         { key: 'showOdds', label: 'Cuota en Portada', type: 'toggle' },
         { key: 'showTitleBorder', label: 'Borde en Título', type: 'toggle' },
         { key: 'useFullDate', label: 'Fecha Larga', type: 'toggle' },
+        { key: 'introItalic', label: 'Cursiva en Portada', type: 'toggle' },
     ];
 
     const cycleMobileProperty = (dir: number) => {
@@ -907,15 +911,15 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                 <div className="relative z-10 w-full flex flex-col items-center gap-14 p-8" style={style} {...handlers}>
                     <div className="flex flex-col items-center gap-4 w-full">
                         <div className="bg-white px-12 pt-0 pb-8 rounded-2xl w-fit max-w-[90%] flex items-center justify-center pointer-events-none">
-                            <h1 className="font-black text-black tracking-tighter leading-none whitespace-nowrap text-center" style={{ fontSize: `${config.introTitleSize}rem` }}>
+                            <h1 className={`font-black text-black ${(config as any).introItalic ? 'italic' : ''} tracking-tighter leading-none whitespace-nowrap text-center`} style={{ fontSize: `${config.introTitleSize}rem` }}>
                                 {config.introTitle.split('\n')[0]}
                             </h1>
                         </div>
                         <div className="bg-white px-12 pt-0 pb-8 rounded-2xl flex items-center justify-center gap-6 w-fit max-w-[95%] pointer-events-none">
-                            <h1 className="font-black text-black tracking-tighter leading-none whitespace-nowrap" style={{ fontSize: `${config.introSubSize}rem` }}>
+                            <h1 className={`font-black text-black ${(config as any).introItalic ? 'italic' : ''} tracking-tighter leading-none whitespace-nowrap`} style={{ fontSize: `${config.introSubSize}rem` }}>
                                 {config.introTitle.split('\n')[1] || ''}
                             </h1>
-                            <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-4 -mt-4">
                                 {config.introEmoji1 && <span className="text-5xl filter drop-shadow">{config.introEmoji1}</span>}
                                 {config.introEmoji2 && <span className="text-5xl filter drop-shadow">{config.introEmoji2}</span>}
                             </div>
@@ -936,8 +940,8 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         if (index === slidesData.length + 1) {
             return (
                 <div className="relative z-10 w-full flex flex-col items-center gap-16 p-12" style={style} {...handlers}>
-                    <div className="bg-white px-10 py-8 rounded-2xl max-w-[95%] text-center pointer-events-none"><h2 className="font-black text-black uppercase tracking-tighter leading-tight whitespace-pre-line" style={{ fontSize: `${config.outroTitleSize}rem` }}>{config.outroTitle}</h2></div>
-                    <div className="bg-white px-12 py-6 rounded-2xl pointer-events-none"><p className="font-black text-black uppercase tracking-tight" style={{ fontSize: `${config.outroSubSize}rem` }}>{config.outroSub}</p></div>
+                    <div className="bg-white px-10 pt-2 pb-12 rounded-2xl max-w-[95%] text-center pointer-events-none border-[3px] border-white shadow-xl"><h2 className="font-black text-black uppercase tracking-tighter leading-tight whitespace-pre-line -mt-3" style={{ fontSize: `${config.outroTitleSize}rem` }}>{config.outroTitle}</h2></div>
+                    <div className="bg-white px-12 pt-1 pb-10 rounded-2xl pointer-events-none border-[3px] border-white shadow-xl"><p className="font-black text-black uppercase tracking-tight -mt-2" style={{ fontSize: `${config.outroSubSize}rem` }}>{config.outroSub}</p></div>
                 </div>
             );
         }
@@ -953,20 +957,21 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                     <div key={bIdx} className="w-full flex flex-col items-center relative">
 
                         {/* TÍTULO PARTIDO - Estilo Etiqueta Negra (TikTok Retro - Kurale) */}
-                        <div className={`bg-black px-10 pt-0 pb-6 rounded-xl z-20 shadow-lg flex items-center justify-center ${config.showTitleBorder ? 'border-[3px] border-white' : ''}`} style={{ ...titleBoxStyle, marginBottom: `${config.gapBody}px` }}>
-                            <h3 className="text-white italic font-black tracking-normal leading-none text-center -mt-3" style={{ fontFamily: 'var(--font-retro)', fontSize: `${config.matchTitleSize}rem` }}>
+                        {/* TÍTULO PARTIDO - Estilo Etiqueta Negra (TikTok Retro - Kurale) */}
+                        <div className={`bg-black px-10 rounded-xl z-20 shadow-lg flex items-center justify-center ${config.showTitleBorder ? 'border-[3px] border-white' : ''}`} style={{ ...titleBoxStyle, marginBottom: `${config.gapBody}px`, paddingTop: `${0 + ((config as any).boxPaddingY || 0)}px`, paddingBottom: `${6 + ((config as any).boxPaddingY || 0)}px` }}>
+                            <h3 className="text-white italic font-black tracking-normal leading-none text-center -mt-5" style={{ fontFamily: 'var(--font-retro)', fontSize: `${config.matchTitleSize}rem` }}>
                                 {group.matchDisplay}
                             </h3>
                         </div>
 
                         {/* BLOQUES DE APUESTAS Y CUOTAS SEPARADOS */}
                         <div className="w-full flex flex-col items-center justify-center gap-5 z-10">
-                            <div className="bg-white px-10 pt-1 pb-8 rounded-[32px] w-fit max-w-[95%] flex flex-col items-start justify-center shadow-2xl border-[6px] border-white gap-8" style={betsBoxStyle}>
+                            <div className="bg-white px-10 rounded-[32px] w-fit max-w-[95%] flex flex-col items-start justify-center shadow-2xl border-[6px] border-white gap-16" style={{ ...betsBoxStyle, paddingTop: `${1 + ((config as any).boxPaddingY || 0)}px`, paddingBottom: `${8 + ((config as any).boxPaddingY || 0)}px` }}>
                                 {group.picks.map((item: any, pIdx: number) => (
                                     <div key={pIdx} className="w-full flex flex-col items-start py-1">
-                                        <div className="flex flex-col items-start gap-1 w-full">
+                                        <div className="flex flex-col items-start gap-8 w-full">
                                             {item.text.split('\n').filter((l: string) => l.trim()).map((line: string, lIdx: number) => (
-                                                <span key={`${pIdx}-${lIdx}`} className="text-black italic font-black tracking-tight leading-none text-left -mt-2" style={{ fontFamily: 'var(--font-retro)', fontSize: `${config.pickTextSize}rem` }}>
+                                                <span key={`${pIdx}-${lIdx}`} className="text-black italic font-black tracking-tight leading-none text-left -mt-4" style={{ fontFamily: 'var(--font-retro)', fontSize: `${config.pickTextSize}rem` }}>
                                                     {line}
                                                 </span>
                                             ))}
@@ -977,8 +982,8 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
 
                             {/* NUEVO BLOQUE DE CUOTA TOTAL SEPARADO */}
                             {config.showPickOdds && (
-                                <div className="bg-white px-6 py-2 rounded-xl shadow-xl flex items-center justify-center border-[3px] border-white" style={{ ...oddsBoxStyle, marginTop: `${(config as any).gapOdds}px` }}>
-                                    <span className="text-black italic font-black tracking-tighter leading-none" style={{ fontFamily: 'var(--font-retro)', fontSize: `${config.pickOddSize}rem` }}>
+                                <div className="bg-white px-8 pt-0 pb-6 rounded-xl shadow-xl flex items-center justify-center border-[3px] border-white" style={{ ...oddsBoxStyle, marginTop: `${(config as any).gapOdds}px` }}>
+                                    <span className="text-black italic font-black tracking-tighter leading-none -mt-3" style={{ fontFamily: 'var(--font-retro)', fontSize: `${config.pickOddSize}rem` }}>
                                         {/* Calcular cuota total o mostrar la del primer pick si es simple */}
                                         +{group.picks.length > 1
                                             ? (group.picks.reduce((acc: number, curr: any) => {
@@ -1507,6 +1512,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                     <div className="grid grid-cols-2 gap-2">
                                         <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5"><input type="checkbox" checked={config.useFullDate} onChange={(e) => setConfig({ ...config, useFullDate: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-white/60 font-bold">Fecha Larga</span></div>
                                         <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5"><input type="checkbox" checked={config.showOdds} onChange={(e) => setConfig({ ...config, showOdds: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-white/60 font-bold">Cuota Portada</span></div>
+                                        <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5"><input type="checkbox" checked={(config as any).introItalic} onChange={(e) => setConfig({ ...config, introItalic: e.target.checked } as any)} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-white/60 font-bold">Cursiva Portada</span></div>
                                         <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5"><input type="checkbox" checked={config.showTitleBorder} onChange={(e) => setConfig({ ...config, showTitleBorder: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-white/60 font-bold">Borde Título</span></div>
                                         <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5"><input type="checkbox" checked={config.showPickOdds} onChange={(e) => setConfig({ ...config, showPickOdds: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-white/60 font-bold">Cuota Apuesta</span></div>
                                         <div className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5"><input type="checkbox" checked={config.addHundred} onChange={(e) => { const c = e.target.checked; let val = parseInt(config.introSubtitle.replace(/\D/g, '')) || 0; setConfig({ ...config, addHundred: c, introSubtitle: `+${c ? val * 10 : Math.round(val / 10)} 📈` }) }} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-white/60 font-bold">Cuota x10</span></div>
@@ -1549,6 +1555,10 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                         <div>
                                             <div className="flex justify-between mb-1"><span className="text-[9px] uppercase text-white/50">Espacio Caja-Cuota</span><span className="text-[9px] text-white/50">{(config as any).gapOdds}px</span></div>
                                             <input type="range" min="-50" max="50" step="1" value={(config as any).gapOdds} onChange={e => setConfig({ ...config, gapOdds: parseInt(e.target.value) } as any)} className="w-full h-1.5 accent-amber-500 bg-white/10 rounded-full appearance-none cursor-pointer" />
+                                        </div>
+                                        <div>
+                                            <div className="flex justify-between mb-1"><span className="text-[9px] uppercase text-white/50">Altura Recuadros</span><span className="text-[9px] text-white/50">{(config as any).boxPaddingY}px</span></div>
+                                            <input type="range" min="-10" max="30" step="1" value={(config as any).boxPaddingY} onChange={e => setConfig({ ...config, boxPaddingY: parseInt(e.target.value) } as any)} className="w-full h-1.5 accent-amber-500 bg-white/10 rounded-full appearance-none cursor-pointer" />
                                         </div>
                                     </div>
                                 </div>

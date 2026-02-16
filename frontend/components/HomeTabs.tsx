@@ -53,6 +53,8 @@ export default function HomeTabs({ settings, predictions, stakazoPredictions, fo
 
     // 2. State for Active Tab
     const [activeTab, setActiveTab] = useState(visibleTabs.length > 0 ? visibleTabs.find(t => t.id === 'daily_bets')?.id || visibleTabs[0].id : '');
+    // State for Calendar Deep Linking
+    const [calendarCategory, setCalendarCategory] = useState<string | undefined>(undefined);
 
     // Layout Flash Prevention: Only show content when scroll is synced
     // If active tab is first (index 0), we are ready immediately. Otherwise wait for scroll effect.
@@ -62,48 +64,41 @@ export default function HomeTabs({ settings, predictions, stakazoPredictions, fo
         return initialTab === visibleTabs[0].id; // Ready only if first tab is target
     });
 
-    // Header Stats State (unchanged)
+    // Header Stats State (Split)
     const [headerStats, setHeaderStats] = useState({
-        profit: 0,
-        yieldVal: 0,
-        yesterdayProfit: 0
+        daily: { profit: 0, yieldVal: 0 },
+        stakazo: { profit: 0, yieldVal: 0 }
     });
 
-    // ... (Stats Logic Unchanged) ...
-    // Fetch Header Stats
+    // Fetch Header Stats (Dual)
     useEffect(() => {
         const fetchStats = async () => {
             try {
                 const now = new Date();
                 const monthStr = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
 
-                const res = await fetch(`/api/admin/history?month=${monthStr}`);
-                const json = await res.json();
+                // Parallel Fetch
+                const [resDaily, resStakazo] = await Promise.all([
+                    fetch(`/api/admin/history?month=${monthStr}&category=daily_bets`),
+                    fetch(`/api/admin/history?month=${monthStr}&category=daily_bets_stakazo`)
+                ]);
 
-                if (json.stats) {
-                    const yesterday = new Date();
-                    yesterday.setDate(yesterday.getDate() - 1);
-                    const yesterdayStr = yesterday.toISOString().split('T')[0];
+                const [jsonDaily, jsonStakazo] = await Promise.all([
+                    resDaily.json(),
+                    resStakazo.json()
+                ]);
 
-                    let yesterdayProfitVal = 0;
-
-                    if (Array.isArray(json.stats.chart_evolution)) {
-                        const yesterdayEntry = json.stats.chart_evolution.find((e: any) => e.date === yesterdayStr);
-                        if (yesterdayEntry) {
-                            yesterdayProfitVal = yesterdayEntry.daily_profit;
-                        } else {
-                            yesterdayProfitVal = json.stats.yesterday_profit ?? 0;
-                        }
-                    } else {
-                        yesterdayProfitVal = json.stats.yesterday_profit ?? 0;
+                setHeaderStats({
+                    daily: {
+                        profit: jsonDaily?.stats?.total_profit || 0,
+                        yieldVal: jsonDaily?.stats?.yield || 0
+                    },
+                    stakazo: {
+                        profit: jsonStakazo?.stats?.total_profit || 0,
+                        yieldVal: jsonStakazo?.stats?.yield || 0
                     }
+                });
 
-                    setHeaderStats({
-                        profit: json.stats.total_profit || 0,
-                        yieldVal: json.stats.yield || 0,
-                        yesterdayProfit: yesterdayProfitVal
-                    });
-                }
             } catch (e) {
                 console.error("Failed to fetch header stats", e);
             }
@@ -117,22 +112,22 @@ export default function HomeTabs({ settings, predictions, stakazoPredictions, fo
     // Reset active tab if visibility changes
     useEffect(() => {
         if (!visibleTabs.find(t => t.id === activeTab) && visibleTabs.length > 0) {
-            // Default preference: Daily Bets > Stakazo > Others
             const fallback = visibleTabs.find(t => t.id === 'daily_bets') ? 'daily_bets' : visibleTabs[0].id;
             setActiveTab(fallback);
         }
     }, [visibleTabs, activeTab]);
 
+    // ... (Swipe Logic unchanged) ...
+
     // 3. Simple Swipe Logic (No Scroll Container)
     const [touchStart, setTouchStart] = useState<number | null>(null);
     const [touchEnd, setTouchEnd] = useState<number | null>(null);
-    const [touchStartY, setTouchStartY] = useState<number | null>(null); // To detect vertical scroll
+    const [touchStartY, setTouchStartY] = useState<number | null>(null);
 
-    // Minimum swipe distance (px)
     const minSwipeDistance = 50;
 
     const onTouchStart = (e: React.TouchEvent) => {
-        setTouchEnd(null); // Reset
+        setTouchEnd(null);
         setTouchStart(e.targetTouches[0].clientX);
         setTouchStartY(e.targetTouches[0].clientY);
     };
@@ -143,42 +138,40 @@ export default function HomeTabs({ settings, predictions, stakazoPredictions, fo
 
     const onTouchEnd = () => {
         if (!touchStart || !touchEnd || !touchStartY) return;
-
         const distanceX = touchStart - touchEnd;
         const isLeftSwipe = distanceX > minSwipeDistance;
         const isRightSwipe = distanceX < -minSwipeDistance;
-
-        // Use a generic valid y distance or check relative X vs Y to ensure horizontal intent
-        // Here we can check if horizontal distance is significantly larger than vertical movement
-        // However, we don't track TouchMove Y here properly without state update which might be laggy.
-        // Simplified: simple X distance check is usually okay if we don't preventDefault.
-
-        // Find current index
         const currentIndex = visibleTabs.findIndex(t => t.id === activeTab);
         if (currentIndex === -1) return;
 
-        if (isLeftSwipe) {
-            // Next Tab
-            if (currentIndex < visibleTabs.length - 1) {
-                const nextTab = visibleTabs[currentIndex + 1];
-                triggerTouchFeedback();
-                setActiveTab(nextTab.id);
-            }
+        if (isLeftSwipe && currentIndex < visibleTabs.length - 1) {
+            const nextTab = visibleTabs[currentIndex + 1];
+            triggerTouchFeedback();
+            setActiveTab(nextTab.id);
         }
-
-        if (isRightSwipe) {
-            // Prev Tab
-            if (currentIndex > 0) {
-                const prevTab = visibleTabs[currentIndex - 1];
-                triggerTouchFeedback();
-                setActiveTab(prevTab.id);
-            }
+        if (isRightSwipe && currentIndex > 0) {
+            const prevTab = visibleTabs[currentIndex - 1];
+            triggerTouchFeedback();
+            setActiveTab(prevTab.id);
         }
     };
 
-    // Simplified Tab Click Handler
-    const scrollToTab = (tabId: string) => {
+
+    // Robust Tab Navigation with Error Handling
+    const scrollToTab = (tabId: string, targetCategory?: string) => {
+        const targetTab = visibleTabs.find(t => t.id === tabId);
+        if (!targetTab) {
+            console.warn(`Attempted to navigate to hidden/invalid tab: ${tabId}`);
+            return; // ERROR HANDLING: Do nothing if tab doesn't exist/is hidden
+        }
+
         triggerTouchFeedback();
+
+        // If navigating to calendar with a specific category, set it
+        if (tabId === 'calendar' && targetCategory) {
+            setCalendarCategory(targetCategory);
+        }
+
         setActiveTab(tabId);
     };
 
@@ -210,92 +203,100 @@ export default function HomeTabs({ settings, predictions, stakazoPredictions, fo
                         </h2>
                     </div>
 
-                    {/* Date & Stats Row - FLEXIBLE (Priority Center) */}
-                    <div className="flex flex-row items-center justify-between gap-2 w-full pb-1 mb-1 md:mb-2 px-1">
-                        {/* LEFT: Date (Auto Width) */}
-                        <div className="flex-none flex justify-start">
-                            <p className="text-xs md:text-sm text-muted-foreground font-medium capitalize flex items-center gap-1 whitespace-nowrap">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                {formattedDate.split(',')[0]} {formattedDate.split(',')[1]?.split(' ')[1]}
-                            </p>
-                        </div>
+                    {/* REDESIGNED HEADER: 2-Row Layout */}
 
-                        {/* CENTER: Info / Update Time (Flex Grow) */}
-                        <div className="flex-1 flex justify-center min-w-0">
-                            {settings.show_announcement && settings.announcement_text ? (
-                                <div className={`w-full px-1.5 py-0.5 rounded-full border text-[10px] md:text-xs font-medium flex items-center justify-center gap-1 ${settings.announcement_type === 'warning' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-500' : 'bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-500'}`}>
-                                    <AlertTriangle size={10} className="shrink-0" />
-                                    <span className="whitespace-nowrap">{settings.announcement_text}</span>
-                                </div>
-                            ) : (
-                                <div className="text-[10px] text-muted-foreground whitespace-nowrap">Actualizado 09:00 AM</div>
-                            )}
-                        </div>
-
-                        {/* RIGHT: Balance (Auto Width) */}
-                        <div className="flex-none flex justify-end">
-                            {settings.show_analytics && (
-                                <div className={`flex items-center gap-1 text-xs font-bold ${headerStats.profit >= 0 ? 'text-emerald-600 dark:text-emerald-500' : 'text-rose-600 dark:text-rose-500'}`}>
-                                    <Activity size={12} />
-                                    <span>{headerStats.profit >= 0 ? '+' : ''}{headerStats.profit}u</span>
-                                </div>
-                            )}
-                        </div>
+                    {/* ROW 1: Update/Banner Only (Centered) */}
+                    <div className="flex justify-center w-full mb-4">
+                        {settings.show_announcement && settings.announcement_text ? (
+                            <div className={`px-4 py-1.5 rounded-full border text-xs font-bold flex items-center gap-2 shadow-sm ${settings.announcement_type === 'warning' ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' : 'bg-blue-500/10 border-blue-500/20 text-blue-500'}`}>
+                                <AlertTriangle size={14} strokeWidth={2.5} />
+                                <span>{settings.announcement_text}</span>
+                            </div>
+                        ) : (
+                            <div className="bg-secondary/30 px-4 py-1.5 rounded-full border border-white/5 text-xs text-muted-foreground font-medium flex items-center gap-2">
+                                <Activity size={14} className="text-violet-500" />
+                                Actualización Diaria 09:00 AM
+                            </div>
+                        )}
                     </div>
 
+                    {/* ROW 2: Compact Desktop Layout (Flex) / Mobile Standard (Column) */}
+                    <div className="flex flex-col md:flex-row items-center justify-center gap-3 md:gap-8 w-full mb-2">
 
-                    {/* STAKAZO BANNER (Balanced Mobile) */}
-                    {settings.show_stakazo_alert && settings.show_stakazo_menu && activeTab !== 'stakazo' && (
-                        <div className="mt-2 md:mt-6 animate-in zoom-in fade-in duration-500">
-                            <button
-                                onClick={() => scrollToTab('stakazo')}
-                                className="group relative overflow-hidden rounded-xl md:rounded-3xl bg-[#080808] border border-amber-500/40 w-full md:max-w-sm mx-auto shadow-[0_0_15px_rgba(245,158,11,0.1)] transition-all active:scale-[0.98] hover:border-amber-500/60"
-                            >
-                                {/* Animated Gradient Glow Background */}
-                                <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 via-transparent to-amber-500/5 opacity-50 group-hover:opacity-100 transition-opacity duration-500" />
-                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-amber-500/10 to-transparent translate-x-[-150%] group-hover:translate-x-[150%] transition-transform duration-1000 z-10" />
+                        {/* STAKAZO BANNER (Desktop: LEFT, Mobile: BOTTOM) */}
+                        {settings.show_stakazo_alert && settings.show_stakazo_menu && activeTab !== 'stakazo' && (
+                            <div className="w-full md:w-auto order-2 md:order-1 animate-in zoom-in fade-in duration-500">
+                                <button
+                                    onClick={() => scrollToTab('stakazo')}
+                                    className="group relative overflow-hidden rounded-xl md:rounded-2xl bg-[#080808] border border-amber-500/40 w-full md:w-auto shadow-[0_0_15px_rgba(245,158,11,0.1)] transition-all active:scale-[0.98] hover:border-amber-500/60"
+                                >
+                                    {/* Animated Gradient Glow Background */}
+                                    <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 via-transparent to-amber-500/5 opacity-50 group-hover:opacity-100 transition-opacity duration-500" />
+                                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-amber-500/10 to-transparent translate-x-[-150%] group-hover:translate-x-[150%] transition-transform duration-1000 z-10" />
 
-                                {/* Balanced Layout (h-[52px]) */}
-                                <div className="relative z-0 px-3 h-[52px] md:h-auto md:p-5 flex flex-row md:flex-col items-center justify-between md:justify-center gap-2 md:gap-0">
+                                    {/* Compact Layout for Desktop */}
+                                    <div className="relative z-0 px-3 h-[52px] md:h-auto md:p-3 md:px-5 flex flex-row items-center justify-between md:justify-center gap-2 md:gap-3">
 
-                                    {/* START: Icon + Label */}
-                                    <div className="flex items-center gap-2 md:mb-2">
-                                        <div className="p-1.5 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-full shadow-[0_0_10px_rgba(245,158,11,0.3)] md:p-2">
-                                            <Trophy size={14} className="text-white fill-white/20 md:w-5 md:h-5" />
+                                        <div className="flex items-center gap-2">
+                                            <div className="p-1.5 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-full shadow-[0_0_10px_rgba(245,158,11,0.3)]">
+                                                <Trophy size={14} className="text-white fill-white/20" />
+                                            </div>
+
+                                            <div className="flex flex-col items-start leading-none">
+                                                <span className="text-[10px] text-amber-500 font-bold uppercase tracking-[0.1em] mb-0.5 animate-pulse hidden md:block">Acceso Exclusivo</span>
+                                                <span className="text-xs md:text-lg font-black text-white tracking-tighter drop-shadow-md">
+                                                    STAKAZO <span className="text-amber-500">{stakazoStake}</span>
+                                                </span>
+                                            </div>
                                         </div>
 
-                                        {/* Mobile Text */}
-                                        <span className="text-xs font-black text-white tracking-tighter md:hidden">
-                                            💎 STAKAZO <span className="text-amber-500">{stakazoStake}</span>
-                                        </span>
-
-                                        {/* Desktop Text */}
-                                        <div className="hidden md:flex flex-col items-start leading-none">
-                                            <span className="text-[10px] text-amber-500 font-bold uppercase tracking-[0.2em] mb-1 animate-pulse">Acceso Exclusivo</span>
-                                            <span className="text-3xl font-black text-white tracking-tighter drop-shadow-md">
-                                                STAKAZO <span className="text-amber-500">{stakazoStake}</span>
+                                        {/* Mobile Text center spacer */}
+                                        <div className="md:hidden flex-1 text-center">
+                                            <span className="text-[10px] text-amber-500/60 font-medium uppercase tracking-wider block">
+                                                Acceso Exclusivo
                                             </span>
                                         </div>
-                                    </div>
 
-                                    {/* CENTER: Text (Mobile Only) */}
-                                    <div className="md:hidden flex-1 text-center">
-                                        <span className="text-[10px] text-amber-500/60 font-medium uppercase tracking-wider block">
-                                            Acceso Exclusivo
+                                        <div className="w-px h-8 bg-gradient-to-b from-transparent via-amber-500/20 to-transparent mx-1 hidden md:block" />
+
+                                        <span className="text-[10px] md:text-xs text-gray-400 font-medium group-hover:text-amber-400 transition-colors whitespace-nowrap flex items-center gap-1">
+                                            <span className="hidden md:inline">Ver</span> &rarr;
                                         </span>
                                     </div>
+                                </button>
+                            </div>
+                        )}
 
-                                    {/* Desktop Divider */}
-                                    <div className="hidden md:block h-px w-32 bg-gradient-to-r from-transparent via-amber-500/30 to-transparent my-1" />
-
-                                    {/* END: CTA */}
-                                    <span className="text-[10px] text-gray-400 font-medium group-hover:text-amber-400 transition-colors whitespace-nowrap flex items-center gap-1">
-                                        <span className="hidden md:inline">Click para revelar</span> Ver &rarr;
+                        {/* UNITS SPLIT (Desktop: RIGHT, Mobile: TOP) */}
+                        {settings.show_analytics && (
+                            <div className="w-full md:w-auto order-1 md:order-2 grid grid-cols-2 gap-3 md:gap-4">
+                                {/* Daily Bets Stats -> Redirects to Standard Calendar */}
+                                <div className="relative bg-gradient-to-br from-secondary/40 to-secondary/10 cursor-pointer rounded-2xl p-2.5 md:p-3 md:px-5 border border-white/5 flex flex-col items-center justify-center transition-all hover:bg-secondary/30 active:scale-[0.98] group min-w-[100px]"
+                                    onClick={() => scrollToTab('calendar', 'daily_bets')}
+                                >
+                                    <span className="text-[10px] uppercase font-bold text-muted-foreground/80 tracking-wider mb-0.5 group-hover:text-foreground transition-colors">
+                                        🎯 Diarias
                                     </span>
+                                    <div className={`text-xl md:text-2xl font-black tracking-tight leading-none ${headerStats.daily.profit >= 0 ? 'text-emerald-400 drop-shadow-[0_0_10px_rgba(52,211,153,0.15)]' : 'text-foreground/90'}`}>
+                                        {headerStats.daily.profit >= 0 ? '+' : ''}{headerStats.daily.profit.toFixed(2)}u
+                                    </div>
                                 </div>
-                            </button>
-                        </div>
-                    )}
+
+                                {/* Stakazo Stats -> Redirects to Stakazo Calendar */}
+                                <div className="relative bg-gradient-to-br from-amber-500/10 to-transparent cursor-pointer rounded-2xl p-2.5 md:p-3 md:px-5 border border-amber-500/20 flex flex-col items-center justify-center transition-all hover:bg-amber-500/15 active:scale-[0.98] group shadow-[0_0_20px_rgba(245,158,11,0.05)] min-w-[100px]"
+                                    onClick={() => scrollToTab('calendar', 'daily_bets_stakazo')}
+                                >
+                                    <div className="absolute inset-0 bg-amber-500/5 group-hover:bg-amber-500/10 transition-colors rounded-2xl" />
+                                    <span className="text-[10px] uppercase font-bold text-amber-500/80 tracking-wider mb-0.5 flex items-center gap-1.5 group-hover:text-amber-400 transition-colors relative z-10">
+                                        <Trophy size={10} strokeWidth={3} className="mb-0.5" /> Stakazo
+                                    </span>
+                                    <div className={`text-xl md:text-2xl font-black tracking-tight leading-none relative z-10 ${headerStats.stakazo.profit >= 0 ? 'text-emerald-400 drop-shadow-[0_0_15px_rgba(52,211,153,0.4)]' : 'text-rose-400'}`}>
+                                        {headerStats.stakazo.profit >= 0 ? '+' : ''}{headerStats.stakazo.profit.toFixed(2)}u
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -364,7 +365,10 @@ export default function HomeTabs({ settings, predictions, stakazoPredictions, fo
 
                     {activeTab === 'calendar' && (
                         <div className="animate-in fade-in zoom-in duration-300">
-                            <ResultsCalendar showStakazoToggle={settings.show_stakazo_calendar} />
+                            <ResultsCalendar
+                                showStakazoToggle={settings.show_stakazo_calendar}
+                                activeCategory={calendarCategory}
+                            />
                         </div>
                     )}
 
