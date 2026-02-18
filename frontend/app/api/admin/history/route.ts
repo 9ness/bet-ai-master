@@ -13,25 +13,48 @@ export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
         const month = searchParams.get('month'); // YYYY-MM
+        const yearParam = searchParams.get('year'); // YYYY
         const category = searchParams.get('category') || 'daily_bets'; // Default to legacy
 
-        if (!month) {
-            return NextResponse.json({ error: 'Month required' }, { status: 400 });
-        }
-
         const prefix = "betai:";
-        // 2. Fetch Daily History (HGETALL Monthly Hash)
-        // Optimized: Single Fetch instead of 30+ Pipeline calls
-        const [year, monthStr] = month.split('-');
-
-        // Dynamic Key Selection based on Category
-        const hashKey = `${prefix}${category}:${month}`;
-
-        // Stats Key Selection
         let statsHashKey = 'betai_stats'; // Default
         if (category === 'daily_bets_stakazo') {
             statsHashKey = 'betai:stats_stakazo';
         }
+
+        // --- NEW: ANNUAL VIEW LOGIC ---
+        if (yearParam && !month) {
+            const allStats = await redis.hgetall(statsHashKey);
+            if (!allStats) return NextResponse.json({ year: yearParam, stats: {} });
+
+            // Filter by Year Prefix (YYYY-)
+            const annualData: Record<string, any> = {};
+            Object.entries(allStats).forEach(([key, val]) => {
+                if (key.startsWith(`${yearParam}-`)) {
+                    try {
+                        annualData[key] = typeof val === 'string' ? JSON.parse(val) : val;
+                    } catch (e) {
+                        annualData[key] = val;
+                    }
+                }
+            });
+
+            return NextResponse.json({
+                year: yearParam,
+                category,
+                stats: annualData
+            });
+        }
+
+        if (!month) {
+            return NextResponse.json({ error: 'Month or Year required' }, { status: 400 });
+        }
+
+        // 2. Fetch Daily History (HGETALL Monthly Hash)
+        const [year, monthStr] = month.split('-');
+
+        // Dynamic Key Selection based on Category
+        const hashKey = `${prefix}${category}:${month}`;
 
         // Parallel Fetch: Stats from Hash + Monthly Hash
         const [statsRaw, monthDataRaw] = await Promise.all([

@@ -605,6 +605,11 @@ export default function ResultsCalendar({ showStakazoToggle = false, activeCateg
     // STAKAZO SWITCH
     const [category, setCategory] = useState(activeCategory || "daily_bets");
 
+    // ANNUAL VIEW STATE
+    const [isAnnualModalOpen, setIsAnnualModalOpen] = useState(false);
+    const [annualStats, setAnnualStats] = useState<Record<string, any>>({});
+    const [isAnnualLoading, setIsAnnualLoading] = useState(false);
+
     // Sync prop changes to state
     useEffect(() => {
         if (activeCategory) {
@@ -734,6 +739,22 @@ export default function ResultsCalendar({ showStakazoToggle = false, activeCateg
             console.error(e);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchAnnualData = async () => {
+        setIsAnnualLoading(true);
+        setIsAnnualModalOpen(true);
+        try {
+            const res = await fetch(`/api/admin/history?year=${year}&category=${category}`);
+            const data = await res.json();
+            if (data.stats) {
+                setAnnualStats(data.stats);
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setIsAnnualLoading(false);
         }
     };
 
@@ -887,6 +908,16 @@ export default function ResultsCalendar({ showStakazoToggle = false, activeCateg
                         </p>
                     </div>
                 </div>
+
+                {/* ANNUAL VIEW BUTTON */}
+                <button
+                    onClick={fetchAnnualData}
+                    className="w-full md:w-auto h-14 px-6 flex items-center justify-center gap-2 bg-secondary/20 hover:bg-secondary/40 border border-white/5 rounded-2xl transition-all group overflow-hidden relative"
+                >
+                    <div className="absolute inset-0 bg-gradient-to-r from-violet-500/5 to-fuchsia-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <CalendarIcon size={18} className="text-primary" />
+                    <span className="text-sm font-bold tracking-wide uppercase">Vista Anual</span>
+                </button>
             </div>
 
             {/* Calendar Grid Header */}
@@ -984,6 +1015,88 @@ export default function ResultsCalendar({ showStakazoToggle = false, activeCateg
                                 />
                             ))}
                         </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* ANNUAL STATS MODAL */}
+            {isAnnualModalOpen && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
+                    <div className="bg-card w-full max-w-md border border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
+                        {/* Header */}
+                        <div className="p-6 border-b border-border flex justify-between items-center bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10">
+                            <div>
+                                <h3 className="font-bold text-2xl text-foreground flex items-center gap-2">
+                                    Resumen Anual {year}
+                                </h3>
+                                <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest mt-1">
+                                    {category === 'daily_bets_stakazo' ? 'Categoría Stakazo' : 'Categoría Estándar'}
+                                </p>
+                            </div>
+                            <button onClick={() => setIsAnnualModalOpen(false)} className="p-2 hover:bg-secondary/20 rounded-full transition-colors text-muted-foreground hover:text-foreground">
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="p-6 space-y-3 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                            {isAnnualLoading ? (
+                                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                                    <Loader2 className="animate-spin text-primary" size={32} />
+                                    <p className="text-sm text-muted-foreground animate-pulse">Cargando balance anual...</p>
+                                </div>
+                            ) : Object.keys(annualStats).length === 0 ? (
+                                <p className="text-center text-muted-foreground py-8">No hay datos registrados para este año.</p>
+                            ) : (
+                                // Sort months from Jan to Dec
+                                Object.keys(annualStats)
+                                    .sort()
+                                    .map((m) => {
+                                        const [y, mm] = m.split('-');
+                                        const monthName = new Date(parseInt(y), parseInt(mm) - 1).toLocaleDateString('es-ES', { month: 'long' });
+                                        const profit = Number(annualStats[m].total_profit || 0);
+                                        const isPositive = profit >= 0;
+
+                                        return (
+                                            <div
+                                                key={m}
+                                                className="flex items-center justify-between p-4 rounded-2xl bg-secondary/20 border border-white/5 hover:bg-secondary/30 transition-all cursor-pointer group"
+                                                onClick={() => {
+                                                    setCurrentDate(new Date(parseInt(y), parseInt(mm) - 1, 1));
+                                                    setIsAnnualModalOpen(false);
+                                                }}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs uppercase
+                                                        ${isPositive ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
+                                                        {mm}
+                                                    </div>
+                                                    <span className="font-bold capitalize">{monthName}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`font-mono font-black text-lg ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                        {isPositive ? '+' : ''}{profit.toFixed(2)}u
+                                                    </span>
+                                                    <ChevronRight size={16} className="text-muted-foreground group-hover:text-foreground transition-colors" />
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                            )}
+                        </div>
+
+                        {/* Footer (Total Year) */}
+                        {!isAnnualLoading && Object.keys(annualStats).length > 0 && (
+                            <div className="p-6 bg-secondary/40 border-t border-border mt-auto">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Total Anual:</span>
+                                    <span className={`text-2xl font-black ${Object.values(annualStats).reduce((acc, curr) => acc + (curr.total_profit || 0), 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                        {Object.values(annualStats).reduce((acc, curr) => acc + (curr.total_profit || 0), 0).toFixed(2)}u
+                                    </span>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>,
                 document.body
