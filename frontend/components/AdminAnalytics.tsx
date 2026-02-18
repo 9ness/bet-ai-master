@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
-import { Loader2, TrendingUp, TrendingDown, DollarSign, Info, ChevronLeft, ChevronRight, Activity, Trophy, ChevronDown, Percent, BarChart3, AlertTriangle, LayoutDashboard, LineChart, ListTree } from 'lucide-react';
+import { Loader2, TrendingUp, TrendingDown, DollarSign, Info, ChevronLeft, ChevronRight, Activity, Trophy, ChevronDown, Percent, BarChart3, AlertTriangle, LayoutDashboard, LineChart, ListTree, Calendar as CalendarIcon, X } from 'lucide-react';
 
 // --- PREMIUM STAT CARD COMPONENT ---
 const StatCard = ({ title, value, subtext, icon: Icon, colorTheme = 'gray', tooltip }: any) => {
@@ -79,6 +80,12 @@ export default function AdminAnalytics({ showStakazoToggle = false }: { showStak
     // STAKAZO SWITCH
     const [category, setCategory] = useState("daily_bets");
 
+    // ANNUAL VIEW STATE
+    const [isAnnualModalOpen, setIsAnnualModalOpen] = useState(false);
+    const [annualStats, setAnnualStats] = useState<Record<string, any>>({});
+    const [isAnnualLoading, setIsAnnualLoading] = useState(false);
+    const [annualModalTab, setAnnualModalTab] = useState<'meses' | 'operativa'>('meses');
+
     const fetchData = async () => {
         setLoading(true); // Reset loading
         try {
@@ -127,6 +134,24 @@ export default function AdminAnalytics({ showStakazoToggle = false }: { showStak
             console.error(e);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchAnnualData = async () => {
+        setIsAnnualLoading(true);
+        setIsAnnualModalOpen(true);
+        setAnnualModalTab('meses'); // Reset tab
+        try {
+            const year = currentDate.getFullYear();
+            const res = await fetch(`/api/admin/history?year=${year}&category=${category}`);
+            const json = await res.json();
+            if (json.stats) {
+                setAnnualStats(json.stats);
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setIsAnnualLoading(false);
         }
     };
 
@@ -234,7 +259,14 @@ export default function AdminAnalytics({ showStakazoToggle = false }: { showStak
                         </button>
                     </div>
 
-
+                    {/* ANNUAL VIEW BUTTON */}
+                    <button
+                        onClick={fetchAnnualData}
+                        className="flex items-center gap-2 bg-secondary/50 backdrop-blur-md px-4 py-2.5 rounded-full border border-border/30 hover:bg-secondary/70 transition-all shadow-lg group"
+                    >
+                        <CalendarIcon size={16} className="text-primary group-hover:scale-110 transition-transform" />
+                        <span className="text-xs font-bold uppercase tracking-widest text-foreground/90">Vista Anual</span>
+                    </button>
                 </div>
 
                 {/* TABS NAVIGATION */}
@@ -270,13 +302,13 @@ export default function AdminAnalytics({ showStakazoToggle = false }: { showStak
                             tooltip="Ganancia neta total acumulada en el mes seleccionado."
                         />
 
-                        {/* 2. YIELD */}
+                        {/* 2. RENTABILIDAD */}
                         <StatCard
-                            title="Yield"
+                            title="Rentabilidad (Yield)"
                             value={`${yieldVal.toFixed(2)}%`}
                             colorTheme={yieldVal >= 0 ? 'violet' : 'rose'}
                             icon={Activity}
-                            tooltip="Rentabilidad obtenida sobre el capital total apostado."
+                            tooltip="Rentabilidad obtenida sobre el capital total apostado (Yield)."
                         />
 
                         {/* 3. PROFIT FACTOR */}
@@ -521,7 +553,234 @@ export default function AdminAnalytics({ showStakazoToggle = false }: { showStak
                     </div>
                 )}
 
+                {/* ANNUAL STATS MODAL */}
+                {isAnnualModalOpen && typeof document !== 'undefined' && createPortal(
+                    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
+                        <div className="bg-card w-full max-w-md border border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
+                            {/* Header */}
+                            <div className="p-6 border-b border-border flex justify-between items-center bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10">
+                                <div>
+                                    <h3 className="font-bold text-2xl text-foreground flex items-center gap-2">
+                                        Histórico Anual {currentDate.getFullYear()}
+                                    </h3>
+                                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest mt-1">
+                                        {category === 'daily_bets_stakazo' ? 'Rendimiento Stakazos' : 'Rendimiento Estándar'}
+                                    </p>
+                                </div>
+                                <button onClick={() => setIsAnnualModalOpen(false)} className="p-2 hover:bg-secondary/20 rounded-full transition-colors text-muted-foreground hover:text-foreground">
+                                    <X size={24} />
+                                </button>
+                            </div>
+
+                            {/* Modal Internal Tabs */}
+                            {!isAnnualLoading && Object.keys(annualStats).length > 0 && (
+                                <div className="flex bg-secondary/30 p-1 mx-6 mt-4 rounded-xl border border-white/5">
+                                    <button
+                                        onClick={() => setAnnualModalTab('meses')}
+                                        className={`flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all ${annualModalTab === 'meses' ? 'bg-primary/20 text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                                    >
+                                        Por Meses
+                                    </button>
+                                    <button
+                                        onClick={() => setAnnualModalTab('operativa')}
+                                        className={`flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all ${annualModalTab === 'operativa' ? 'bg-primary/20 text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                                    >
+                                        Operativa Anual
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Content */}
+                            <div className="p-6 space-y-3 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                                {isAnnualLoading ? (
+                                    <div className="flex flex-col items-center justify-center py-12 gap-3">
+                                        <Loader2 className="animate-spin text-primary" size={32} />
+                                        <p className="text-sm text-muted-foreground animate-pulse">Calculando balance anual...</p>
+                                    </div>
+                                ) : Object.keys(annualStats).length === 0 ? (
+                                    <p className="text-center text-muted-foreground py-8 font-medium">No hay registros para este año.</p>
+                                ) : annualModalTab === 'meses' ? (
+                                    Object.keys(annualStats)
+                                        .sort()
+                                        .map((m) => {
+                                            const [y, mm] = m.split('-');
+                                            const monthLabel = new Date(parseInt(y), parseInt(mm) - 1).toLocaleDateString('es-ES', { month: 'long' });
+                                            const profit = Number(annualStats[m].total_profit || 0);
+                                            const isPositive = profit >= 0;
+                                            const mYield = Number(annualStats[m].yield || 0);
+
+                                            return (
+                                                <div
+                                                    key={m}
+                                                    className="flex items-center justify-between p-4 rounded-2xl bg-secondary/20 border border-white/5 hover:bg-secondary/30 transition-all cursor-pointer group"
+                                                    onClick={() => {
+                                                        setCurrentDate(new Date(parseInt(y), parseInt(mm) - 1, 1));
+                                                        setIsAnnualModalOpen(false);
+                                                    }}
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center font-bold
+                                                        ${isPositive ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
+                                                            <span className="text-[10px] opacity-60 leading-none mb-0.5">{mm}</span>
+                                                            <span className="text-xs leading-none">M</span>
+                                                        </div>
+                                                        <div>
+                                                            <span className="font-bold capitalize block text-sm">{monthLabel}</span>
+                                                            <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-tighter">Rentabilidad: {mYield}%</span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="text-right">
+                                                            <span className={`font-mono font-black text-lg block leading-none ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                                {isPositive ? '+' : ''}{profit.toFixed(2)}u
+                                                            </span>
+                                                        </div>
+                                                        <ChevronRight size={16} className="text-muted-foreground group-hover:text-foreground transition-colors" />
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                ) : (
+                                    // TAB: OPERATIVA (Anual Aggregate)
+                                    (() => {
+                                        // Aggregate Calculations
+                                        const performance: Record<string, any> = {
+                                            safe: { profit: 0, won: 0, total: 0, color: 'text-emerald-400' },
+                                            value: { profit: 0, won: 0, total: 0, color: 'text-amber-400' },
+                                            funbet: { profit: 0, won: 0, total: 0, color: 'text-rose-400' },
+                                            stakazo: { profit: 0, won: 0, total: 0, color: 'text-amber-500' }
+                                        };
+                                        const accuracy: Record<string, any> = {
+                                            football: { won: 0, total: 0 },
+                                            basketball: { won: 0, total: 0 }
+                                        };
+
+                                        Object.values(annualStats).forEach((ms: any) => {
+                                            // Sum performance by type
+                                            if (ms.performance_by_type) {
+                                                Object.keys(ms.performance_by_type).forEach(type => {
+                                                    if (performance[type]) {
+                                                        performance[type].profit += (ms.performance_by_type[type].profit || 0);
+                                                        performance[type].won += (ms.performance_by_type[type].won_bets || 0);
+                                                        performance[type].total += (ms.performance_by_type[type].total_bets || 0);
+                                                    }
+                                                });
+                                            }
+                                            // Sum accuracy by sport
+                                            if (ms.accuracy_by_sport) {
+                                                Object.keys(ms.accuracy_by_sport).forEach(sport => {
+                                                    if (accuracy[sport]) {
+                                                        accuracy[sport].won += (ms.accuracy_by_sport[sport].won_selections || 0);
+                                                        accuracy[sport].total += (ms.accuracy_by_sport[sport].total_selections || 0);
+                                                    }
+                                                });
+                                            }
+                                        });
+
+                                        return (
+                                            <div className="space-y-6">
+                                                {/* 1. Rendimiento por Estrategia */}
+                                                <div className="space-y-3">
+                                                    <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2 px-1">
+                                                        <TrendingUp size={12} className="text-primary" />
+                                                        Rentabilidad por Estrategia Anual
+                                                    </h4>
+                                                    <div className="grid grid-cols-1 gap-2">
+                                                        {Object.entries(performance)
+                                                            .filter(([k, v]) => category === 'daily_bets_stakazo' ? k === 'stakazo' : k !== 'stakazo')
+                                                            .map(([type, data]) => {
+                                                                if (data.total === 0) return null;
+                                                                return (
+                                                                    <div key={type} className="bg-secondary/20 border border-white/5 rounded-2xl p-4 flex items-center justify-between">
+                                                                        <div>
+                                                                            <span className="text-[10px] font-bold text-muted-foreground uppercase block mb-1">{type}</span>
+                                                                            <span className={`text-xl font-black ${data.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                                                {data.profit > 0 ? '+' : ''}{data.profit.toFixed(2)}u
+                                                                            </span>
+                                                                        </div>
+                                                                        <div className="text-right">
+                                                                            <span className="text-xs font-bold text-foreground block">
+                                                                                {data.won}/{data.total} <span className="text-muted-foreground font-medium text-[10px]">Aciertos</span>
+                                                                            </span>
+                                                                            <span className="text-[10px] font-bold text-primary">
+                                                                                {((data.won / data.total) * 100).toFixed(1)}% Efec.
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                    </div>
+                                                </div>
+
+                                                {/* 2. Precisión por Deporte */}
+                                                <div className="space-y-4">
+                                                    <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2 px-1">
+                                                        <Info size={12} className="text-blue-400" />
+                                                        Precisión por Deporte Anual
+                                                    </h4>
+                                                    <div className="space-y-4 bg-secondary/20 border border-white/5 rounded-2xl p-4">
+                                                        {Object.entries(accuracy).map(([sport, data]) => {
+                                                            if (data.total === 0) return null;
+                                                            const pct = (data.won / data.total) * 100;
+                                                            return (
+                                                                <div key={sport}>
+                                                                    <div className="flex justify-between mb-2 items-center">
+                                                                        <span className="text-xs font-bold text-foreground opacity-80 uppercase tracking-tighter">
+                                                                            {sport === 'football' ? '⚽ Fútbol' : '🏀 Baloncesto'}
+                                                                        </span>
+                                                                        <span className="text-xs font-black text-foreground">{pct.toFixed(1)}%</span>
+                                                                    </div>
+                                                                    <div className="h-2 w-full bg-secondary/50 rounded-full overflow-hidden border border-border/10">
+                                                                        <div
+                                                                            className={`h-full bg-gradient-to-r ${sport === 'football' ? 'from-blue-600 to-cyan-400' : 'from-orange-600 to-amber-400'}`}
+                                                                            style={{ width: `${pct}%` }}
+                                                                        />
+                                                                    </div>
+                                                                    <p className="text-[9px] text-right mt-1 text-muted-foreground/60 font-medium">
+                                                                        {data.won}/{data.total} aciertos totales del año
+                                                                    </p>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()
+                                )}
+                            </div>
+
+                            {/* Footer (Total Year Aggregate) */}
+                            {!isAnnualLoading && Object.keys(annualStats).length > 0 && (() => {
+                                const totalProfitYear = Object.values(annualStats).reduce((acc, curr) => acc + (curr.total_profit || 0), 0);
+                                const totalStakeYear = Object.values(annualStats).reduce((acc, curr) => acc + (curr.total_stake || 0), 0);
+                                const avgYieldYear = totalStakeYear > 0 ? (totalProfitYear / totalStakeYear) * 100 : 0;
+                                const isPositiveYear = totalProfitYear >= 0;
+
+                                return (
+                                    <div className="p-6 bg-secondary/40 border-t border-border mt-auto">
+                                        <div className="flex justify-between items-end">
+                                            <div>
+                                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block mb-1">Total Anual ({currentDate.getFullYear()})</span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`text-2xl font-black ${isPositiveYear ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                        {isPositiveYear ? '+' : ''}{totalProfitYear.toFixed(2)}u
+                                                    </span>
+                                                    <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${avgYieldYear >= 0 ? 'bg-violet-500/20 text-violet-400' : 'bg-rose-500/20 text-rose-400'}`}>
+                                                        {avgYieldYear.toFixed(2)}% Rentabilidad
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <Trophy size={32} className={isPositiveYear ? 'text-amber-500/20' : 'text-rose-500/10'} />
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                        </div>
+                    </div>,
+                    document.body
+                )}
             </div>
-        </div >
+        </div>
     );
 }
