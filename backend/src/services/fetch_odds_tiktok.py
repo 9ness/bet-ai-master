@@ -57,12 +57,25 @@ class SportsDataServiceTikTok:
         self.league_name_mapping = {
             "Eerste Divisie": "Eredivisie"
         }
+        self.api_remaining = "Unknown"
 
     def _verify_ip(self):
         verify_ip()
 
     def _call_api(self, url, params=None):
-        return call_api(url, params=params, extra_headers=self.headers)
+        resp = call_api(url, params=params, extra_headers=self.headers)
+        if resp:
+            # Monitor Real API Quota (ignoring cached responses)
+            remaining = resp.headers.get("x-ratelimit-requests-remaining-day")
+            if remaining:
+                self.api_remaining = remaining
+                try:
+                    from src.services.redis_service import RedisService
+                    rs = RedisService()
+                    # TikTok usually fetches football
+                    rs.set("api_usage:football:remaining", remaining)
+                except: pass
+        return resp
 
     def _normalize_key(self, text):
         text = str(text).lower()
@@ -126,6 +139,7 @@ class SportsDataServiceTikTok:
             
         print(f"\n[FINISH] Total partidos guardados: {len(all_matches)}")
         print(f"[CONSUMO] Fútbol: {self.calls_football}")
+        print(f"[API REAL] Cuota Restante (x-ratelimit-requests-remaining-day): {self.api_remaining}")
         
         return all_matches
 
@@ -189,9 +203,9 @@ class SportsDataServiceTikTok:
             processed_count = 0
             
             for item in final_candidates:
-                # SAFETY LIMIT: Max 30 calls total (Estricto)
-                if self.calls_football >= 30:
-                    print(f"      [LIMIT] Se ha alcanzado el límite estricto de llamadas (30). Deteniendo...")
+                # SAFETY LIMIT: Max 50 calls total (Estricto con Predicciones)
+                if self.calls_football >= 50:
+                    print(f"      [LIMIT] Se ha alcanzado el límite estricto de llamadas (50). Deteniendo...")
                     print(f"      [STATS] Procesados {processed_count} de {len(final_candidates)} candidatos seleccionados.")
                     break
 
@@ -216,7 +230,7 @@ class SportsDataServiceTikTok:
                 # Fetch Odds (Filtered)
                 odds = self._get_odds(sport, base_url, fix_id, whitelist_markets, bookmaker_id)
                 self.calls_football += 1
-                print(f"      [API] Usadas: {self.calls_football}/30 (Odds) | Partido: {home} vs {away}")
+                print(f"      [API] Usadas: {self.calls_football}/50 (Odds) | Partido: {home} vs {away}")
                         
                 match_entry = {
                     "sport": sport, 
@@ -237,14 +251,18 @@ class SportsDataServiceTikTok:
                     "odds": odds
                 }
 
-                # Predictions (DISABLED)
-                match_entry["predictions"] = None
+                # Predictions (ENABLED)
+                raw_preds = self._fetch_predictions(fix_id)
+                match_entry["predictions"] = self._process_predictions(raw_preds)
+                self.calls_football += 1
+                
+                print(f"      [API] Usadas: {self.calls_football}/50 (Preds)")
 
                 # H2H
                 raw_h2h = self._fetch_headtohead(home_id, away_id, sport)
                 match_entry["h2h"] = self._process_h2h(raw_h2h, sport)
                 self.calls_football += 1
-                print(f"      [API] Usadas: {self.calls_football}/30 (H2H)")
+                print(f"      [API] Usadas: {self.calls_football}/50 (H2H)")
                 
                 matches_found.append(match_entry)
                 processed_count += 1
@@ -358,6 +376,7 @@ class SportsDataServiceTikTok:
             data = resp.json()
             return data.get("response", [])
         except Exception as e:
+            print(f"      [!] Error fetching predictions for {fixture_id}: {e}")
             return []
 
     def _fetch_headtohead(self, home_id, away_id, sport="football"):
@@ -456,5 +475,13 @@ class SportsDataServiceTikTok:
         return processed
 
 if __name__ == "__main__":
-    service = SportsDataServiceTikTok()
-    service.fetch_matches()
+    from src.services.redis_service import RedisService
+    rs = RedisService()
+    try:
+        rs.log_script_execution("tiktok_viral_automated.yml", "START", "Recolección Viral iniciada...")
+        service = SportsDataServiceTikTok()
+        service.fetch_matches()
+        rs.log_script_execution("tiktok_viral_automated.yml", "SUCCESS", "Recolección Viral completada.")
+    except Exception as e:
+        rs.log_script_execution("tiktok_viral_automated.yml", "FAILURE", str(e))
+        print(f"[FATAL] Viral Script failed: {e}")

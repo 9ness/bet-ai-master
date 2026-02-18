@@ -106,7 +106,7 @@ class BlacklistManager:
 
 # --- DATA FETCHERS ---
 
-def get_football_result(fixture_id):
+def get_football_result(fixture_id, rs=None):
     """
     Fetches match details from API-Football.
     """
@@ -116,6 +116,15 @@ def get_football_result(fixture_id):
     try:
         # Use Helper
         resp = call_api_with_proxy(url, extra_headers=headers)
+        
+        # [QUOTA TRACKING]
+        if resp and rs:
+            remaining = resp.headers.get("x-ratelimit-requests-remaining-day")
+            if remaining:
+                try:
+                    rs.set("api_usage:football:remaining", remaining)
+                except: pass
+        
         data = resp.json()
         
         if not data.get("response"):
@@ -168,7 +177,7 @@ def get_football_result(fixture_id):
         print(f"[ERROR] Football API ID {fixture_id}: {e}")
         return None
 
-def get_basketball_result(game_id):
+def get_basketball_result(game_id, rs=None):
     """
     Fetches match details from API-Basketball.
     """
@@ -177,6 +186,15 @@ def get_basketball_result(game_id):
     
     try:
         resp = call_api_with_proxy(url, extra_headers=headers)
+        
+        # [QUOTA TRACKING]
+        if resp and rs:
+            remaining = resp.headers.get("x-ratelimit-requests-remaining-day")
+            if remaining:
+                try:
+                    rs.set("api_usage:basketball:remaining", remaining)
+                except: pass
+                
         data = resp.json()
         
         if not data.get("response"):
@@ -384,6 +402,11 @@ def check_bets():
         print("[FATAL] Redis not active.")
         return
 
+    # LOG START
+    try:
+        rs.log_script_execution("check_results_cron.yml", "START", "Iniciando comprobación de resultados...")
+    except: pass
+
     # Check Today and Yesterday (for late night games)
     today_log_date = datetime.now().strftime("%Y-%m-%d")
     # log_check_event(rs, today_log_date, "SYSTEM", "SCRIPT_START", "INFO", "START", "Starting automated bet check routine...")
@@ -504,9 +527,9 @@ def check_bets():
                     log_check_event(rs, date_str, fid, sel['match'], pick_lower, "INFO", f"Sending ID: {api_fid} ({sport})")
                     
                     if sport == "football":
-                        data = get_football_result(api_fid)
+                        data = get_football_result(api_fid, rs=rs)
                     elif sport == "basketball":
-                        data = get_basketball_result(api_fid)
+                        data = get_basketball_result(api_fid, rs=rs)
 
                     # LOG RESPONSE SUMMARY
                     if data:
@@ -1092,8 +1115,13 @@ def update_monthly_stats(rs, month_str, category="daily_bets"):
 if __name__ == "__main__":
     try:
         check_bets()
+        # LOG END
+        try:
+            rs.log_script_execution("check_results_cron.yml", "SUCCESS", f"Comprobación finalizada. Updates: {total_updates}")
+        except: pass
+
+        print("\n[DONE] Check Bets Process Finished.")
     except Exception as e:
-        print(f"[CRITICAL] Check Bets Failed: {e}")
         # Re-init rs just in case or use global if available (it is inside check_bets, but we need it here)
         from src.services.redis_service import RedisService
         _rs = RedisService()

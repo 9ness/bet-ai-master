@@ -13,6 +13,8 @@ import { verifyAdminPassword } from './actions';
 import ResultsCalendar from '@/components/ResultsCalendar';
 import AdminAnalytics from '@/components/AdminAnalytics';
 import TelegramAdmin from '@/components/TelegramAdmin';
+import ApiUsageBanner from '@/components/ApiUsageBanner';
+import ExecutionTimeline from '@/components/ExecutionTimeline';
 
 import TikTokFactory from '@/components/TikTokFactory';
 
@@ -112,6 +114,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
     const [loadingLogs, setLoadingLogs] = useState(false);
     const [blacklistMode, setBlacklistMode] = useState<'list' | 'logs'>('list');
     const [saveNotification, setSaveNotification] = useState<{ show: boolean, type: 'success' | 'error', message: string }>({ show: false, type: 'success', message: '' });
+    const [executionHistory, setExecutionHistory] = useState<any[]>([]);
 
     // Trigger States
     const [fetchStatus, setFetchStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -220,6 +223,16 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
             })
             .catch(err => console.error("Failed to fetch blacklist", err))
             .finally(() => setLoadingBlacklist(false));
+
+        // 5. Fetch Execution History (Timeline)
+        fetch('/api/admin/system/timeline')
+            .then(res => res.json())
+            .then(data => {
+                if (data.history) {
+                    setExecutionHistory(data.history);
+                }
+            })
+            .catch(err => console.error("Failed to fetch timeline history", err));
 
     }, []);
 
@@ -336,24 +349,43 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
         const status = scriptsStatus[scriptName];
         if (!status) return null;
 
-        // Ajustar hora: Añadir 1 hora para España (asumiendo que viene en UTC o similar)
+        // Ajustar hora y fecha relativa
         let displayTime = '';
+        let dateLabel = '';
+
         if (status.date) {
             try {
-                const dateParts = status.date.split(' ');
-                if (dateParts.length === 2) {
-                    const [yymmdd, hhmmss] = dateParts;
-                    // Forzamos el parseo y sumamos una hora de forma manual para evitar líos de zona horaria
+                // Parse date "YYYY-MM-DD HH:MM:SS"
+                const [yymmdd, hhmmss] = status.date.split(' ');
+                if (yymmdd && hhmmss) {
                     const [year, month, day] = yymmdd.split('-').map(Number);
                     const [hours, minutes, seconds] = hhmmss.split(':').map(Number);
                     const date = new Date(year, month - 1, day, hours, minutes, seconds);
+
+                    // Add 1 hour for Spain Time if stored as UTC (Assuming logic persisted)
                     date.setHours(date.getHours() + 1);
 
                     displayTime = date.getHours().toString().padStart(2, '0') + ':' +
                         date.getMinutes().toString().padStart(2, '0') + ':' +
                         date.getSeconds().toString().padStart(2, '0');
+
+                    // Relative Date Check
+                    const today = new Date();
+                    const yesterday = new Date();
+                    yesterday.setDate(yesterday.getDate() - 1);
+
+                    // Reset times for date comparison
+                    const dStr = date.toDateString();
+                    if (dStr === today.toDateString()) {
+                        dateLabel = "HOY";
+                    } else if (dStr === yesterday.toDateString()) {
+                        dateLabel = "AYER";
+                    } else {
+                        // DD/MM
+                        dateLabel = `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}`;
+                    }
                 } else {
-                    displayTime = status.date.split(' ')[1] || '';
+                    displayTime = status.date;
                 }
             } catch (e) {
                 displayTime = status.date.split(' ')[1] || '';
@@ -373,7 +405,10 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
             <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${isSuccess ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
                 <span>{displayStatus}</span>
                 <span className="opacity-30">|</span>
-                <span>{displayTime}</span>
+                <span className={isSuccess ? (dateLabel === 'HOY' ? 'text-emerald-400' : 'text-emerald-400/50') : 'text-red-400'}>
+                    {dateLabel && <span className="mr-1 opacity-70">{dateLabel}</span>}
+                    {displayTime}
+                </span>
             </div>
         );
     };
@@ -995,7 +1030,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                     </div>
                                 )}
 
-                                {/* CONTENT: ACCIONES */}
+                                {/* CONTENT: ACCIONES (REDISEÑADO GRID) */}
                                 {activeControlTab === 'acciones' && (
                                     <div className="bg-card border border-white/10 rounded-2xl p-6 md:p-8 space-y-6 relative overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
                                         <div className="absolute top-0 right-0 p-4 opacity-10">
@@ -1007,172 +1042,163 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                             Centro de Ejecución
                                         </h3>
 
-                                        <div className="grid gap-4 relative z-10">
-                                            {/* 1. Recolector */}
-                                            <div className="p-4 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-colors flex flex-col gap-3">
-                                                <div className="flex justify-between items-start">
-                                                    <div>
-                                                        <h4 className="font-bold text-base text-blue-400">1º - Recolector de datos API</h4>
-                                                        <p className="text-xs text-white/50 font-mono mt-0.5">daily_bet_update.yml</p>
-                                                    </div>
-                                                    {collectStatus === 'loading' ? <RefreshCw className="animate-spin text-blue-500" size={16} /> : getStatusBadge('Daily Fetch')}
-                                                </div>
+                                        <ApiUsageBanner />
 
-                                                <div className="flex items-center gap-2 text-xs text-white/60 bg-white/5 p-2 rounded-lg">
-                                                    <Clock size={14} className="text-white/40" />
-                                                    <span>Todos los días a las 08:00 AM (España)</span>
-                                                </div>
+                                        <div className="bg-black/20 border border-white/5 rounded-xl p-6 mb-6">
+                                            <ExecutionTimeline scriptsStatus={scriptsStatus} />
+                                        </div>
 
-                                                <div className="flex justify-end mt-2">
-                                                    <button
-                                                        onClick={handleCollect}
-                                                        disabled={collectStatus === 'loading'}
-                                                        className="px-4 py-2 bg-blue-600/20 hover:bg-blue-600/40 border border-blue-500/50 text-blue-400 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 disabled:opacity-50"
-                                                    >
-                                                        <Play size={12} fill="currentColor" />
-                                                        Ejecutar Ahora
-                                                    </button>
-                                                </div>
-                                            </div>
+                                        {/* GRID DE ACCIONES (Compacto & Desplegable) */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
+                                            {(() => {
+                                                const actions = [
+                                                    {
+                                                        id: 'collect',
+                                                        title: '1º - Recolector API',
+                                                        fullTitle: 'Recolector de datos API',
+                                                        file: 'daily_bet_update.yml',
+                                                        schedule: 'Todos los días a 08:00 AM',
+                                                        status: collectStatus,
+                                                        statusKey: 'Daily Fetch',
+                                                        color: 'text-blue-400',
+                                                        borderColor: 'border-blue-500/20',
+                                                        bgColor: 'bg-blue-600/20',
+                                                        hoverBg: 'hover:bg-blue-600/40',
+                                                        icon: <Database size={18} className="text-blue-500" />,
+                                                        onRun: handleCollect
+                                                    },
+                                                    {
+                                                        id: 'analyze',
+                                                        title: '2º - Analizador AI',
+                                                        fullTitle: 'Analizador AI Pro',
+                                                        file: 'ai_analysis.yml',
+                                                        schedule: 'Automático tras Recolector',
+                                                        status: analyzeStatus,
+                                                        statusKey: 'Daily Analysis',
+                                                        color: 'text-fuchsia-400',
+                                                        borderColor: 'border-fuchsia-500/20',
+                                                        bgColor: 'bg-fuchsia-600/20',
+                                                        hoverBg: 'hover:bg-fuchsia-600/40',
+                                                        icon: <BrainCircuit size={18} className="text-fuchsia-500" />,
+                                                        onRun: handleAnalyze
+                                                    },
+                                                    {
+                                                        id: 'stakazo',
+                                                        title: '2º B - Stakazo',
+                                                        fullTitle: 'Analizador STAKAZO',
+                                                        file: 'ai_analysis_stakazo.yml',
+                                                        schedule: 'Automático tras Analizador',
+                                                        status: stakazoStatus,
+                                                        statusKey: 'Stakazo Analysis',
+                                                        color: 'text-amber-400',
+                                                        borderColor: 'border-amber-500/20',
+                                                        bgColor: 'bg-amber-600/20',
+                                                        hoverBg: 'hover:bg-amber-600/40',
+                                                        icon: <Trophy size={18} className="text-amber-500" />,
+                                                        badge: 'PREMIUM',
+                                                        onRun: handleStakazoAnalyze
+                                                    },
+                                                    {
+                                                        id: 'social',
+                                                        title: '3º - Social TikTok',
+                                                        fullTitle: 'Generar Textos TikTok',
+                                                        file: 'generate_social_content.yml',
+                                                        schedule: 'Automático tras Analizador',
+                                                        status: socialStatus,
+                                                        statusKey: 'Social Generator',
+                                                        color: 'text-rose-400',
+                                                        borderColor: 'border-rose-500/20',
+                                                        bgColor: 'bg-rose-600/20',
+                                                        hoverBg: 'hover:bg-rose-600/40',
+                                                        icon: <FileText size={18} className="text-rose-500" />,
+                                                        onRun: handleSocial
+                                                    },
+                                                    {
+                                                        id: 'check',
+                                                        title: '4º - Comprobador',
+                                                        fullTitle: 'Comprobador Automático',
+                                                        file: 'check_results_cron.yml',
+                                                        schedule: 'Automático (Cron)',
+                                                        status: checkStatus,
+                                                        statusKey: 'Check Results',
+                                                        color: 'text-emerald-400',
+                                                        borderColor: 'border-emerald-500/20',
+                                                        bgColor: 'bg-emerald-600/20',
+                                                        hoverBg: 'hover:bg-emerald-600/40',
+                                                        icon: <ClipboardCheck size={18} className="text-emerald-500" />,
+                                                        onRun: handleCheckBets
+                                                    },
+                                                    {
+                                                        id: 'viral',
+                                                        title: '5º - Viral Auto',
+                                                        fullTitle: 'TikTok Viral Automation',
+                                                        file: 'tiktok_viral_automated.yml',
+                                                        schedule: 'Todos los días a 04:00 PM',
+                                                        status: tiktokViralStatus,
+                                                        statusKey: 'TikTok Viral Automation',
+                                                        color: 'text-pink-400',
+                                                        borderColor: 'border-pink-500/20',
+                                                        bgColor: 'bg-pink-600/20',
+                                                        hoverBg: 'hover:bg-pink-600/40',
+                                                        icon: <PlayCircle size={18} className="text-pink-500" />,
+                                                        onRun: handleTikTokViral
+                                                    },
+                                                ];
 
-                                            {/* 2. Analizador */}
-                                            <div className="p-4 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-colors flex flex-col gap-3">
-                                                <div className="flex justify-between items-start">
-                                                    <div>
-                                                        <h4 className="font-bold text-base text-fuchsia-400">2º - Analizador AI Pro</h4>
-                                                        <p className="text-xs text-white/50 font-mono mt-0.5">ai_analysis.yml</p>
-                                                    </div>
-                                                    {analyzeStatus === 'loading' ? <RefreshCw className="animate-spin text-fuchsia-500" size={16} /> : getStatusBadge('Daily Analysis')}
-                                                </div>
+                                                return actions.map((action, idx) => {
+                                                    // Hooks must be top level, but we are inside a map in render.
+                                                    // IMPORTANT: We cannot use hooks here directly if we haven't extracted components.
+                                                    // To solve "collapsed" state without sub-components, we can use <details> or just a simple state approach won't work easily inside map without extraction.
+                                                    // BUT: We can use user interactive <details> tag for native accordion or just make a small inline component definition ABOVE is risky.
+                                                    // SAFEST: Extract a small component file OR Use CSS peer-checked or <details> summary.
+                                                    // Let's use <details> for native accordion behavior which is perfect for "compact and expand".
+                                                    // Styling <details> to look like cards.
 
-                                                <div className="flex items-center gap-2 text-xs text-white/60 bg-white/5 p-2 rounded-lg">
-                                                    <Clock size={14} className="text-white/40" />
-                                                    <span>Se ejecuta automáticamente después del 1º</span>
-                                                </div>
+                                                    return (
+                                                        <details key={idx} className="group bg-black/20 rounded-xl border border-white/5 overflow-hidden open:border-white/10 transition-all duration-300">
+                                                            <summary className="flex items-center justify-between p-4 cursor-pointer select-none bg-transparent hover:bg-white/5 transition-colors list-none [&::-webkit-details-marker]:hidden">
+                                                                <div className="flex items-center gap-3 overflow-hidden">
+                                                                    <div className={`p-2 rounded-lg bg-white/5 ${action.color}`}>
+                                                                        {action.icon}
+                                                                    </div>
+                                                                    <div className="flex flex-col min-w-0">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className={`font-bold text-sm truncate ${action.color}`}>{action.title}</span>
+                                                                            {action.badge && (
+                                                                                <span className="text-[9px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/30 font-bold hidden sm:inline-block">{action.badge}</span>
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="text-[10px] text-white/40 truncate font-mono">{action.file}</div>
+                                                                    </div>
+                                                                </div>
 
-                                                <div className="flex justify-end mt-2">
-                                                    <button
-                                                        onClick={handleAnalyze}
-                                                        disabled={analyzeStatus === 'loading'}
-                                                        className="px-4 py-2 bg-fuchsia-600/20 hover:bg-fuchsia-600/40 border border-fuchsia-500/50 text-fuchsia-400 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 disabled:opacity-50"
-                                                    >
-                                                        <Play size={12} fill="currentColor" />
-                                                        Ejecutar Ahora
-                                                    </button>
-                                                </div>
-                                            </div>
+                                                                <div className="flex items-center gap-3 shrink-0 ml-2">
+                                                                    <div className="scale-75 origin-right">
+                                                                        {action.status === 'loading' ? <RefreshCw className={`animate-spin ${action.color}`} size={20} /> : getStatusBadge(action.statusKey || '')}
+                                                                    </div>
+                                                                    <ChevronDown size={16} className="text-white/30 transition-transform duration-300 group-open:rotate-180" />
+                                                                </div>
+                                                            </summary>
 
-                                            {/* 2º B - Analizador STAKAZO */}
-                                            <div className="p-4 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-colors flex flex-col gap-3">
-                                                <div className="flex justify-between items-start">
-                                                    <div>
-                                                        <h4 className="font-bold text-base text-amber-400 flex items-center gap-2">
-                                                            2º B - Analizador STAKAZO
-                                                            <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/30">PREMIUM</span>
-                                                        </h4>
-                                                        <p className="text-xs text-white/50 font-mono mt-0.5">ai_analysis_stakazo.yml</p>
-                                                    </div>
-                                                    {stakazoStatus === 'loading' ? <RefreshCw className="animate-spin text-amber-500" size={16} /> : getStatusBadge('Stakazo Analysis')}
-                                                </div>
+                                                            <div className="px-4 pb-4 pt-0 border-t border-white/5 animate-in slide-in-from-top-2 duration-200">
+                                                                <div className="mt-3 flex items-center gap-2 text-[10px] text-white/50 bg-black/20 p-2 rounded-lg mb-3">
+                                                                    <Clock size={12} className="text-white/30" />
+                                                                    {action.schedule}
+                                                                </div>
 
-                                                <div className="flex items-center gap-2 text-xs text-white/60 bg-white/5 p-2 rounded-lg">
-                                                    <Clock size={14} className="text-white/40" />
-                                                    <span>Se ejecuta después del 2º estándar</span>
-                                                </div>
-
-                                                <div className="flex justify-end mt-2">
-                                                    <button
-                                                        onClick={handleStakazoAnalyze}
-                                                        disabled={stakazoStatus === 'loading'}
-                                                        className="px-4 py-2 bg-amber-600/20 hover:bg-amber-600/40 border border-amber-500/50 text-amber-400 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 disabled:opacity-50"
-                                                    >
-                                                        <Play size={12} fill="currentColor" />
-                                                        Ejecutar Ahora
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            {/* 3. TikTok Social */}
-                                            <div className="p-4 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-colors flex flex-col gap-3">
-                                                <div className="flex justify-between items-start">
-                                                    <div>
-                                                        <h4 className="font-bold text-base text-rose-400">3º - Generar textos Tiktok</h4>
-                                                        <p className="text-xs text-white/50 font-mono mt-0.5">generate_social_content.yml</p>
-                                                    </div>
-                                                    {socialStatus === 'loading' ? <RefreshCw className="animate-spin text-rose-500" size={16} /> : getStatusBadge('Social Generator')}
-                                                </div>
-
-                                                <div className="flex items-center gap-2 text-xs text-white/60 bg-white/5 p-2 rounded-lg">
-                                                    <Clock size={14} className="text-white/40" />
-                                                    <span>Se ejecuta después del 2º</span>
-                                                </div>
-
-                                                <div className="flex justify-end mt-2">
-                                                    <button
-                                                        onClick={handleSocial}
-                                                        disabled={socialStatus === 'loading'}
-                                                        className="px-4 py-2 bg-rose-600/20 hover:bg-rose-600/40 border border-rose-500/50 text-rose-400 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 disabled:opacity-50"
-                                                    >
-                                                        <Play size={12} fill="currentColor" />
-                                                        Ejecutar Ahora
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            {/* 4. Comprobador */}
-                                            <div className="p-4 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-colors flex flex-col gap-3">
-                                                <div className="flex justify-between items-start">
-                                                    <div>
-                                                        <h4 className="font-bold text-base text-emerald-400">4º - Comprobador Automático</h4>
-                                                        <p className="text-xs text-white/50 font-mono mt-0.5">check_results_cron.yml</p>
-                                                    </div>
-                                                    {checkStatus === 'loading' ? <RefreshCw className="animate-spin text-emerald-500" size={16} /> : getStatusBadge('Check Results')}
-                                                </div>
-
-                                                <div className="flex items-center gap-2 text-xs text-white/60 bg-white/5 p-2 rounded-lg">
-                                                    <Clock size={14} className="text-white/40" />
-                                                    <span>Se ejecuta automáticamente</span>
-                                                </div>
-
-                                                <div className="flex justify-end mt-2">
-                                                    <button
-                                                        onClick={handleCheckBets}
-                                                        disabled={checkStatus === 'loading'}
-                                                        className="px-4 py-2 bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/50 text-emerald-400 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 disabled:opacity-50"
-                                                    >
-                                                        <Play size={12} fill="currentColor" />
-                                                        Ejecutar Ahora
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            {/* 5. TikTok Viral Automation */}
-                                            <div className="p-4 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-colors flex flex-col gap-3">
-                                                <div className="flex justify-between items-start">
-                                                    <div>
-                                                        <h4 className="font-bold text-base text-pink-400">5º - TikTok Viral Automation</h4>
-                                                        <p className="text-xs text-white/50 font-mono mt-0.5">tiktok_viral_automated.yml</p>
-                                                    </div>
-                                                    {tiktokViralStatus === 'loading' ? <RefreshCw className="animate-spin text-pink-500" size={16} /> : getStatusBadge('TikTok Viral Automation')}
-                                                </div>
-
-                                                <div className="flex items-center gap-2 text-xs text-white/60 bg-white/5 p-2 rounded-lg">
-                                                    <Clock size={14} className="text-white/40" />
-                                                    <span>Todos los días a las 04:00 PM (España)</span>
-                                                </div>
-
-                                                <div className="flex justify-end mt-2">
-                                                    <button
-                                                        onClick={handleTikTokViral}
-                                                        disabled={tiktokViralStatus === 'loading'}
-                                                        className="px-4 py-2 bg-pink-600/20 hover:bg-pink-600/40 border border-pink-500/50 text-pink-400 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 disabled:opacity-50"
-                                                    >
-                                                        <Play size={12} fill="currentColor" />
-                                                        Ejecutar Ahora
-                                                    </button>
-                                                </div>
-                                            </div>
-
+                                                                <button
+                                                                    onClick={action.onRun}
+                                                                    disabled={action.status === 'loading'}
+                                                                    className={`w-full py-2.5 rounded-lg text-xs font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${action.borderColor} border ${action.bgColor} ${action.color} ${action.hoverBg}`}
+                                                                >
+                                                                    <Play size={12} fill="currentColor" />
+                                                                    EJECUTAR AHORA
+                                                                </button>
+                                                            </div>
+                                                        </details>
+                                                    );
+                                                });
+                                            })()}
                                         </div>
                                     </div>
                                 )}

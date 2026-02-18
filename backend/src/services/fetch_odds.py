@@ -61,6 +61,7 @@ class SportsDataService:
         self.league_name_mapping = {
             "Eerste Divisie": "Eredivisie"
         }
+        self.api_remaining = "Unknown"
 
     def get_today_date(self):
         return datetime.now().strftime("%Y-%m-%d")
@@ -73,7 +74,23 @@ class SportsDataService:
         """
         Realiza la petición usando el cliente centralizado.
         """
-        return call_api(url, params=params, extra_headers=self.headers)
+        resp = call_api(url, params=params, extra_headers=self.headers)
+        if resp:
+            # Monitor Real API Quota (ignoring cached responses)
+            remaining = resp.headers.get("x-ratelimit-requests-remaining-day")
+            if remaining:
+                self.api_remaining = remaining
+                try:
+                    # Save to Redis for Dashboard
+                    from src.services.redis_service import RedisService
+                    # Instantiate locally if needed, or better, add to __init__ if used often.
+                    # But here we are in a loop or method. simpler to init once.
+                    # Actually, let's use a try-except local import to avoid circular dependency if any.
+                    rs = RedisService()
+                    # Default: Football (fetch_odds is mainly for football)
+                    rs.set("api_usage:football:remaining", remaining)
+                except: pass
+        return resp
 
     def _normalize_key(self, text):
         text = str(text).lower()
@@ -126,6 +143,7 @@ class SportsDataService:
         total_calls = self.calls_football + self.calls_basketball
         print(f"\n[FINISH] Total partidos guardados: {len(all_matches)}")
         print(f"[CONSUMO] Fútbol: {self.calls_football} | Basket: {self.calls_basketball} | Total: {total_calls}")
+        print(f"[API REAL] Cuota Restante (x-ratelimit-requests-remaining-day): {self.api_remaining}")
         print(f"Archivo: {self.output_file}")
         
         return all_matches
@@ -587,5 +605,13 @@ class SportsDataService:
         return processed
 
 if __name__ == "__main__":
-    service = SportsDataService()
-    service.fetch_matches()
+    from src.services.redis_service import RedisService
+    rs = RedisService()
+    try:
+        rs.log_script_execution("daily_bet_update.yml", "START", "Iniciando recolección de cuotas...")
+        service = SportsDataService()
+        service.fetch_matches()
+        rs.log_script_execution("daily_bet_update.yml", "SUCCESS", "Recolección finalizada.")
+    except Exception as e:
+        rs.log_script_execution("daily_bet_update.yml", "FAILURE", str(e))
+        print(f"[FATAL] Script failed: {e}")

@@ -335,3 +335,29 @@ class RedisService:
         self._send_command("HSET", key_hash, script_name, json.dumps(data))
 
         print(f"[LOG] Status logged to Redis: {status} ({script_name})")
+    def log_script_execution(self, script_name, status, message=""):
+        """
+        Logs script execution event to a daily history list.
+        Key: betai:execution_history:YYYY-MM-DD
+        """
+        if not self.is_active: return
+        
+        try:
+            now = datetime.now()
+            date_str = now.strftime("%Y-%m-%d")
+            time_str = now.strftime("%H:%M:%S")
+            
+            event = {
+                "script": script_name,
+                "status": status, # START, SUCCESS, FAILURE
+                "time": time_str,
+                "timestamp": now.timestamp(),
+                "message": message
+            }
+            
+            key = f"execution_history:{date_str}"
+            self.rpush(key, json.dumps(event))
+            self.expire(key, 86400 * 3) # Keep for 3 days
+            print(f"[Redis] Logged Execution: {script_name} -> {status}")
+        except Exception as e:
+            print(f"[Redis] Error logging execution: {e}")

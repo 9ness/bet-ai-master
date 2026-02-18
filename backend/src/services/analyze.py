@@ -225,4 +225,13 @@ INPUT DATA (MATCHES):
         rs.log_status("Daily Analysis", "SUCCESS", f"Analyzed {len(final_output)} bets")
 
 if __name__ == "__main__":
-    analyze()
+    rs = RedisService()
+    try:
+        rs.log_script_execution("ai_analysis.yml", "START", "Iniciando análisis AI...")
+        analyze()
+        if rs.is_active:
+            rs.log_script_execution("ai_analysis.yml", "SUCCESS", "Análisis finalizado.")
+    except Exception as e:
+        print(f"[FATAL] Analyze Script failed: {e}")
+        if rs.is_active:
+            rs.log_script_execution("ai_analysis.yml", "FAILURE", str(e))
