@@ -712,13 +712,13 @@ def check_bets():
                              else: is_win = home_score == 0 or away_score == 0
                              
                         # 3. Specialized Over/Under (Corners, Cards, Shots)
-                        elif any(x in pick for x in ["corner", "tarjeta", "card", "tiro", "remate", "shot"]):
+                        elif any(re.search(rf'\b{x}(s|es)?\b', pick) for x in ["corner", "tarjeta", "card", "tiro", "remate", "shot"]):
                              is_over = "más" in pick or "mas" in pick or "over" in pick
                              clean_pick = pick.replace("más de", "").replace("over", "").replace("menos de", "").replace("under", "").strip()
                              match_num = re.search(r'\d+(\.\d+)?', clean_pick)
                              val = float(match_num.group()) if match_num else 1.5
                              
-                             if "córner" in pick or "corner" in pick:
+                             if "corner" in pick:
                                  total = data.get("corners")
                                  if total is None: raise ValueError("No Corner Data")
                                  label = "Córners"

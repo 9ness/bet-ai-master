@@ -96,10 +96,11 @@ export default function TelegramAdmin({ readOnly }: { readOnly?: boolean }) {
     };
 
     const handleCopyToClipboard = (text: string) => {
-        // Strip HTML tags if present (Telegram <b> etc) or keep them?
-        // Usually, for manual pasting in Telegram Desktop, it's better to keep them if they are in standard format
-        // but often users just want the text. However, our messages use <b> which Telegram understands.
-        const cleanText = text.replace(/<br\s*\/?>/gi, '\n'); // Replace <br> with newlines
+        // 1. Replace <br> with newlines
+        let cleanText = text.replace(/<br\s*\/?>/gi, '\n');
+
+        // 2. Clear all other HTML tags (<b>, </u>, <blockquote>, etc)
+        cleanText = cleanText.replace(/<\/?[^>]+(>|$)/g, "");
 
         navigator.clipboard.writeText(cleanText).then(() => {
             showToast("Mensaje copiado al portapapeles", "success");
@@ -116,12 +117,14 @@ export default function TelegramAdmin({ readOnly }: { readOnly?: boolean }) {
             const json = await res.json();
             if (!json.error) {
                 setData(json);
+                return json;
             }
         } catch (e) {
             console.error("Failed to fetch telegram", e);
         } finally {
             setLoading(false);
         }
+        return null;
     };
 
     const handleSyncLogic = async () => {
@@ -135,7 +138,15 @@ export default function TelegramAdmin({ readOnly }: { readOnly?: boolean }) {
             });
             const ans = await res.json();
             if (ans.success) {
-                await fetchData();
+                const newData = await fetchData();
+                if (newData) {
+                    const sortedDates = Object.keys(newData)
+                        .filter(d => newData[d].messages.some((i: TelegramMsg) => i.bet_type_key !== 'monthly_report'))
+                        .sort((a, b) => b.localeCompare(a));
+                    if (sortedDates.length > 0) {
+                        setSelectedDate(sortedDates[0]);
+                    }
+                }
             } else {
                 alert("Error al sincronizar: " + (ans.details || ans.error));
             }

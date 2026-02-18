@@ -200,6 +200,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         { key: 'showTitleBorder', label: 'Borde en Título', type: 'toggle' },
         { key: 'useFullDate', label: 'Fecha Larga', type: 'toggle' },
         { key: 'introItalic', label: 'Cursiva en Portada', type: 'toggle' },
+        { key: 'onlyFootball', label: 'Solo Fútbol', type: 'toggle' },
     ];
 
     const cycleMobileProperty = (dir: number) => {
@@ -1214,6 +1215,25 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                     {/* TAB 3: APUESTAS */}
                     {activeTab === 'bets' && (
                         <div className="w-full max-w-lg mx-auto bg-white dark:bg-[#121212] border border-border/10 dark:border-white/10 rounded-2xl p-4 shadow-lg shadow-black/5 dark:shadow-none">
+                            {/* SOLO FÚTBOL TOGGLE (Mobile) */}
+                            <button
+                                onClick={() => setOnlyFootball(!onlyFootball)}
+                                className={`w-full flex justify-between items-center px-4 py-3 rounded-xl border transition-all mb-4 group ${onlyFootball
+                                    ? 'bg-emerald-500/10 border-emerald-500/50 hover:bg-emerald-500/20'
+                                    : 'bg-black/40 border-white/5 hover:bg-black/60 hover:border-white/10'
+                                    }`}
+                            >
+                                <span className={`text-xs font-bold uppercase tracking-wider transition-colors ${onlyFootball ? 'text-emerald-400' : 'text-white/60 group-hover:text-white/80'}`}>
+                                    Solo Fútbol
+                                </span>
+                                <div className={`relative w-8 h-4 rounded-full transition-colors ${onlyFootball ? 'bg-emerald-500/30' : 'bg-white/10'}`}>
+                                    <div className={`absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full shadow-sm transition-all duration-300 ${onlyFootball
+                                        ? 'left-[18px] bg-emerald-400'
+                                        : 'left-1 bg-white/40'
+                                        }`} />
+                                </div>
+                            </button>
+
                             <div className="space-y-3 max-h-[60vh] overflow-y-auto custom-scrollbar pr-1">
                                 {!slideGroups.length && <p className="text-center text-xs text-muted-foreground dark:text-white/30 py-8">No hay apuestas cargadas</p>}
                                 {slideGroups.map((group: any, gIdx: number) => (
@@ -1288,6 +1308,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                     <div className="flex items-center gap-2 bg-secondary/30 dark:bg-black/50 p-2 rounded-lg border border-border/10 dark:border-white/5"><input type="checkbox" checked={config.showTitleBorder} onChange={(e) => setConfig({ ...config, showTitleBorder: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-muted-foreground dark:text-white/60 font-bold">Borde Título</span></div>
                                     <div className="flex items-center gap-2 bg-secondary/30 dark:bg-black/50 p-2 rounded-lg border border-border/10 dark:border-white/5"><input type="checkbox" checked={config.showPickOdds} onChange={(e) => setConfig({ ...config, showPickOdds: e.target.checked })} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-muted-foreground dark:text-white/60 font-bold">Cuota Apuesta</span></div>
                                     <div className="flex items-center gap-2 bg-secondary/30 dark:bg-black/50 p-2 rounded-lg border border-border/10 dark:border-white/5"><input type="checkbox" checked={config.addHundred} onChange={(e) => { const c = e.target.checked; let val = parseInt(config.introSubtitle.replace(/\D/g, '')) || 0; setConfig({ ...config, addHundred: c, introSubtitle: `+${c ? val * 10 : Math.round(val / 10)} 📈` }) }} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-muted-foreground dark:text-white/60 font-bold">Cuota x10</span></div>
+                                    <div className="flex items-center gap-2 bg-secondary/30 dark:bg-black/50 p-2 rounded-lg border border-border/10 dark:border-white/5"><input type="checkbox" checked={onlyFootball} onChange={(e) => setOnlyFootball(e.target.checked)} className="accent-emerald-500 w-4 h-4 cursor-pointer" /><span className="text-[10px] text-muted-foreground dark:text-white/60 font-bold">Solo Fútbol</span></div>
                                 </div>
                             </div>
 
