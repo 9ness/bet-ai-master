@@ -12,32 +12,59 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const prefix = process.env.REDIS_PREFIX || 'betai:';
-        const keyFootball = `${prefix}api_usage:football:remaining`;
-        const keyBasketball = `${prefix}api_usage:basketball:remaining`;
-        const keyFootballDate = `${prefix}api_usage:football:last_updated`;
-        const keyBasketballDate = `${prefix}api_usage:basketball:last_updated`;
+        // Robust Prefix Logic: Try constructed prefix, then fallback
+        const envPrefix = process.env.REDIS_PREFIX || 'betai:';
 
-        // Parallel fetch
+        // Helper to fetch with fallback
+        const fetchRobust = async (suffix: string) => {
+            // 1. Try with Environment Prefix
+            const key1 = `${envPrefix}${suffix}`;
+            const val1 = await redis.get<string | number>(key1);
+            if (val1 !== null) return val1;
+
+            // 2. Try with Explicit 'betai:' (Common fallback)
+            if (envPrefix !== 'betai:') {
+                const key2 = `betai:${suffix}`;
+                const val2 = await redis.get<string | number>(key2);
+                if (val2 !== null) return val2;
+            }
+
+            // 3. Try Raw (No prefix - in case env var included it but key didn't ?)
+            // or if stored without prefix
+            const key3 = suffix;
+            const val3 = await redis.get<string | number>(key3);
+
+            return val3;
+        };
+
+        // Parallel fetch utilizing robust helper
         const [remFootball, dateFootball, remBasketball, dateBasketball] = await Promise.all([
-            redis.get<string | number>(keyFootball),
-            redis.get<string>(keyFootballDate),
-            redis.get<string | number>(keyBasketball),
-            redis.get<string>(keyBasketballDate)
+            fetchRobust('api_usage:football:remaining'),
+            fetchRobust('api_usage:football:last_updated'),
+            fetchRobust('api_usage:basketball:remaining'),
+            fetchRobust('api_usage:basketball:last_updated')
         ]);
 
         const limit = 100; // Default limit
         const today = new Date().toISOString().split('T')[0];
 
-        const parseUsage = (rem: string | number | null, lastUpdate: string | null) => {
-            // Check if stale
-            if (lastUpdate !== today) {
-                // If date is not today, assume reset -> Remaining = Limit (100)
+        const parseUsage = (rem: string | number | null, lastUpdate: string | number | null) => {
+            // Normalize lastUpdate to string
+            const lastUpdateStr = String(lastUpdate || '');
+
+            // Check if stale (If date is explicitly stored and not today, reset)
+            // If date is MISSING, we might want to trust the 'remaining' value if it exists, 
+            // OR default to safe '0 used'. 
+            // Given the bug, let's be lenient: if 'remaining' exists, show it, UNLESS date is explicitly yesterday.
+
+            if (lastUpdateStr && lastUpdateStr !== today) {
+                // It was updated on a previous day. Reset Usage for new day.
                 return { used: 0, remaining: limit, limit };
             }
 
             let used = 0;
             let val = null;
+
             if (rem !== null && rem !== undefined) {
                 const remInt = typeof rem === 'string' ? parseInt(rem, 10) : Number(rem);
                 if (!isNaN(remInt)) {
