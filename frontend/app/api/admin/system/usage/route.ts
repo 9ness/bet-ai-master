@@ -15,16 +15,27 @@ export async function GET() {
         const prefix = process.env.REDIS_PREFIX || 'betai:';
         const keyFootball = `${prefix}api_usage:football:remaining`;
         const keyBasketball = `${prefix}api_usage:basketball:remaining`;
+        const keyFootballDate = `${prefix}api_usage:football:last_updated`;
+        const keyBasketballDate = `${prefix}api_usage:basketball:last_updated`;
 
         // Parallel fetch
-        const [remFootball, remBasketball] = await Promise.all([
+        const [remFootball, dateFootball, remBasketball, dateBasketball] = await Promise.all([
             redis.get<string | number>(keyFootball),
-            redis.get<string | number>(keyBasketball)
+            redis.get<string>(keyFootballDate),
+            redis.get<string | number>(keyBasketball),
+            redis.get<string>(keyBasketballDate)
         ]);
 
         const limit = 100; // Default limit
+        const today = new Date().toISOString().split('T')[0];
 
-        const parseUsage = (rem: string | number | null) => {
+        const parseUsage = (rem: string | number | null, lastUpdate: string | null) => {
+            // Check if stale
+            if (lastUpdate !== today) {
+                // If date is not today, assume reset -> Remaining = Limit (100)
+                return { used: 0, remaining: limit, limit };
+            }
+
             let used = 0;
             let val = null;
             if (rem !== null && rem !== undefined) {
@@ -39,8 +50,8 @@ export async function GET() {
 
         return NextResponse.json({
             success: true,
-            football: parseUsage(remFootball),
-            basketball: parseUsage(remBasketball)
+            football: parseUsage(remFootball, dateFootball),
+            basketball: parseUsage(remBasketball, dateBasketball)
         });
     } catch (error) {
         console.error("Error fetching API usage:", error);

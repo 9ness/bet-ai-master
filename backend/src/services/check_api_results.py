@@ -123,15 +123,16 @@ def get_football_result(fixture_id, rs=None):
             if resp.elapsed.total_seconds() > 0.001:
                 remaining = resp.headers.get("x-ratelimit-requests-remaining-day")
                 if remaining:
-                try:
-                    rs.set("api_usage:football:remaining", remaining)
-                    
-                    # Update History
-                    limit = int(resp.headers.get("x-ratelimit-requests-limit-day", 100))
-                    used = max(0, limit - int(remaining))
-                    today = datetime.now().strftime("%Y-%m-%d")
-                    rs.hset(f"api_usage:history:{today}", {"football": used})
-                except: pass
+                    try:
+                        today_str = datetime.now().strftime("%Y-%m-%d")
+                        rs.set("api_usage:football:remaining", remaining)
+                        rs.set("api_usage:football:last_updated", today_str)
+                        
+                        # Update History
+                        limit = int(resp.headers.get("x-ratelimit-requests-limit-day", 100))
+                        used = max(0, limit - int(remaining))
+                        rs.hset(f"api_usage:history:{today_str}", {"football": used})
+                    except: pass
         
         data = resp.json()
         
@@ -202,7 +203,9 @@ def get_basketball_result(game_id, rs=None):
                 remaining = resp.headers.get("x-ratelimit-requests-remaining-day")
                 if remaining:
                 try:
+                    today_str = datetime.now().strftime("%Y-%m-%d")
                     rs.set("api_usage:basketball:remaining", remaining)
+                    rs.set("api_usage:basketball:last_updated", today_str)
                     
                     # Update History
                     limit = int(resp.headers.get("x-ratelimit-requests-limit-day", 100))

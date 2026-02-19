@@ -88,6 +88,7 @@ class SportsDataService:
                     # 1. Update Real-Time Remaining
                     # Use dynamic key based on sport
                     key_remaining = f"api_usage:{sport}:remaining"
+                    rs.set(f"api_usage:{sport}:last_updated", datetime.now().strftime("%Y-%m-%d"))
                     rs.set(key_remaining, remaining)
                     
                     # 2. Update Daily History (Continuous Sync)

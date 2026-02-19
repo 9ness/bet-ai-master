@@ -74,6 +74,7 @@ class SportsDataServiceTikTok:
                     rs = RedisService()
                     # TikTok usually fetches football
                     rs.set("api_usage:football:remaining", remaining)
+                    rs.set("api_usage:football:last_updated", datetime.now().strftime("%Y-%m-%d"))
                     
                     # Update History
                     limit = int(resp.headers.get("x-ratelimit-requests-limit-day", 100))
