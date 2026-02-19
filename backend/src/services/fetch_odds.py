@@ -83,13 +83,27 @@ class SportsDataService:
                 try:
                     # Save to Redis for Dashboard
                     from src.services.redis_service import RedisService
-                    # Instantiate locally if needed, or better, add to __init__ if used often.
-                    # But here we are in a loop or method. simpler to init once.
-                    # Actually, let's use a try-except local import to avoid circular dependency if any.
                     rs = RedisService()
-                    # Default: Football (fetch_odds is mainly for football)
-                    rs.set("api_usage:football:remaining", remaining)
-                except: pass
+                    
+                    # 1. Update Real-Time Remaining
+                    # Use dynamic key based on sport
+                    key_remaining = f"api_usage:{sport}:remaining"
+                    rs.set(key_remaining, remaining)
+                    
+                    # 2. Update Daily History (Continuous Sync)
+                    # We calculate 'used' based on standard limit (100/day or fetch from header)
+                    limit = int(resp.headers.get("x-ratelimit-requests-limit-day", 100))
+                    used = max(0, limit - int(remaining))
+                    
+                    today = datetime.now().strftime("%Y-%m-%d")
+                    history_key = f"api_usage:history:{today}"
+                    
+                    # HSET api_usage:history:YYYY-MM-DD <sport> <used>
+                    rs.hset(history_key, {sport: used})
+                    
+                except Exception as e:
+                    # print(f"Redis Update Error: {e}")
+                    pass
         return resp
 
     def _normalize_key(self, text):

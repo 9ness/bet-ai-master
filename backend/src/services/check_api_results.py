@@ -119,10 +119,18 @@ def get_football_result(fixture_id, rs=None):
         
         # [QUOTA TRACKING]
         if resp and rs:
-            remaining = resp.headers.get("x-ratelimit-requests-remaining-day")
-            if remaining:
+            # User Rule: Only count as "Real Call" if elapsed > 0.001s (Avoid Proxy Cache Stale Headers)
+            if resp.elapsed.total_seconds() > 0.001:
+                remaining = resp.headers.get("x-ratelimit-requests-remaining-day")
+                if remaining:
                 try:
                     rs.set("api_usage:football:remaining", remaining)
+                    
+                    # Update History
+                    limit = int(resp.headers.get("x-ratelimit-requests-limit-day", 100))
+                    used = max(0, limit - int(remaining))
+                    today = datetime.now().strftime("%Y-%m-%d")
+                    rs.hset(f"api_usage:history:{today}", {"football": used})
                 except: pass
         
         data = resp.json()
@@ -189,10 +197,18 @@ def get_basketball_result(game_id, rs=None):
         
         # [QUOTA TRACKING]
         if resp and rs:
-            remaining = resp.headers.get("x-ratelimit-requests-remaining-day")
-            if remaining:
+            # User Rule: Only count as "Real Call" if elapsed > 0.001s
+            if resp.elapsed.total_seconds() > 0.001:
+                remaining = resp.headers.get("x-ratelimit-requests-remaining-day")
+                if remaining:
                 try:
                     rs.set("api_usage:basketball:remaining", remaining)
+                    
+                    # Update History
+                    limit = int(resp.headers.get("x-ratelimit-requests-limit-day", 100))
+                    used = max(0, limit - int(remaining))
+                    today = datetime.now().strftime("%Y-%m-%d")
+                    rs.hset(f"api_usage:history:{today}", {"basketball": used})
                 except: pass
                 
         data = resp.json()
