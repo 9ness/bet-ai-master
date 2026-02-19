@@ -209,17 +209,17 @@ def get_basketball_result(game_id, rs=None):
             if resp.elapsed.total_seconds() > 0.001:
                 remaining = resp.headers.get("x-ratelimit-requests-remaining-day")
                 if remaining:
-                try:
-                    today_str = datetime.now().strftime("%Y-%m-%d")
-                    rs.set("api_usage:basketball:remaining", remaining)
-                    rs.set("api_usage:basketball:last_updated", today_str)
-                    
-                    # Update History
-                    limit = int(resp.headers.get("x-ratelimit-requests-limit-day", 100))
-                    used = max(0, limit - int(remaining))
-                    today = datetime.now().strftime("%Y-%m-%d")
-                    rs.hset(f"api_usage:history:{today}", {"basketball": used})
-                except: pass
+                    try:
+                        today_str = datetime.now().strftime("%Y-%m-%d")
+                        rs.set("api_usage:basketball:remaining", remaining)
+                        rs.set("api_usage:basketball:last_updated", today_str)
+                        
+                        # Update History
+                        limit = int(resp.headers.get("x-ratelimit-requests-limit-day", 100))
+                        used = max(0, limit - int(remaining))
+                        today = datetime.now().strftime("%Y-%m-%d")
+                        rs.hset(f"api_usage:history:{today}", {"basketball": used})
+                    except: pass
                 
         data = resp.json()
         
