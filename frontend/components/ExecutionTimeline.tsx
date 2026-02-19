@@ -9,13 +9,12 @@ interface TimelineProps {
 export default function ExecutionTimeline({ scriptsStatus, history = [] }: TimelineProps) {
     // Define flow steps (Identity Colors Preserved)
     const steps = [
-        { id: 'daily_bet_update.yml', label: 'Recolector', iconText: '1º', color: 'text-blue-400', bg: 'bg-blue-500', border: 'border-blue-500', shadow: 'shadow-blue-500/50' },
-        { id: 'ai_analysis.yml', label: 'Analizador', iconText: '2º', color: 'text-purple-400', bg: 'bg-purple-500', border: 'border-purple-500', shadow: 'shadow-purple-500/50' },
-        { id: 'ai_analysis_stakazo.yml', label: 'Stakazo', iconText: '2ºB', color: 'text-amber-400', bg: 'bg-amber-500', border: 'border-amber-500', shadow: 'shadow-amber-500/50' }, // New Step
-        { id: 'generate_social_content.yml', label: 'Social', iconText: '3º', color: 'text-rose-400', bg: 'bg-rose-500', border: 'border-rose-500', shadow: 'shadow-rose-500/50' }, // Changed to Rose to match card
-        { id: 'check_results_cron.yml', label: 'Comprobador', iconText: '4º', color: 'text-emerald-400', bg: 'bg-emerald-500', border: 'border-emerald-500', shadow: 'shadow-emerald-500/50' },
-        { id: 'tiktok_viral_automated.yml', label: 'Viral', iconText: '5º', color: 'text-pink-400', bg: 'bg-pink-500', border: 'border-pink-500', shadow: 'shadow-pink-500/50' }, // Changed to Pink to match card (Wait, cards say Rose for Social and Pink for Viral? Let's check AdminGuard)
-        // AdminGuard: Social is Rose (text-rose-400), Viral is Pink (text-pink-400). Correct.
+        { id: 'Daily Fetch', label: 'Recolector', iconText: '1º', color: 'text-blue-400', bg: 'bg-blue-500', border: 'border-blue-500', shadow: 'shadow-blue-500/50' },
+        { id: 'Daily Analysis', label: 'Analizador', iconText: '2º', color: 'text-purple-400', bg: 'bg-purple-500', border: 'border-purple-500', shadow: 'shadow-purple-500/50' },
+        { id: 'Stakazo Analysis', label: 'Stakazo', iconText: '2ºB', color: 'text-amber-400', bg: 'bg-amber-500', border: 'border-amber-500', shadow: 'shadow-amber-500/50' },
+        { id: 'Social Generator', label: 'Social', iconText: '3º', color: 'text-rose-400', bg: 'bg-rose-500', border: 'border-rose-500', shadow: 'shadow-rose-500/50' },
+        { id: 'Check Results', label: 'Comprobador', iconText: '4º', color: 'text-emerald-400', bg: 'bg-emerald-500', border: 'border-emerald-500', shadow: 'shadow-emerald-500/50' },
+        { id: 'TikTok Viral Automation', label: 'Viral', iconText: '5º', color: 'text-pink-400', bg: 'bg-pink-500', border: 'border-pink-500', shadow: 'shadow-pink-500/50' }
     ];
 
     // Helper for Summary Status
@@ -66,15 +65,15 @@ export default function ExecutionTimeline({ scriptsStatus, history = [] }: Timel
         if (!scriptName) return 'bg-gray-500';
         const name = scriptName.toLowerCase();
 
-        if (name.includes('daily_bet')) return 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]';
-        if (name.includes('stakazo')) return 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]'; // Stakazo specific
-        if (name.includes('ai_analysis')) return 'bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.5)]';
+        if (name.includes('daily') || name.includes('fetch')) return 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]';
+        if (name.includes('stakazo')) return 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]';
+        if (name.includes('analysis')) return 'bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.5)]';
         if (name.includes('social')) return 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]';
 
         // Expanded logic for Checker
         if (name.includes('check') || name.includes('result')) return 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]';
 
-        if (name.includes('tiktok')) return 'bg-pink-500 shadow-[0_0_10px_rgba(236,72,153,0.5)]';
+        if (name.includes('tiktok') || name.includes('viral')) return 'bg-pink-500 shadow-[0_0_10px_rgba(236,72,153,0.5)]';
         return 'bg-gray-500';
     };
 
@@ -82,15 +81,15 @@ export default function ExecutionTimeline({ scriptsStatus, history = [] }: Timel
         if (!scriptName) return 'Script';
         const name = scriptName.toLowerCase();
 
-        if (name.includes('daily_bet')) return 'Recolector';
+        if (name.includes('daily') || name.includes('fetch')) return 'Recolector';
         if (name.includes('stakazo')) return 'Stakazo';
-        if (name.includes('ai_analysis')) return 'Analizador';
+        if (name.includes('analysis')) return 'Analizador';
         if (name.includes('social')) return 'Social';
 
         // Expanded logic for Checker
         if (name.includes('check') || name.includes('result')) return 'Comprobador';
 
-        if (name.includes('tiktok')) return 'Viral';
+        if (name.includes('tiktok') || name.includes('viral')) return 'Viral';
         return 'Script';
     };
 

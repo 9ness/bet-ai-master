@@ -134,10 +134,16 @@ if __name__ == "__main__":
     rs = RedisService()
     try:
         rs.log_script_execution("generate_social_content.yml", "START", "Generando contenido social...")
+        if rs.is_active: rs.log_status("Social Generator", "RUNNING", "Generando contenido...")
+        
         generate_viral_caption()
+        
         if rs.is_active: 
             rs.log_script_execution("generate_social_content.yml", "SUCCESS", "Contenido social generado.")
+            rs.log_status("Social Generator", "SUCCESS", "Contenido Tiktok generado")
+            
     except Exception as e:
         print(f"[CRITICAL] Social Generator Failed: {e}")
         if rs.is_active: 
             rs.log_script_execution("generate_social_content.yml", "FAILURE", str(e))
+            rs.log_status("Social Generator", "ERROR", str(e))
