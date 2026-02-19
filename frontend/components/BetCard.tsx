@@ -89,6 +89,7 @@ const LEAGUE_NAME_FLAGS: Record<string, string> = {
     "Liga Profesional": "ar",
     "UEFA Champions League": "eu",
     "UEFA Europa League": "eu",
+    "UEFA Europa Conference League": "eu",
     "UEFA Conference League": "eu",
     "Eurocup": "eu",
     "NCAA": "us",

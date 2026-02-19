@@ -13,8 +13,8 @@ El JSON de entrada proporciona tres capas de información por partido que DEBES 
 REGLAS DE ORO (INVIOLABLES):
 1. PROHIBICIÓN DE BÚSQUEDA: No utilices herramientas externas. Si un dato no está en el JSON, no existe.
 2. REGLA DE UNICIDAD TOTAL: Prohibido repetir el mismo partido en diferentes apuestas. Cada una de las 3 apuestas debe basarse en eventos distintos para diversificar el riesgo.
-3. NOMENCLATURA LIMPIA:
-   - GENERAL: Los picks deben ser genéricos (Ej: "Más de 1.5 Remates Totales", "Más de 8.5 Córners Totales").
+3. NOMENCLATURA LIMPIA (IDIOMA: ESPAÑOL OBLIGATORIO):
+   - GENERAL: Todo debe estar en ESPAÑOL. Los picks deben ser descriptivos en español (Ej: "Más de 1.5 Goles", "Más de 8.5 Córners", "Ganador del Partido"). PROHIBIDO INGLÉS (Ej: "Over 1.5 Goals" -> MAL).
    - EXCEPCIÓN OBLIGATORIA: Para mercados de **Hándicap**, **Totales de Equipo** o **Ganador (1X2)**, DEBES INCLUIR el nombre del equipo para eliminar ambigüedad (Ej: "Hándicap Asiático Fenerbahce -4.5", "Más de 1.5 Goles Real Madrid").
 4. CEGUERA INDIVIDUAL ABSOLUTA: 
    - Prohibido mencionar nombres de jugadores o usar sus estadísticas para justificar el pick. 

@@ -75,6 +75,7 @@ def generate_viral_caption():
     {json.dumps(bets_summary, indent=2)}
 
     GUÍA DE ESTILO:
+    0. **IDIOMA**: SIEMPRE ESPAÑOL.
     1. **TONO**: Hype, Enérgico, pero inteligente.
     2. **SEGURIDAD (CRÍTICO)**:
        - PROHIBIDO usar palabras como: "Apuesta", "Bet", "Dinero", "Ganar", "Gambling", "Profit". TikTok penaliza esto.

@@ -59,6 +59,9 @@ class GeminiService:
 
             IMPORTANTE: Tienes datos de Fútbol y de Baloncesto (NBA/Europa). Evalúa AMBOS deportes por igual. No ignores los partidos de madrugada si presentan mejores oportunidades que el fútbol.
 
+            IDIOMA OBLIGATORIO: ESPAÑOL.
+            Todos los textos, nombres de equipos, ligas y mercados DEBEN estar en español. NO uses inglés bajo ninguna circunstancia.
+
             INSTRUCCIONES DE ANÁLISIS:
             1. FÚTBOL: Usa ID 45 (Corners) y ID 87 (ShotsOnGoal). Prioriza Over de Goles/Corners si los remates son altos.
             2. BALONCESTO: Usa ID 15 (HT/FT) y ID 5 (Puntos 1ª Mitad). Verifica el Injury Report mediante búsqueda.

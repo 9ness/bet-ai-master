@@ -149,6 +149,11 @@ def get_football_result(fixture_id, rs=None):
         goals_home = match["goals"]["home"]
         goals_away = match["goals"]["away"]
         
+        # Extract Halftime (HT)
+        score_ht = match.get("score", {}).get("halftime", {})
+        goals_home_ht = score_ht.get("home")
+        goals_away_ht = score_ht.get("away")
+        
         # Extract Stats (Corners, Cards, Shots)
         corners = None 
         cards = 0
@@ -175,6 +180,8 @@ def get_football_result(fixture_id, rs=None):
         return {
             "home_score": goals_home,
             "away_score": goals_away,
+            "home_score_ht": goals_home_ht,
+            "away_score_ht": goals_away_ht,
             "corners": corners,
             "cards": cards,
             "total_shots": total_shots,
@@ -226,10 +233,22 @@ def get_basketball_result(game_id, rs=None):
             return {"status": "PENDING"}
 
         scores = game["scores"]
+        
+        # Calculate HT (Q1 + Q2)
+        home_q1 = scores["home"].get("quarter_1") or 0
+        home_q2 = scores["home"].get("quarter_2") or 0
+        away_q1 = scores["away"].get("quarter_1") or 0
+        away_q2 = scores["away"].get("quarter_2") or 0
+        
+        home_score_ht = home_q1 + home_q2
+        away_score_ht = away_q1 + away_q2
+
         return {
             "status": "FINISHED",
             "home_score": scores["home"]["total"],
-            "away_score": scores["away"]["total"]
+            "away_score": scores["away"]["total"],
+            "home_score_ht": home_score_ht,
+            "away_score_ht": away_score_ht
         }
     except Exception as e:
         print(f"[ERROR] Basketball API ID {game_id}: {e}")
@@ -590,11 +609,31 @@ def check_bets():
                         away_team_clean = match_parts[-1].strip()
                 except: pass
                 
-                home_score = data["home_score"]
-                away_score = data["away_score"]
+                # DETECT HALF-TIME MARKET (SPANISH & ENGLISH)
+                is_ht_market = False
+                ht_keywords = ["1st half", "1st-half", "first half", "1ª mitad", "1a mitad", "primer tiempo", "descanso", "ht", "medio tiempo"]
+                if any(k in pick for k in ht_keywords):
+                    is_ht_market = True
+                    
+                # SELECT SCORE BASED ON CONTEXT
+                if is_ht_market:
+                    home_score = data.get("home_score_ht")
+                    away_score = data.get("away_score_ht")
+                    # If HT score missing, fallback to PENDING or fail?
+                    if home_score is None or away_score is None:
+                        print(f"      [PENDING] HT Score not available yet.")
+                        log_check_event(rs, date_str, fid, sel['match'], pick_lower, "PENDING", "Waiting for HT Result")
+                        pending_count += 1
+                        all_won = False
+                        continue
+                    result_str = f"{home_score}-{away_score} (HT)"
+                else:
+                    # Default Full Time
+                    home_score = data["home_score"]
+                    away_score = data["away_score"]
+                    result_str = f"{home_score}-{away_score}"
                 
                 is_win = False
-                result_str = f"{home_score}-{away_score}"
                 
                 try:
                     # 0. CHECK IF PLAYER PROP (Merged Logic)
