@@ -70,41 +70,44 @@ class SportsDataService:
         """Verifica y loguea la IP externa actual usando el proxy."""
         verify_ip()
 
-    def _call_api(self, url, params=None):
+    def _call_api(self, url, params=None, sport=None):
         """
         Realiza la petición usando el cliente centralizado.
         """
         resp = call_api(url, params=params, extra_headers=self.headers)
         if resp:
             # Monitor Real API Quota (ignoring cached responses)
-            remaining = resp.headers.get("x-ratelimit-requests-remaining-day")
-            if remaining:
-                self.api_remaining = remaining
-                try:
-                    # Save to Redis for Dashboard
-                    from src.services.redis_service import RedisService
-                    rs = RedisService()
-                    
-                    # 1. Update Real-Time Remaining
-                    # Use dynamic key based on sport
-                    key_remaining = f"api_usage:{sport}:remaining"
-                    rs.set(f"api_usage:{sport}:last_updated", datetime.now().strftime("%Y-%m-%d"))
-                    rs.set(key_remaining, remaining)
-                    
-                    # 2. Update Daily History (Continuous Sync)
-                    # We calculate 'used' based on standard limit (100/day or fetch from header)
-                    limit = int(resp.headers.get("x-ratelimit-requests-limit-day", 100))
-                    used = max(0, limit - int(remaining))
-                    
-                    today = datetime.now().strftime("%Y-%m-%d")
-                    history_key = f"api_usage:history:{today}"
-                    
-                    # HSET api_usage:history:YYYY-MM-DD <sport> <used>
-                    rs.hset(history_key, {sport: used})
-                    
-                except Exception as e:
-                    # print(f"Redis Update Error: {e}")
-                    pass
+            # User Rule: Only count as "Real Call" if elapsed > 0.001s
+            if resp.elapsed.total_seconds() > 0.001:
+                remaining = resp.headers.get("x-ratelimit-requests-remaining-day")
+                if remaining:
+                    self.api_remaining = remaining
+                    if sport:
+                        try:
+                            # Save to Redis for Dashboard
+                            from src.services.redis_service import RedisService
+                            rs = RedisService()
+                            
+                            # 1. Update Real-Time Remaining
+                            # Use dynamic key based on sport
+                            key_remaining = f"api_usage:{sport}:remaining"
+                            rs.set(f"api_usage:{sport}:last_updated", datetime.now().strftime("%Y-%m-%d"))
+                            rs.set(key_remaining, remaining)
+                            
+                            # 2. Update Daily History (Continuous Sync)
+                            # We calculate 'used' based on standard limit (100/day or fetch from header)
+                            limit = int(resp.headers.get("x-ratelimit-requests-limit-day", 100))
+                            used = max(0, limit - int(remaining))
+                            
+                            today = datetime.now().strftime("%Y-%m-%d")
+                            history_key = f"api_usage:history:{today}"
+                            
+                            # HSET api_usage:history:YYYY-MM-DD <sport> <used>
+                            rs.hset(history_key, {sport: used})
+                            
+                        except Exception as e:
+                            # print(f"Redis Update Error: {e}")
+                            pass
         return resp
 
     def _normalize_key(self, text):
@@ -181,7 +184,7 @@ class SportsDataService:
             
             url_list = f"{base_url}/{endpoint}"
             # resp = requests.get(url_list, headers=self.headers, params=params)
-            resp = self._call_api(url_list, params=params)
+            resp = self._call_api(url_list, params=params, sport=sport)
             
             # Count Initial Call
             if sport == "football": self.calls_football += 1
@@ -339,7 +342,7 @@ class SportsDataService:
                 priority_bookmakers = [8, 11, 6, 3, 2]
 
             # Allow fetching ALL bookmakers (remove 'bookmaker' param)
-            resp = self._call_api(url_odds, params={param_key: fixture_id})
+            resp = self._call_api(url_odds, params={param_key: fixture_id}, sport=sport)
             data = resp.json()
             
             # Initialize with NULLs for strict schema
@@ -476,7 +479,7 @@ class SportsDataService:
         """Fetches predictions/analysis for a given fixture."""
         try:
             url = f"{self.configs['football']['url']}/predictions"
-            resp = self._call_api(url, params={"fixture": fixture_id})
+            resp = self._call_api(url, params={"fixture": fixture_id}, sport="football")
             data = resp.json()
             return data.get("response", [])
         except Exception as e:
@@ -495,7 +498,7 @@ class SportsDataService:
             # User provided: https://v1.basketball.api-sports.io/games?h2h=728-722
             # Yes, param is 'h2h'.
             
-            resp = self._call_api(f"{base_url}/{endpoint}", params={"h2h": f"{home_id}-{away_id}"})
+            resp = self._call_api(f"{base_url}/{endpoint}", params={"h2h": f"{home_id}-{away_id}"}, sport=sport)
             data = resp.json()
             raw_h2h = data.get("response", [])
             

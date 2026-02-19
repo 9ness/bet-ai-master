@@ -62,26 +62,31 @@ class SportsDataServiceTikTok:
     def _verify_ip(self):
         verify_ip()
 
-    def _call_api(self, url, params=None):
+    def _call_api(self, url, params=None, sport=None):
         resp = call_api(url, params=params, extra_headers=self.headers)
         if resp:
             # Monitor Real API Quota (ignoring cached responses)
-            remaining = resp.headers.get("x-ratelimit-requests-remaining-day")
-            if remaining:
-                self.api_remaining = remaining
-                try:
-                    from src.services.redis_service import RedisService
-                    rs = RedisService()
-                    # TikTok usually fetches football
-                    rs.set("api_usage:football:remaining", remaining)
-                    rs.set("api_usage:football:last_updated", datetime.now().strftime("%Y-%m-%d"))
-                    
-                    # Update History
-                    limit = int(resp.headers.get("x-ratelimit-requests-limit-day", 100))
-                    used = max(0, limit - int(remaining))
-                    today = datetime.now().strftime("%Y-%m-%d")
-                    rs.hset(f"api_usage:history:{today}", {"football": used})
-                except: pass
+            # User Rule: Only count as "Real Call" if elapsed > 0.001s
+            if resp.elapsed.total_seconds() > 0.001:
+                remaining = resp.headers.get("x-ratelimit-requests-remaining-day")
+                if remaining:
+                    self.api_remaining = remaining
+                    if sport:
+                        try:
+                            from src.services.redis_service import RedisService
+                            rs = RedisService()
+                            
+                            # Use dynamic key based on sport
+                            key_remaining = f"api_usage:{sport}:remaining"
+                            rs.set(f"api_usage:{sport}:last_updated", datetime.now().strftime("%Y-%m-%d"))
+                            rs.set(key_remaining, remaining)
+                            
+                            # Update History
+                            limit = int(resp.headers.get("x-ratelimit-requests-limit-day", 100))
+                            used = max(0, limit - int(remaining))
+                            today = datetime.now().strftime("%Y-%m-%d")
+                            rs.hset(f"api_usage:history:{today}", {sport: used})
+                        except: pass
         return resp
 
     def _normalize_key(self, text):
@@ -165,7 +170,7 @@ class SportsDataServiceTikTok:
         try:
             params = {"date": date_str, "timezone": "Europe/Madrid"}
             url_list = f"{base_url}/{endpoint}"
-            resp = self._call_api(url_list, params=params)
+            resp = self._call_api(url_list, params=params, sport=sport)
             
             self.calls_football += 1
             
@@ -291,7 +296,7 @@ class SportsDataServiceTikTok:
             param_key = "fixture"
             priority_bookmakers = [8, 11, 6, 3, 2]
 
-            resp = self._call_api(url_odds, params={param_key: fixture_id})
+            resp = self._call_api(url_odds, params={param_key: fixture_id}, sport=sport)
             data = resp.json()
             cleaned_odds = self._init_empty_odds(sport)
 
@@ -379,7 +384,7 @@ class SportsDataServiceTikTok:
     def _fetch_predictions(self, fixture_id):
         try:
             url = f"{self.configs['football']['url']}/predictions"
-            resp = self._call_api(url, params={"fixture": fixture_id})
+            resp = self._call_api(url, params={"fixture": fixture_id}, sport="football")
             data = resp.json()
             return data.get("response", [])
         except Exception as e:
@@ -390,7 +395,7 @@ class SportsDataServiceTikTok:
         try:
             base_url = self.configs[sport]["url"]
             endpoint = "fixtures/headtohead"
-            resp = self._call_api(f"{base_url}/{endpoint}", params={"h2h": f"{home_id}-{away_id}"})
+            resp = self._call_api(f"{base_url}/{endpoint}", params={"h2h": f"{home_id}-{away_id}"}, sport=sport)
             data = resp.json()
             raw_h2h = data.get("response", [])
             
