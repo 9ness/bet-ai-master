@@ -32,6 +32,7 @@ export default function AIChat({ rawDate, mode = 'visible' }: AIChatProps) {
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [isPro] = useState(isAdminPath); // Automático para admins
     const [isTikTokMode, setIsTikTokMode] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [canUseTomorrow, setCanUseTomorrow] = useState(false);
@@ -123,11 +124,24 @@ export default function AIChat({ rawDate, mode = 'visible' }: AIChatProps) {
                     date: targetDate,
                     isTikTok: isTikTokMode,
                     userId: userId,
-                    includeContext: false // Forzamos solo router
+                    includeContext: false, // Forzamos solo router
+                    isPro: isPro // Enviamos si es modo PRO
                 })
             });
 
             let data = await response.json();
+
+            // Manejo de límite de presupuesto (403 del backend)
+            if (response.status === 403 && data.content) {
+                const botMessage: Message = {
+                    role: 'assistant',
+                    content: data.content,
+                    timestamp: new Date()
+                };
+                setMessages(prev => [...prev, botMessage]);
+                setIsLoading(false);
+                return;
+            }
 
             // PASO 2: Si el router dice que necesita datos, hacemos la llamada pesada
             if (data.action === "NEED_CONTEXT_DATA") {
@@ -145,7 +159,8 @@ export default function AIChat({ rawDate, mode = 'visible' }: AIChatProps) {
                         date: targetDate,
                         isTikTok: isTikTokMode,
                         userId: userId,
-                        includeContext: true // Ahora sí enviamos el contexto pesado
+                        includeContext: true, // Ahora sí enviamos el contexto pesado
+                        isPro: isPro // Enviamos si es modo PRO
                     })
                 });
                 data = await secondRes.json();
@@ -203,7 +218,12 @@ export default function AIChat({ rawDate, mode = 'visible' }: AIChatProps) {
             {/* Minimalist Top Bar */}
             <div className="px-6 py-4 flex items-center justify-between shrink-0 bg-[#0e0e0e]/95 backdrop-blur-md border-b border-white/5 z-20">
                 <div className="flex items-center gap-2">
-                    <span className="font-google text-lg tracking-tight text-white font-medium">Gemini</span>
+                    <span className="font-google text-lg tracking-tight text-white font-medium uppercase tracking-[0.1em]">BET AI Master</span>
+                    {isAdminPath && (
+                        <div className="flex items-center px-1.5 py-0.5 rounded bg-gradient-to-r from-[#4285f4] via-[#9162f1] to-[#d96570] shadow-lg shadow-purple-500/20 border border-white/10 ml-1">
+                            <span className="text-[9px] font-black text-white leading-none">PRO</span>
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex items-center gap-1">
@@ -232,9 +252,9 @@ export default function AIChat({ rawDate, mode = 'visible' }: AIChatProps) {
 
                         <div className="flex flex-col gap-2 md:gap-3">
                             {[
-                                { text: isTikTokMode ? "Partidos top para mañana" : "Análisis del Manchester City hoy", icon: <Sparkles className="w-4 h-4 text-cyan-400" /> },
-                                { text: isTikTokMode ? "Combinada TikTok segura" : "¿Alguna cuota trampa?", icon: <Database className="w-4 h-4 text-amber-400" /> },
-                                { text: "Estrategia para cuota 4.00", icon: <LayoutGrid className="w-4 h-4 text-indigo-400" /> },
+                                { text: isTikTokMode ? "Partidos virales para mañana" : "Analiza los 3 mejores partidos de hoy", icon: <Sparkles className="w-4 h-4 text-cyan-400" /> },
+                                { text: isTikTokMode ? "Combinada TikTok extrema" : "¿Cual es la selección mas clara?", icon: <Database className="w-4 h-4 text-amber-400" /> },
+                                { text: "Crea una combinada segura (Cuota 2-3)", icon: <LayoutGrid className="w-4 h-4 text-emerald-400" /> },
                             ].map((item, idx) => (
                                 <button
                                     key={idx}
@@ -267,7 +287,7 @@ export default function AIChat({ rawDate, mode = 'visible' }: AIChatProps) {
                                             __html: msg.content
                                                 .replace(/### (.*)/g, '<h4 class="text-white font-bold text-lg pt-4 pb-1">$1</h4>')
                                                 .replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-black">$1</strong>')
-                                                .replace(/^[ \t]*[*+-][ \t]+(.*)/gm, '<div class="flex gap-3 py-0 items-start text-gray-300"><span class="mt-2 w-1.5 h-1.5 bg-cyan-400 rounded-full shrink-0"></span><span class="flex-1">$1</span></div>')
+                                                .replace(/^[ \t]*[*+-][ \t]+(.*)/gm, '<div class="flex gap-3 py-1 items-start text-gray-300"><span class="mt-2 w-1.5 h-1.5 bg-cyan-400 rounded-full shrink-0"></span><span class="flex-1">$1</span></div>')
                                                 .replace(/\n\n/g, '<div class="h-4"></div>')
                                                 .replace(/\n(?!\s*<div)/g, '<br/>')
                                         }}
@@ -324,7 +344,7 @@ export default function AIChat({ rawDate, mode = 'visible' }: AIChatProps) {
                                 }
                             }}
                             disabled={effectiveMode === 'disabled'}
-                            placeholder={effectiveMode === 'disabled' ? "Chat bloqueado temporalmente..." : "Pregúntale a Gemini AI..."}
+                            placeholder={effectiveMode === 'disabled' ? "Chat bloqueado temporalmente..." : "Pregúntale a BET AI..."}
                             className={`w-full bg-transparent border-none focus:ring-0 text-[16px] py-4 px-5 resize-none scrollbar-hide text-gray-200 placeholder:text-gray-500 ${effectiveMode === 'disabled' ? 'opacity-40 cursor-not-allowed' : ''}`}
                         />
 

@@ -1,13 +1,27 @@
 import { NextResponse } from 'next/server';
-import { getRawMatches, trackAIUsage } from '@/lib/server-utils';
+import { getRawMatches, trackAIUsage, redis } from '@/lib/server-utils';
 
 export async function POST(req: Request) {
     try {
-        const { message, history, date, isTikTok, userId, includeContext = false } = await req.json();
+        const { message, history, date, isTikTok, userId, includeContext = false, isPro = false } = await req.json();
 
         const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
         if (!apiKey) {
             return NextResponse.json({ error: "API Key no detectada" }, { status: 500 });
+        }
+
+        // --- CONTROL DE PRESUPUESTO (Solo para no-PRO) ---
+        if (!isPro) {
+            const today = new Date().toISOString().split('T')[0];
+            const dailyUserKey = `betai:ai_user_stats:${userId}:${today}`;
+            const dailyCost: number = await redis.hget(dailyUserKey, "cost") || 0;
+
+            if (dailyCost >= 0.10) {
+                return NextResponse.json({
+                    error: "Limite diario alcanzado",
+                    content: "Has alcanzado el límite de análisis gratuitos por hoy (0.10$). Vuelve mañana o contacta con el administrador para acceso PRO."
+                }, { status: 403 });
+            }
         }
 
         // --- PASO 1: ROUTER INTELIGENTE ---
@@ -85,14 +99,17 @@ REGLAS DE FORMATO (ESTRICTAS):
    * [Selección 2] ([Cuota 2])
    * **CUOTA TOTAL: [Valor multiplicador]**
 
-4. **INTELIGENCIA PROACTIVA (Uso de Contexto)**:
+4. **RESPETO POR LA CANTIDAD (CRÍTICO)**:
+   - Si el usuario pregunta por "la más clara", "el mejor pick", "solo un partido" o utiliza el singular, DEBES elegir únicamente el partido con mayor Win Rate y responder SOLO sobre ese. PROHIBIDO dar listas de varios partidos si se pide el mejor.
+
+5. **INTELIGENCIA PROACTIVA (Uso de Contexto)**:
    - Si el equipo o liga solicitado **NO** está en los datos:
      1. Informa brevemente: "No tengo datos para el [Equipo] hoy".
      2. **APROVECHA EL CONTEXTO**: Como ya has leído el JSON, busca 2 o 3 partidos interesantes que **SÍ** estén disponibles (prioriza la misma liga o partidos de alto nivel).
      3. Sugiere esas alternativas de forma específica: "Pero hoy juegan el **Liverpool vs Arsenal** y el **Chelsea vs Spurs**. ¿Te gustaría que analice alguno de estos partidos por ti?"
      4. Espera la respuesta del usuario antes de realizar el análisis profundo de las alternativas.
 
-5. **ESTILO**:
+6. **ESTILO**:
    - Usa **negrita** para resaltar equipos, cuotas y porcentajes.
    - Sé directo pero mantén la lógica estadística que sustenta el pick.
 

@@ -19,11 +19,17 @@ export async function trackAIUsage(tokensInput: number, tokensOutput: number, co
         await redis.hincrby(`betai:ai_stats:${month}`, "total_messages", 1);
         await redis.hincrby(`betai:ai_stats:${month}`, "total_tokens", tokensInput + tokensOutput);
 
-        // 2. Per-User Stats
+        // 2. Per-User Stats (Lifetime & Daily)
         const userKey = `betai:ai_user_stats:${userId}`;
+        const dailyUserKey = `betai:ai_user_stats:${userId}:${today}`;
+
         await redis.hincrbyfloat(userKey, "total_cost", totalCost);
         await redis.hincrby(userKey, "total_messages", 1);
         await redis.hset(userKey, { "last_interaction": today });
+
+        // track daily cost separately for limits
+        await redis.hincrbyfloat(dailyUserKey, "cost", totalCost);
+        await redis.expire(dailyUserKey, 60 * 60 * 24 * 2); // Expira en 2 días para limpieza
 
         // 3. Log user activity in a list (last 50 messages)
         const logEntry = JSON.stringify({
