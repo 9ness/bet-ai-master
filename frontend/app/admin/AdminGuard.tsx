@@ -17,6 +17,7 @@ import ApiUsageBanner from '@/components/ApiUsageBanner';
 import ExecutionTimeline from '@/components/ExecutionTimeline';
 
 import TikTokFactory from '@/components/TikTokFactory';
+import AIChat from '@/components/AIChat';
 
 type AdminGuardProps = {
     children: React.ReactNode;
@@ -102,7 +103,8 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
         show_stakazo_menu: false,
         show_stakazo_alert: false,
         show_stakazo_calendar: false,
-        show_stakazo_analytics: false
+        show_stakazo_analytics: false,
+        ai_chat_mode: 'visible' // 'visible' | 'hidden' | 'disabled'
     });
     const [savingSettings, setSavingSettings] = useState(false);
     const [lastRun, setLastRun] = useState<{ date: string, status: string, message: string, script: string } | null>(null);
@@ -166,7 +168,8 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                         show_stakazo_menu: data.show_stakazo_menu ?? false,
                         show_stakazo_alert: data.show_stakazo_alert ?? false,
                         show_stakazo_calendar: data.show_stakazo_calendar ?? false,
-                        show_stakazo_analytics: data.show_stakazo_analytics ?? false
+                        show_stakazo_analytics: data.show_stakazo_analytics ?? false,
+                        ai_chat_mode: data.ai_chat_mode ?? 'visible'
                     });
                     if (data.last_run) setLastRun(data.last_run);
                     if (data.scripts_status) setScriptsStatus(data.scripts_status);
@@ -882,6 +885,46 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                                                             <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-fuchsia-600"></div>
                                                         </label>
                                                     </div>
+
+                                                    {/* AI CHAT CONTROL */}
+                                                    <div className="bg-gradient-to-br from-indigo-500/5 to-transparent p-5 rounded-2xl border border-indigo-500/10 space-y-4">
+                                                        <div className="flex items-center gap-3 border-b border-indigo-500/10 pb-3">
+                                                            <div className="p-2 bg-indigo-500/20 rounded-lg">
+                                                                <BrainCircuit size={18} className="text-indigo-400" />
+                                                            </div>
+                                                            <div>
+                                                                <h4 className="font-bold text-sm text-indigo-400 uppercase tracking-wider">Modo BET AI Chat</h4>
+                                                                <p className="text-[10px] text-white/30 uppercase font-black">Control de Disponibilidad</p>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex bg-black/40 p-1 rounded-xl border border-white/5">
+                                                            <button
+                                                                onClick={() => setSettings({ ...settings, ai_chat_mode: 'visible' })}
+                                                                className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${settings.ai_chat_mode === 'visible' ? 'bg-indigo-600 text-white shadow-lg' : 'text-white/40 hover:text-white/60'}`}
+                                                            >
+                                                                VISIBLE
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setSettings({ ...settings, ai_chat_mode: 'disabled' })}
+                                                                className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${settings.ai_chat_mode === 'disabled' ? 'bg-amber-600 text-white shadow-lg' : 'text-white/40 hover:text-white/60'}`}
+                                                            >
+                                                                BLOQUEADO
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setSettings({ ...settings, ai_chat_mode: 'hidden' })}
+                                                                className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${settings.ai_chat_mode === 'hidden' ? 'bg-zinc-700 text-white shadow-lg' : 'text-white/40 hover:text-white/60'}`}
+                                                            >
+                                                                OCULTO
+                                                            </button>
+                                                        </div>
+
+                                                        <p className="text-[10px] text-white/40 px-1 leading-relaxed italic">
+                                                            {settings.ai_chat_mode === 'visible' && "• El chat es totalmente funcional para todos los usuarios."}
+                                                            {settings.ai_chat_mode === 'disabled' && "• El botón es visible pero la escritura está bloqueada (Mantenimiento)."}
+                                                            {settings.ai_chat_mode === 'hidden' && "• El chat desaparece por completo de la interfaz."}
+                                                        </p>
+                                                    </div>
                                                 </div>
                                             )}
 
@@ -1510,6 +1553,7 @@ export default function AdminGuard({ children, predictions, formattedDate, rawDa
                     </div>
                 </div>
             </div>
+
         </div>
     );
-};
+}

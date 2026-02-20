@@ -110,7 +110,7 @@ INPUT DATA (MATCHES FOR {target_date_str}):
             response = model.generate_content(
                 full_prompt,
                 generation_config=genai.types.GenerationConfig(
-                    temperature=0.3,
+                    temperature=0.2,
                     response_mime_type='application/json'
                 )
             )

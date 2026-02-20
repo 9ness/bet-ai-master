@@ -77,37 +77,46 @@ class SportsDataService:
         resp = call_api(url, params=params, extra_headers=self.headers)
         if resp:
             # Monitor Real API Quota (ignoring cached responses)
-            # User Rule: Only count as "Real Call" if elapsed > 0.001s
-            if resp.elapsed.total_seconds() > 0.001:
-                remaining = resp.headers.get("x-ratelimit-requests-remaining-day")
-                if remaining:
-                    self.api_remaining = remaining
-                    if sport:
-                        try:
-                            # Save to Redis for Dashboard
+            elapsed = resp.elapsed.total_seconds()
+            
+            # Buscamos el header
+            remaining = resp.headers.get("x-ratelimit-requests-remaining-day")
+            
+            if remaining:
+                # [REGLA ACTUALIZADA]
+                # Siempre actualizamos la cuota restante de la instancia y de Redis para el panel
+                self.api_remaining = remaining
+                
+                if sport:
+                    try:
+                        # Usamos una instancia persistente de RedisService si la tenemos
+                        if not hasattr(self, 'rs'):
                             from src.services.redis_service import RedisService
-                            rs = RedisService()
-                            
-                            # 1. Update Real-Time Remaining
-                            # Use dynamic key based on sport
+                            self.rs = RedisService()
+                        
+                        if self.rs.is_active:
+                            # 1. Actualizamos "Restantes" en Redis siempre
                             key_remaining = f"api_usage:{sport}:remaining"
-                            rs.set(f"api_usage:{sport}:last_updated", datetime.now().strftime("%Y-%m-%d"))
-                            rs.set(key_remaining, remaining)
+                            self.rs.set(f"api_usage:{sport}:last_updated", datetime.now().strftime("%Y-%m-%d"))
+                            self.rs.set(key_remaining, remaining)
                             
-                            # 2. Update Daily History (Continuous Sync)
-                            # We calculate 'used' based on standard limit (100/day or fetch from header)
-                            limit = int(resp.headers.get("x-ratelimit-requests-limit-day", 100))
-                            used = max(0, limit - int(remaining))
-                            
-                            today = datetime.now().strftime("%Y-%m-%d")
-                            history_key = f"api_usage:history:{today}"
-                            
-                            # HSET api_usage:history:YYYY-MM-DD <sport> <used>
-                            rs.hset(history_key, {sport: used})
-                            
-                        except Exception as e:
-                            # print(f"Redis Update Error: {e}")
-                            pass
+                            # 2. Actualizamos el "Historial" solo si es una llamada física real
+                            if elapsed > 0.001:
+                                limit = int(resp.headers.get("x-ratelimit-requests-limit-day", 100))
+                                used = max(0, limit - int(remaining))
+                                today = datetime.now().strftime("%Y-%m-%d")
+                                history_key = f"api_usage:history:{today}"
+                                self.rs.hset(history_key, {sport: used})
+                        else:
+                            print(f"      [REDIS-WARN] Redis no activo, no se pudo actualizar cuota.")
+                    except Exception as e:
+                        print(f"      [REDIS-ERROR] Error actualizando cuota: {e}")
+            else:
+                # Log de depuración si no hay header en una llamada real
+                if elapsed > 0.001:
+                    print(f"      [DEBUG-QUOTA] Header 'x-ratelimit-requests-remaining-day' no encontrado en llamada real.")
+                    print(f"      [DEBUG-HEADERS] Headers: {list(resp.headers.keys())}")
+        
         return resp
 
     def _normalize_key(self, text):

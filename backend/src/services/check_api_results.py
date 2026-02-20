@@ -119,20 +119,27 @@ def get_football_result(fixture_id, rs=None):
         
         # [QUOTA TRACKING]
         if resp and rs:
-            # User Rule: Only count as "Real Call" if elapsed > 0.001s (Avoid Proxy Cache Stale Headers)
-            if resp.elapsed.total_seconds() > 0.001:
-                remaining = resp.headers.get("x-ratelimit-requests-remaining-day")
-                if remaining:
-                    try:
-                        today_str = datetime.now().strftime("%Y-%m-%d")
-                        rs.set("api_usage:football:remaining", remaining)
-                        rs.set("api_usage:football:last_updated", today_str)
-                        
-                        # Update History
+            # Recuperamos el header de la API
+            remaining = resp.headers.get("x-ratelimit-requests-remaining-day")
+            elapsed = resp.elapsed.total_seconds()
+            
+            if remaining:
+                try:
+                    today_str = datetime.now().strftime("%Y-%m-%d")
+                    # 1. Actualizar restante siempre que haya header
+                    rs.set("api_usage:football:remaining", remaining)
+                    rs.set("api_usage:football:last_updated", today_str)
+                    
+                    # 2. Actualizar historial solo si es llamada real (> 0.001s)
+                    if elapsed > 0.001:
                         limit = int(resp.headers.get("x-ratelimit-requests-limit-day", 100))
                         used = max(0, limit - int(remaining))
                         rs.hset(f"api_usage:history:{today_str}", {"football": used})
-                    except: pass
+                except Exception as e_redis:
+                    print(f"      [REDIS-ERROR] Error actualizando cuota football: {e_redis}")
+            elif elapsed > 0.001:
+                print(f"      [DEBUG-QUOTA] Football: Header 'x-ratelimit-requests-remaining-day' no encontrado en llamada real.")
+                print(f"      [DEBUG-HEADERS] Headers: {list(resp.headers.keys())}")
         
         data = resp.json()
         
@@ -205,21 +212,27 @@ def get_basketball_result(game_id, rs=None):
         
         # [QUOTA TRACKING]
         if resp and rs:
-            # User Rule: Only count as "Real Call" if elapsed > 0.001s
-            if resp.elapsed.total_seconds() > 0.001:
-                remaining = resp.headers.get("x-ratelimit-requests-remaining-day")
-                if remaining:
-                    try:
-                        today_str = datetime.now().strftime("%Y-%m-%d")
-                        rs.set("api_usage:basketball:remaining", remaining)
-                        rs.set("api_usage:basketball:last_updated", today_str)
-                        
-                        # Update History
+            # Recuperamos el header
+            remaining = resp.headers.get("x-ratelimit-requests-remaining-day")
+            elapsed = resp.elapsed.total_seconds()
+            
+            if remaining:
+                try:
+                    today_str = datetime.now().strftime("%Y-%m-%d")
+                    # 1. Siempre actualizar restante
+                    rs.set("api_usage:basketball:remaining", remaining)
+                    rs.set("api_usage:basketball:last_updated", today_str)
+                    
+                    # 2. Historial solo si es real
+                    if elapsed > 0.001:
                         limit = int(resp.headers.get("x-ratelimit-requests-limit-day", 100))
                         used = max(0, limit - int(remaining))
-                        today = datetime.now().strftime("%Y-%m-%d")
-                        rs.hset(f"api_usage:history:{today}", {"basketball": used})
-                    except: pass
+                        rs.hset(f"api_usage:history:{today_str}", {"basketball": used})
+                except Exception as e_redis:
+                    print(f"      [REDIS-ERROR] Error actualizando cuota basket: {e_redis}")
+            elif elapsed > 0.001:
+                print(f"      [DEBUG-QUOTA] Basket: Header 'x-ratelimit-requests-remaining-day' no encontrado en llamada real.")
+                print(f"      [DEBUG-HEADERS] Headers: {list(resp.headers.keys())}")
                 
         data = resp.json()
         
@@ -989,6 +1002,8 @@ def check_bets():
         update_monthly_stats(rs, current_month, category="daily_bets_stakazo")
     except Exception as e:
         print(f"[WARN] Failed to update monthly stats: {e}")
+    
+    return total_updates
 
 def update_monthly_stats(rs, month_str, category="daily_bets"):
     """
@@ -1171,18 +1186,16 @@ def update_monthly_stats(rs, month_str, category="daily_bets"):
         rs.log_status("Check Results", "SUCCESS", "Resultados actualizados correctamente")
 
 if __name__ == "__main__":
+    rs = RedisService()
     try:
-        check_bets()
+        updated_count = check_bets()
         # LOG END
-        try:
-            rs.log_script_execution("check_results_cron.yml", "SUCCESS", f"Comprobación finalizada. Updates: {total_updates}")
-        except: pass
-
+        if rs.is_active:
+            rs.log_script_execution("check_results_cron.yml", "SUCCESS", f"Comprobación finalizada. Updates: {updated_count}")
         print("\n[DONE] Check Bets Process Finished.")
     except Exception as e:
-        # Re-init rs just in case or use global if available (it is inside check_bets, but we need it here)
-        from src.services.redis_service import RedisService
-        _rs = RedisService()
-        if _rs.is_active:
-            _rs.log_status("Check Results", "ERROR", str(e))
+        if rs.is_active:
+            rs.log_status("Check Results", "ERROR", str(e))
+            rs.log_script_execution("check_results_cron.yml", "FAILURE", str(e))
+        print(f"[FATAL] {e}")
         sys.exit(1)

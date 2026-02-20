@@ -32,7 +32,8 @@ export async function GET(req: NextRequest) {
             show_tiktok: false,
             show_announcement: false,
             announcement_text: '',
-            announcement_type: 'info'
+            announcement_type: 'info',
+            ai_chat_mode: 'visible'
         };
 
         // Fetch Scripts Status (Hash)

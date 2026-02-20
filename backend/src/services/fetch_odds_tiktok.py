@@ -58,6 +58,10 @@ class SportsDataServiceTikTok:
             "Eerste Divisie": "Eredivisie"
         }
         self.api_remaining = "Unknown"
+        
+        # Initialize Redis
+        from src.services.redis_service import RedisService
+        self.rs = RedisService()
 
     def _verify_ip(self):
         verify_ip()
@@ -65,28 +69,42 @@ class SportsDataServiceTikTok:
     def _call_api(self, url, params=None, sport=None):
         resp = call_api(url, params=params, extra_headers=self.headers)
         if resp:
-            # Monitor Real API Quota (ignoring cached responses)
-            # User Rule: Only count as "Real Call" if elapsed > 0.001s
-            if resp.elapsed.total_seconds() > 0.001:
-                remaining = resp.headers.get("x-ratelimit-requests-remaining-day")
-                if remaining:
-                    self.api_remaining = remaining
-                    if sport:
-                        try:
-                            from src.services.redis_service import RedisService
-                            rs = RedisService()
-                            
-                            # Use dynamic key based on sport
+            # Buscamos el header
+            remaining = resp.headers.get("x-ratelimit-requests-remaining-day")
+            elapsed = resp.elapsed.total_seconds()
+            
+            if remaining:
+                # [REGLA ACTUALIZADA]
+                # Siempre actualizamos la cuota restante si el header está presente (aunque sea caché)
+                # para que el panel de control tenga la información más reciente posible.
+                self.api_remaining = remaining
+                
+                if sport:
+                    try:
+                        if self.rs.is_active:
+                            # 1. Actualizar "Restantes" siempre que tengamos el dato
                             key_remaining = f"api_usage:{sport}:remaining"
-                            rs.set(f"api_usage:{sport}:last_updated", datetime.now().strftime("%Y-%m-%d"))
-                            rs.set(key_remaining, remaining)
+                            self.rs.set(f"api_usage:{sport}:last_updated", datetime.now().strftime("%Y-%m-%d"))
+                            self.rs.set(key_remaining, remaining)
                             
-                            # Update History
-                            limit = int(resp.headers.get("x-ratelimit-requests-limit-day", 100))
-                            used = max(0, limit - int(remaining))
-                            today = datetime.now().strftime("%Y-%m-%d")
-                            rs.hset(f"api_usage:history:{today}", {sport: used})
-                        except: pass
+                            # 2. Actualizar "Historial/Usadas" SOLO si es llamada real (> 0.001s)
+                            # Esto es lo que el usuario quiere para no contabilizar caché en las barras de consumo.
+                            if elapsed > 0.001:
+                                limit = int(resp.headers.get("x-ratelimit-requests-limit-day", 100))
+                                used = max(0, limit - int(remaining))
+                                today = datetime.now().strftime("%Y-%m-%d")
+                                history_key = f"api_usage:history:{today}"
+                                self.rs.hset(history_key, {sport: used})
+                                # print(f"      [API-REAL] Llamada contabilizada: {used}/{limit}")
+                        else:
+                            print(f"      [REDIS-WARN] Redis no activo en TikTok Fetcher.")
+                    except Exception as e:
+                        print(f"      [REDIS-ERROR] Error en TikTok API Tracker: {e}")
+            else:
+                # Si no encontramos el header y es una llamada real, logueamos para investigar
+                if elapsed > 0.001:
+                    print(f"      [DEBUG-QUOTA-TIKTOK] Header 'x-ratelimit-requests-remaining-day' NO ENCONTRADO.")
+                    print(f"      [DEBUG-HEADERS] {list(resp.headers.keys())}")
         return resp
 
     def _normalize_key(self, text):
@@ -134,20 +152,13 @@ class SportsDataServiceTikTok:
             json.dump(all_matches, f, indent=4, ensure_ascii=False)
 
         # Save to Redis (HASH Structure)
-        # Key: betai:raw_matches:YYYY-MM_tiktok
-        # Field: YYYY-MM-DD
-        from src.services.redis_service import RedisService
-        rs = RedisService()
-        
         month_key = tomorrow.strftime("%Y-%m")
-        # Removing 'betai:' manual prefix to rely on RedisService auto-prefixing
-        # New Format: raw_matches_tiktok:YYYY-MM
         redis_hash_key = f"raw_matches_tiktok:{month_key}"
         
-        # FIX: RedisService.hset expects (key, mapping_dict)
-        rs.client.hset(redis_hash_key, {target_date_str: json.dumps(all_matches)})
+        # Guardar en Redis usando la instancia de la clase
+        self.rs.client.hset(redis_hash_key, {target_date_str: json.dumps(all_matches)})
         
-        print(f"[REDIS] Guardado en Hash {rs._get_key(redis_hash_key)} -> Field {target_date_str}")
+        print(f"[REDIS] Guardado en Hash {self.rs._get_key(redis_hash_key)} -> Field {target_date_str}")
             
         print(f"\n[FINISH] Total partidos guardados: {len(all_matches)}")
         print(f"[CONSUMO] Fútbol: {self.calls_football}")
