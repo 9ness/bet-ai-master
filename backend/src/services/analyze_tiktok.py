@@ -48,7 +48,7 @@ def _analyze_logic(rs):
             raise ValueError("GEMINI_API_KEY no encontrada")
             
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-3-pro-preview') # Using smart model for complex reasoning
+        model = genai.GenerativeModel('gemini-3.1-pro-preview') # Using smart model for complex reasoning
         print("[INIT] Model configured")
         
     except Exception as e:

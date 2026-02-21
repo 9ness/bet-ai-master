@@ -24,22 +24,24 @@ export async function GET(req: NextRequest) {
         console.log(`[API] Fetching from Hash: ${hashKey} -> Field: ${field}`);
 
         // Upstash Redis 'hget'
-        const data = await redis.hget(hashKey, field);
+        let data = await redis.hget(hashKey, field);
 
-        // Data from hget comes already parsed if it's JSON? 
-        // In Upstash SDK, hget returns the value. If stored as stringified JSON, we might need to parse it?
-        // Actually, redis-py stores it as string. Upstash SDK usually auto-parses if response is JSON, 
-        // but let's be safe.
+        // FALLBACK: If Tomorrow is empty, try Today
+        if (!data) {
+            console.log(`[API] Tomorrow (${tomDateStr}) is empty, falling back to Today...`);
+            const today = new Date();
+            const y_t = today.getFullYear();
+            const m_t = String(today.getMonth() + 1).padStart(2, '0');
+            const d_t = String(today.getDate()).padStart(2, '0');
+            const todayDateStr = `${y_t}-${m_t}-${d_t}`;
+            const todayHashKey = `betai:daily_bets_tiktok:${y_t}-${m_t}`;
+            data = await redis.hget(todayHashKey, todayDateStr);
+        }
+
         let parsedData = data;
         if (typeof data === 'string') {
             try { parsedData = JSON.parse(data); } catch (e) { }
         }
-
-        // If 'bets' array is nested (from analyze_tiktok.py structure), extract it or pass as is
-        // The structure from analyze_tiktok is { date, generated_at, bets: [...] }
-        // The frontend expects { bets: [...] } or the array directly? 
-        // DailyPredictions usually expects { bets: [...] } or just the array.
-        // Let's pass the whole object, as long as it has 'bets'.
 
         return NextResponse.json(parsedData || {});
     } catch (error) {

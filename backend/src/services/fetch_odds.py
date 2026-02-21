@@ -79,30 +79,53 @@ class SportsDataService:
             # Monitor Real API Quota (ignoring cached responses)
             elapsed = resp.elapsed.total_seconds()
             
-            # Buscamos el header
-            remaining = resp.headers.get("x-ratelimit-requests-remaining-day")
+            # Buscamos el header de cuota restante (intentamos varios nombres comunes de API-Sports)
+            headers = resp.headers
+            remaining = headers.get("remaining") or \
+                        headers.get("x-ratelimit-requests-remaining-day") or \
+                        headers.get("x-apisports-remaining") or \
+                        headers.get("x-ratelimit-requests-remaining") # Fallback al minuto si no hay día
             
             if remaining:
                 # [REGLA ACTUALIZADA]
-                # Siempre actualizamos la cuota restante de la instancia y de Redis para el panel
+                # Guardamos en variables específicas del deporte para el log final
+                if sport == "football":
+                    self.api_remaining_football = remaining
+                elif sport == "basketball":
+                    self.api_remaining_basketball = remaining
+                
+                # Para compatibilidad con otros métodos
                 self.api_remaining = remaining
                 
+                # Gestión de contadores
+                is_real_call = elapsed > 0.001
+                if sport == "football":
+                    self.internal_football += 1
+                    if is_real_call: self.billed_football += 1
+                elif sport == "basketball":
+                    self.internal_basketball += 1
+                    if is_real_call: self.billed_basketball += 1
+
                 if sport:
                     try:
-                        # Usamos una instancia persistente de RedisService si la tenemos
                         if not hasattr(self, 'rs'):
                             from src.services.redis_service import RedisService
                             self.rs = RedisService()
                         
                         if self.rs.is_active:
-                            # 1. Actualizamos "Restantes" en Redis siempre
-                            key_remaining = f"api_usage:{sport}:remaining"
+                            # 1. Obtener Límite Real
+                            limit = int(headers.get("x-ratelimit-requests-limit-day") or 
+                                        headers.get("x-ratelimit-requests-limit") or 
+                                        headers.get("x-apisports-limit") or 
+                                        headers.get("x-ratelimit-limit") or 100)
+
+                            # 2. Actualizamos "Restantes" y "Límite" en Redis siempre
                             self.rs.set(f"api_usage:{sport}:last_updated", datetime.now().strftime("%Y-%m-%d"))
-                            self.rs.set(key_remaining, remaining)
+                            self.rs.set(f"api_usage:{sport}:remaining", remaining)
+                            self.rs.set(f"api_usage:{sport}:limit", limit)
                             
-                            # 2. Actualizamos el "Historial" solo si es una llamada física real
-                            if elapsed > 0.001:
-                                limit = int(resp.headers.get("x-ratelimit-requests-limit-day", 100))
+                            # 3. Actualizamos el "Historial" solo si es una llamada física real
+                            if is_real_call:
                                 used = max(0, limit - int(remaining))
                                 today = datetime.now().strftime("%Y-%m-%d")
                                 history_key = f"api_usage:history:{today}"
@@ -114,7 +137,7 @@ class SportsDataService:
             else:
                 # Log de depuración si no hay header en una llamada real
                 if elapsed > 0.001:
-                    print(f"      [DEBUG-QUOTA] Header 'x-ratelimit-requests-remaining-day' no encontrado en llamada real.")
+                    print(f"      [DEBUG-QUOTA] Ningún header de cuota encontrado en llamada real.")
                     print(f"      [DEBUG-HEADERS] Headers: {list(resp.headers.keys())}")
         
         return resp
@@ -146,31 +169,36 @@ class SportsDataService:
         
         print(f"\n[*] INICIANDO RECOLECCIÓN (Ventana: {start_dt} -> {end_dt})")
         
-        all_matches = []
-        self.calls_football = 0
-        self.calls_basketball = 0
+        # 0. Inicializar contadores
+        self.billed_football = 0
+        self.billed_basketball = 0
+        self.internal_football = 0
+        self.internal_basketball = 0
         
-        # 0. Verificar IP antes de empezar
+        # 1. Verificar IP antes de empezar
         self._verify_ip()
-        
         
         for date_str in dates_to_fetch:
             print(f"  > Consultando fecha: {date_str}")
             
-            # 1. Fetch Football
+            # 2. Fetch Football
             all_matches.extend(self._fetch_sport("football", date_str, start_ts, end_ts))
             
-            # 2. Fetch Basketball
+            # 3. Fetch Basketball
             all_matches.extend(self._fetch_sport("basketball", date_str, start_ts, end_ts))
         
         # Save to Disk
         with open(self.output_file, 'w', encoding='utf-8') as f:
             json.dump(all_matches, f, indent=4, ensure_ascii=False)
             
-        total_calls = self.calls_football + self.calls_basketball
         print(f"\n[FINISH] Total partidos guardados: {len(all_matches)}")
-        print(f"[CONSUMO] Fútbol: {self.calls_football} | Basket: {self.calls_basketball} | Total: {total_calls}")
-        print(f"[API REAL] Cuota Restante (x-ratelimit-requests-remaining-day): {self.api_remaining}")
+        print(f"[RECUENTO INTERNO] Fútbol: {self.internal_football} | Basket: {self.internal_basketball}")
+        print(f"[CONSUMO API REAL] Fútbol: {self.billed_football} | Basket: {self.billed_basketball}")
+        
+        # Mostrar restantes específicos si están disponibles
+        rem_f = self.api_remaining_football if hasattr(self, 'api_remaining_football') else "Unknown"
+        rem_b = self.api_remaining_basketball if hasattr(self, 'api_remaining_basketball') else "Unknown"
+        print(f"[RESTANTE REPORTADO] Fútbol: {rem_f}/100 | Basket: {rem_b}/100")
         print(f"Archivo: {self.output_file}")
         
         return all_matches
@@ -195,9 +223,8 @@ class SportsDataService:
             # resp = requests.get(url_list, headers=self.headers, params=params)
             resp = self._call_api(url_list, params=params, sport=sport)
             
-            # Count Initial Call
-            if sport == "football": self.calls_football += 1
-            else: self.calls_basketball += 1
+            url_list = f"{base_url}/{endpoint}"
+            resp = self._call_api(url_list, params=params, sport=sport)
             
             items = resp.json().get("response", [])
             total_on_date = len(items)
@@ -287,9 +314,8 @@ class SportsDataService:
                 # Fetch Odds (Filtered)
                 odds = self._get_odds(sport, base_url, fix_id, whitelist_markets, bookmaker_id)
                 
-                # Count Odds Call
-                if sport == "football": self.calls_football += 1
-                else: self.calls_basketball += 1
+                # Fetch Odds (Filtered)
+                odds = self._get_odds(sport, base_url, fix_id, whitelist_markets, bookmaker_id)
                         
                 match_entry = {
                     "sport": sport, 
@@ -316,15 +342,11 @@ class SportsDataService:
                     # Fetch Predictions (Season context)
                     raw_preds = self._fetch_predictions(fix_id)
                     match_entry["predictions"] = self._process_predictions(raw_preds)
-                    self.calls_football += 1
 
                 # Both Sports: Head to Head (History context)
                 if sport in ["football", "basketball"]:
                     raw_h2h = self._fetch_headtohead(home_id, away_id, sport)
                     match_entry["h2h"] = self._process_h2h(raw_h2h, sport)
-                    
-                    if sport == "football": self.calls_football += 1
-                    else: self.calls_basketball += 1
                 
                 matches_found.append(match_entry)
                 time.sleep(0.1) 

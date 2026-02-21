@@ -11,7 +11,13 @@ const TIKTOK_TOMORROW_KEY = 'betai:tiktokfactory_tomorrow';
 
 export async function GET(req: NextRequest) {
     try {
-        const data = await redis.get(TIKTOK_TOMORROW_KEY);
+        let data = await redis.get(TIKTOK_TOMORROW_KEY);
+
+        // FALLBACK: If Tomorrow social is empty, try Today
+        if (!data) {
+            console.log(`[API] Tomorrow social is empty, falling back to Today...`);
+            data = await redis.get('betai:tiktokfactory');
+        }
 
         // Upstash often returns object automatically if it's JSON
         let parsedData = data;

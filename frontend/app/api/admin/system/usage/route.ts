@@ -38,28 +38,24 @@ export async function GET() {
         };
 
         // Parallel fetch utilizing robust helper
-        const [remFootball, dateFootball, remBasketball, dateBasketball] = await Promise.all([
+        const [remFootball, limitFootball, dateFootball, remBasketball, limitBasketball, dateBasketball] = await Promise.all([
             fetchRobust('api_usage:football:remaining'),
+            fetchRobust('api_usage:football:limit'),
             fetchRobust('api_usage:football:last_updated'),
             fetchRobust('api_usage:basketball:remaining'),
+            fetchRobust('api_usage:basketball:limit'),
             fetchRobust('api_usage:basketball:last_updated')
         ]);
 
-        const limit = 100; // Default limit
         const today = new Date().toISOString().split('T')[0];
 
-        const parseUsage = (rem: string | number | null, lastUpdate: string | number | null) => {
-            // Normalize lastUpdate to string
+        const parseUsage = (rem: string | number | null, limitVal: string | number | null, lastUpdate: string | number | null) => {
             const lastUpdateStr = String(lastUpdate || '');
-
-            // Check if stale (If date is explicitly stored and not today, reset)
-            // If date is MISSING, we might want to trust the 'remaining' value if it exists, 
-            // OR default to safe '0 used'. 
-            // Given the bug, let's be lenient: if 'remaining' exists, show it, UNLESS date is explicitly yesterday.
+            const parsedLimit = limitVal ? (typeof limitVal === 'string' ? parseInt(limitVal, 10) : Number(limitVal)) : 100;
 
             if (lastUpdateStr && lastUpdateStr !== today) {
-                // It was updated on a previous day. Reset Usage for new day.
-                return { used: 0, remaining: limit, limit };
+                // It was updated on a previous day. Reset Usage for new day, but keep limit.
+                return { used: 0, remaining: parsedLimit, limit: parsedLimit };
             }
 
             let used = 0;
@@ -69,16 +65,16 @@ export async function GET() {
                 const remInt = typeof rem === 'string' ? parseInt(rem, 10) : Number(rem);
                 if (!isNaN(remInt)) {
                     val = remInt;
-                    used = Math.max(0, limit - remInt);
+                    used = Math.max(0, parsedLimit - remInt);
                 }
             }
-            return { used, remaining: val, limit };
+            return { used, remaining: val, limit: parsedLimit };
         };
 
         return NextResponse.json({
             success: true,
-            football: parseUsage(remFootball, dateFootball),
-            basketball: parseUsage(remBasketball, dateBasketball)
+            football: parseUsage(remFootball, limitFootball, dateFootball),
+            basketball: parseUsage(remBasketball, limitBasketball, dateBasketball)
         });
     } catch (error) {
         console.error("Error fetching API usage:", error);

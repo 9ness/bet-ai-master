@@ -7,6 +7,7 @@ potential_paths = [
     os.path.join(current_dir, '../../.env.local'),
     os.path.join(current_dir, '../.env.local'), 
     os.path.join(current_dir, '../../.env'),
+    os.path.join(current_dir, '../frontend/.env.local'),
 ]
 
 found = False
@@ -34,6 +35,14 @@ try:
         for m in genai.list_models():
             if 'generateContent' in m.supported_generation_methods:
                 f.write(f"{m.name}\n")
-    print(f"Models saved to {output_path}")
+    
+    # También actualizamos valid_models.txt
+    valid_path = os.path.join(current_dir, 'valid_models.txt')
+    with open(valid_path, 'w', encoding='utf-8') as f:
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                f.write(f"{m.name}\n")
+                
+    print(f"Models saved to {output_path} and {valid_path}")
 except Exception as e:
     print(f"Error listing models: {e}")

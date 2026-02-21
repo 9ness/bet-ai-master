@@ -28,8 +28,8 @@ class GeminiService:
         # SDK Initialization
         if GOOGLE_AVAILABLE:
             genai.configure(api_key=self.api_key)
-            self.model = genai.GenerativeModel('gemini-3-pro-preview')
-            print(f"[INIT] Gemini Service initialized. Model: gemini-3-pro-preview")
+            self.model = genai.GenerativeModel('gemini-3.1-pro-preview')
+            print(f"[INIT] Gemini Service initialized. Model: gemini-3.1-pro-preview")
         else:
             print("[WARN] Google SDK not available.")
 

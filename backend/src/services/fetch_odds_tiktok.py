@@ -70,7 +70,12 @@ class SportsDataServiceTikTok:
         resp = call_api(url, params=params, extra_headers=self.headers)
         if resp:
             # Buscamos el header
-            remaining = resp.headers.get("x-ratelimit-requests-remaining-day")
+            headers = resp.headers
+            remaining = headers.get("remaining") or \
+                        headers.get("x-ratelimit-requests-remaining-day") or \
+                        headers.get("x-apisports-remaining") or \
+                        headers.get("x-ratelimit-requests-remaining") # Fallback
+            
             elapsed = resp.elapsed.total_seconds()
             
             if remaining:
@@ -82,15 +87,19 @@ class SportsDataServiceTikTok:
                 if sport:
                     try:
                         if self.rs.is_active:
-                            # 1. Actualizar "Restantes" siempre que tengamos el dato
-                            key_remaining = f"api_usage:{sport}:remaining"
+                            # 1. Obtener Límite Real
+                            limit = int(headers.get("x-ratelimit-requests-limit-day") or 
+                                        headers.get("x-ratelimit-requests-limit") or 
+                                        headers.get("x-apisports-limit") or 
+                                        headers.get("x-ratelimit-limit") or 100)
+
+                            # 2. Actualizar "Restantes" y "Límite" siempre
                             self.rs.set(f"api_usage:{sport}:last_updated", datetime.now().strftime("%Y-%m-%d"))
-                            self.rs.set(key_remaining, remaining)
+                            self.rs.set(f"api_usage:{sport}:remaining", remaining)
+                            self.rs.set(f"api_usage:{sport}:limit", limit)
                             
-                            # 2. Actualizar "Historial/Usadas" SOLO si es llamada real (> 0.001s)
-                            # Esto es lo que el usuario quiere para no contabilizar caché en las barras de consumo.
+                            # 3. Actualizar "Historial/Usadas" SOLO si es llamada real (> 0.001s)
                             if elapsed > 0.001:
-                                limit = int(resp.headers.get("x-ratelimit-requests-limit-day", 100))
                                 used = max(0, limit - int(remaining))
                                 today = datetime.now().strftime("%Y-%m-%d")
                                 history_key = f"api_usage:history:{today}"
@@ -103,7 +112,7 @@ class SportsDataServiceTikTok:
             else:
                 # Si no encontramos el header y es una llamada real, logueamos para investigar
                 if elapsed > 0.001:
-                    print(f"      [DEBUG-QUOTA-TIKTOK] Header 'x-ratelimit-requests-remaining-day' NO ENCONTRADO.")
+                    print(f"      [DEBUG-QUOTA-TIKTOK] Ningún header de cuota encontrado.")
                     print(f"      [DEBUG-HEADERS] {list(resp.headers.keys())}")
         return resp
 
@@ -207,20 +216,65 @@ class SportsDataServiceTikTok:
             print(f"      [INFO] Partidos encontrados: {total_on_date}")
             print(f"      [INFO] Candidatos TOTALES (Filtro Liga + Hora): {len(candidates)}")
             
-            # --- PRIORITY LOGIC ---
-            # Priorizamos ligas principales. Si faltan, rellenamos con secundarias hasta 14 partidos.
-            PRIORITY_LEAGUES = [
-                39, 140, 135, 78, 61, 88, 94, 253, 
-                13, 103, 2, 3, 848, 11, 71, 128, 130, 262, 265,
-                137, 143, 45, 48
+            # --- LÓGICA DE PRIORIDAD VIRAL (TIERS) ---
+            # 1. Definir Ligas Tier 1 por ID (Invariable, máxima precisión)
+            TIER_1_LEAGUES = {
+                140: "La Liga (España)",
+                39: "Premier League (Inglaterra)",
+                61: "Ligue 1 (Francia)",
+                135: "Serie A (Italia)",
+                78: "Bundesliga (Alemania)",
+                2: "Champions League",
+                3: "Europa League",
+                848: "Conference League",
+                143: "Copa del Rey (España)",
+                137: "Copa Italia",
+                13: "FA Cup (Inglaterra)",
+                45: "Copa de la Liga (Francia)"
+            }
+            
+            # 2. Equipos Populares (Gancho Viral)
+            POPULAR_TEAMS = [
+                "Real Madrid", "Barcelona", "Atletico Madrid", "Paris Saint Germain", "PSG",
+                "Manchester City", "Liverpool", "Arsenal", "Manchester United", "Chelsea",
+                "Bayern Munich", "Borussia Dortmund", "Juventus", "AC Milan", "Inter", "Napoli", "Roma",
+                "Benfica", "Porto", "Sporting CP", "Ajax", "PSV", "Inter Miami", "Al Nassr"
             ]
+
+            def clean_text(t):
+                import unicodedata
+                if not t: return ""
+                # Normalizar: quitar tildes, minúsculas, solo alfanumérico
+                t = unicodedata.normalize('NFD', t).encode('ascii', 'ignore').decode('utf-8').lower()
+                return "".join(c for c in t if c.isalnum())
+
+            def calculate_priority_score(item):
+                score = 0
+                lid = item["league"]["id"]
+                home = clean_text(item["teams"]["home"]["name"])
+                away = clean_text(item["teams"]["away"]["name"])
+                
+                # Bonus por Liga Tier 1 (Usamos el set de IDs para rapidez)
+                if lid in TIER_1_LEAGUES:
+                    score += 150 # Prioridad máxima
+                elif lid in config["leagues"]: 
+                    score += 50
+                    
+                # Bonus por Equipos Populares (Fuzzy matching robusto)
+                for team in POPULAR_TEAMS:
+                    cleaned_popular = clean_text(team)
+                    if cleaned_popular in home or cleaned_popular in away:
+                        score += 100
+                        break 
+                
+                return score
+
+            # Sort by score (Highest first)
+            candidates.sort(key=calculate_priority_score, reverse=True)
             
-            # Sort: Priority leagues first (True comes before False in reverse sort? No, True=1, False=0. Reverse=True puts Priority first)
-            candidates.sort(key=lambda x: x["league"]["id"] in PRIORITY_LEAGUES, reverse=True)
-            
-            # Limit to 14 Matches (14 * 2 calls = 28 calls + 1 init = 29 calls < 30 Limit)
-            final_candidates = candidates[:14]
-            print(f"      [INFO] Selección FINAL: {len(final_candidates)} partidos (Priorizando ligoas top).")
+            # Limit to 15 Matches (User request)
+            final_candidates = candidates[:15]
+            print(f"      [INFO] Selección FINAL: {len(final_candidates)} partidos (Priorizando Tiers y Equipos Top).")
 
             # 2. Second Pass: Process Candidates (Expensive API Calls)
             processed_count = 0

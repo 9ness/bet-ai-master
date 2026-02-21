@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import html2canvas from 'html2canvas';
-import { Play, Download, Trash2, X, Plus, Image as ImageIcon, Video, Type, Music, Settings, Upload, MonitorPlay, Palette, LayoutTemplate, Megaphone, Search, Loader2, Check, Info, ChevronLeft, ScanEye, ChevronRight, Save, RefreshCw, Copy, Settings2 } from 'lucide-react';
+import { Play, Download, Trash2, X, Plus, Image as ImageIcon, Video, Type, Music, Settings, Upload, MonitorPlay, Palette, LayoutTemplate, Megaphone, Search, Loader2, Check, Info, ChevronLeft, ScanEye, ChevronRight, Save, RefreshCw, Copy, Settings2, Eye, EyeOff } from 'lucide-react';
 import { triggerTouchFeedback } from '@/utils/haptics';
 
 /* 
@@ -130,7 +130,7 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
         addHundred: true,
         useFullDate: true,
         showOdds: false, // NEW: Visibility toggle for odds
-        titleScale: 1.05,
+        titleScale: 1.12,
         betsScale: 0.7,
         oddsScale: 0.8,
         showTitleBorder: false,
@@ -157,11 +157,17 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
     const slidesData: any[][] = [];
     let currentChunk: any[] = [];
     slideGroups.forEach((item: any) => {
+        // Filtrar picks ocultos
+        const visiblePicks = item.picks.filter((p: any) => !p.hidden);
+        if (visiblePicks.length === 0) return; // Si no hay picks visibles, saltamos el partido
+
+        const processedItem = { ...item, picks: visiblePicks };
+
         if (item.isFeatured) {
             if (currentChunk.length > 0) { slidesData.push(currentChunk); currentChunk = []; }
-            slidesData.push([item]);
+            slidesData.push([processedItem]);
         } else {
-            currentChunk.push(item);
+            currentChunk.push(processedItem);
             if (currentChunk.length >= 3) { slidesData.push(currentChunk); currentChunk = []; }
         }
     });
@@ -641,7 +647,11 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                 }
             }
 
-            groups[key].picks.push({ rawPick: pick, odd: displayOdd });
+            // Evitar duplicados exactos dentro del mismo partido
+            const isDuplicate = groups[key].picks.some((p: any) => p.rawPick === pick);
+            if (!isDuplicate) {
+                groups[key].picks.push({ rawPick: pick, odd: displayOdd });
+            }
         });
 
         const groupedList = Object.values(groups);
@@ -740,7 +750,8 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
 
                     return {
                         text: `${getPickIcon(formattedPick, g.sport || '', g.matchDisplay)}${formattedPick}`,
-                        odd: item.odd
+                        odd: item.odd,
+                        hidden: false
                     };
                 }),
                 isFeatured
@@ -1244,8 +1255,13 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                         </div>
                                         <div className="space-y-3 pl-2 border-l border-white/10">
                                             {group.picks.map((item: any, pIdx: number) => (
-                                                <div key={pIdx} className="space-y-1">
-                                                    <textarea value={item.text} onChange={(e) => { const n = [...slideGroups]; n[gIdx].picks[pIdx].text = e.target.value; setSlideGroups(n); }} rows={2} className="bg-transparent w-full text-[10px] text-foreground/70 dark:text-white/60 focus:text-foreground dark:focus:text-white outline-none resize-y min-h-[40px] whitespace-pre-wrap" />
+                                                <div key={pIdx} className={`space-y-1 p-2 rounded-lg transition-all ${item.hidden ? 'opacity-30 bg-black/10' : ''}`}>
+                                                    <div className="flex items-start gap-2">
+                                                        <textarea value={item.text} onChange={(e) => { const n = [...slideGroups]; n[gIdx].picks[pIdx].text = e.target.value; setSlideGroups(n); }} rows={2} className="bg-transparent w-full text-[10px] text-foreground/70 dark:text-white/60 focus:text-foreground dark:focus:text-white outline-none resize-y min-h-[40px] whitespace-pre-wrap" />
+                                                        <button onClick={() => { const n = [...slideGroups]; n[gIdx].picks[pIdx].hidden = !n[gIdx].picks[pIdx].hidden; setSlideGroups(n); }} className={`p-1.5 rounded-lg border transition-all ${item.hidden ? 'bg-red-500/20 border-red-500/50 text-red-500' : 'bg-white/5 border-white/10 text-white/30 hover:text-white'}`}>
+                                                            {item.hidden ? <EyeOff size={14} /> : <Eye size={14} />}
+                                                        </button>
+                                                    </div>
                                                     <div className="flex items-center gap-1.5 opacity-60">
                                                         <span className="text-[8px] font-bold text-sky-400 uppercase">Cuota</span>
                                                         <input value={item.odd} onChange={(e) => { const n = [...slideGroups]; n[gIdx].picks[pIdx].odd = e.target.value; setSlideGroups(n); }} className="bg-black/20 border border-white/5 rounded px-1.5 py-0.5 text-[9px] text-white/50 w-16" />
@@ -1470,8 +1486,13 @@ export default function TikTokFactory({ predictions, formattedDate, rawDate }: T
                                         </div>
                                         <div className="pl-2 border-l border-white/10 space-y-3">
                                             {group.picks.map((item: any, i: number) => (
-                                                <div key={i} className="space-y-1">
-                                                    <textarea value={item.text} onChange={e => { const n = [...slideGroups]; n[idx].picks[i].text = e.target.value; setSlideGroups(n) }} rows={2} className="bg-transparent w-full text-[10px] text-white/50 focus:text-white outline-none resize-y min-h-[40px] whitespace-pre-wrap" />
+                                                <div key={i} className={`space-y-1 p-2 rounded-lg transition-all ${item.hidden ? 'opacity-30 bg-black/20' : ''}`}>
+                                                    <div className="flex items-start gap-2">
+                                                        <textarea value={item.text} onChange={e => { const n = [...slideGroups]; n[idx].picks[i].text = e.target.value; setSlideGroups(n) }} rows={2} className="bg-transparent w-full text-[10px] text-white/50 focus:text-white outline-none resize-y min-h-[40px] whitespace-pre-wrap" />
+                                                        <button onClick={() => { const n = [...slideGroups]; n[idx].picks[i].hidden = !n[idx].picks[i].hidden; setSlideGroups(n) }} className={`p-1.5 rounded-lg border transition-all ${item.hidden ? 'bg-red-500/20 border-red-500/50 text-red-500' : 'bg-white/5 border-white/10 text-white/20 hover:text-white'}`}>
+                                                            {item.hidden ? <EyeOff size={14} /> : <Eye size={14} />}
+                                                        </button>
+                                                    </div>
                                                     <div className="flex items-center gap-2 opacity-50">
                                                         <span className="text-[7px] font-black text-sky-400 uppercase tracking-widest">Cuota</span>
                                                         <input value={item.odd} onChange={e => { const n = [...slideGroups]; n[idx].picks[i].odd = e.target.value; setSlideGroups(n) }} className="bg-black/40 border border-white/10 rounded px-1.5 py-0.5 text-[9px] text-white/70 w-16" />

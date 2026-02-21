@@ -76,7 +76,7 @@ def _analyze_logic(rs):
             
         genai.configure(api_key=api_key)
         # Usamos el modelo estándar
-        model = genai.GenerativeModel('gemini-3-pro-preview') 
+        model = genai.GenerativeModel('gemini-3.1-pro-preview') 
         print("[INIT] Model configured (No Search Tools)")
         
     except Exception as e:
