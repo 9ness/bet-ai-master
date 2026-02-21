@@ -33,17 +33,36 @@ export default function AIChat({ rawDate, mode = 'visible' }: AIChatProps) {
     const [isLoading, setIsLoading] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [isPro] = useState(isAdminPath); // Automático para admins
-    const [isTikTokMode, setIsTikTokMode] = useState(false);
+    const [selectedMode, setSelectedMode] = useState<'STANDARD_TODAY' | 'VIRAL_TODAY' | 'VIRAL_TOMORROW'>('STANDARD_TODAY');
+    const [availableModes, setAvailableModes] = useState({
+        standard_today: true,
+        viral_today: false,
+        viral_tomorrow: false
+    });
+    const [isModeSelectorOpen, setIsModeSelectorOpen] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [canUseTomorrow, setCanUseTomorrow] = useState(false);
-    const [currentTime, setCurrentTime] = useState("");
     const [userId, setUserId] = useState<string>("");
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
 
+    const checkAvailability = async () => {
+        try {
+            const res = await fetch('/api/admin/chat/check-availability');
+            const data = await res.json();
+            if (data.success) {
+                setAvailableModes(data.modes);
+                // Si el modo actual deja de estar disponible, volver al standard
+                if (selectedMode === 'VIRAL_TOMORROW' && !data.modes.viral_tomorrow) setSelectedMode('STANDARD_TODAY');
+                if (selectedMode === 'VIRAL_TODAY' && !data.modes.viral_today) setSelectedMode('STANDARD_TODAY');
+            }
+        } catch (e) {
+            console.error("Error checking chat modes:", e);
+        }
+    };
+
     useEffect(() => {
-        // Generar o recuperar ID de usuario único
+        // ID de usuario
         let storedId = localStorage.getItem('betai_chat_user_id');
         if (!storedId) {
             storedId = `user_${Math.random().toString(36).substring(2, 11)}`;
@@ -51,27 +70,31 @@ export default function AIChat({ rawDate, mode = 'visible' }: AIChatProps) {
         }
         setUserId(storedId);
 
-        const updateAvailability = () => {
-            const now = new Date();
-            const madridTime = new Intl.DateTimeFormat('es-ES', {
-                timeZone: 'Europe/Madrid',
-                hour: 'numeric',
-                hour12: false
-            }).format(now);
+        // Recuperar historial de LocalStorage
+        const savedMessages = localStorage.getItem(`betai_chat_history_${storedId}`);
+        if (savedMessages) {
+            try {
+                const parsed = JSON.parse(savedMessages);
+                setMessages(parsed.map((m: any) => ({
+                    ...m,
+                    timestamp: new Date(m.timestamp)
+                })));
+            } catch (e) {
+                console.error("Error parsing saved messages:", e);
+            }
+        }
 
-            const hour = parseInt(madridTime);
-            setCanUseTomorrow(hour >= 19);
-            setCurrentTime(new Intl.DateTimeFormat('es-ES', {
-                timeZone: 'Europe/Madrid',
-                hour: '2-digit',
-                minute: '2-digit'
-            }).format(now));
-        };
-
-        updateAvailability();
-        const interval = setInterval(updateAvailability, 60000);
+        checkAvailability();
+        const interval = setInterval(checkAvailability, 60000);
         return () => clearInterval(interval);
     }, []);
+
+    // Guardar mensajes cuando cambien
+    useEffect(() => {
+        if (userId && messages.length > 0) {
+            localStorage.setItem(`betai_chat_history_${userId}`, JSON.stringify(messages));
+        }
+    }, [messages, userId]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -83,6 +106,17 @@ export default function AIChat({ rawDate, mode = 'visible' }: AIChatProps) {
             inputRef.current?.focus();
         }
     }, [messages, isOpen]);
+
+    // Cerrar selector al hacer click fuera
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (isModeSelectorOpen && !(e.target as Element).closest('.mode-selector-container')) {
+                setIsModeSelectorOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [isModeSelectorOpen]);
 
     const handleSend = async () => {
         if (!input.trim() || isLoading || effectiveMode === 'disabled') return;
@@ -102,9 +136,10 @@ export default function AIChat({ rawDate, mode = 'visible' }: AIChatProps) {
         setIsAnalyzing(false); // Empezamos en modo "Pensando" (...)
         triggerTouchFeedback();
 
-        // Calculamos la fecha objetivo
+        const isTikTok = selectedMode !== 'STANDARD_TODAY';
         let targetDate = rawDate || new Date().toISOString().split('T')[0];
-        if (isTikTokMode) {
+
+        if (selectedMode === 'VIRAL_TOMORROW') {
             const tom = new Date();
             tom.setDate(tom.getDate() + 1);
             targetDate = tom.toISOString().split('T')[0];
@@ -122,10 +157,10 @@ export default function AIChat({ rawDate, mode = 'visible' }: AIChatProps) {
                         content: m.content
                     })),
                     date: targetDate,
-                    isTikTok: isTikTokMode,
+                    isTikTok: isTikTok,
                     userId: userId,
-                    includeContext: false, // Forzamos solo router
-                    isPro: isPro // Enviamos si es modo PRO
+                    includeContext: false,
+                    isPro: isPro
                 })
             });
 
@@ -157,10 +192,10 @@ export default function AIChat({ rawDate, mode = 'visible' }: AIChatProps) {
                             content: m.content
                         })),
                         date: targetDate,
-                        isTikTok: isTikTokMode,
+                        isTikTok: isTikTok,
                         userId: userId,
-                        includeContext: true, // Ahora sí enviamos el contexto pesado
-                        isPro: isPro // Enviamos si es modo PRO
+                        includeContext: true,
+                        isPro: isPro
                     })
                 });
                 data = await secondRes.json();
@@ -190,6 +225,9 @@ export default function AIChat({ rawDate, mode = 'visible' }: AIChatProps) {
     const clearHistory = () => {
         setMessages([]);
         setError(null);
+        if (userId) {
+            localStorage.removeItem(`betai_chat_history_${userId}`);
+        }
         triggerTouchFeedback();
     };
 
@@ -211,14 +249,14 @@ export default function AIChat({ rawDate, mode = 'visible' }: AIChatProps) {
 
     return (
         <div
-            className={`fixed z-[1000] flex flex-col transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] shadow-2xl overflow-hidden
+            className={`fixed z-[1000] flex flex-col transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] shadow-2xl overflow-hidden font-gemini
                 ${isMinimized ? 'w-14 h-14 bottom-6 right-6' : 'bottom-4 right-4 left-4 md:bottom-6 md:right-6 md:left-auto md:w-[480px] h-[80vh] md:h-[720px]'}
                 bg-[#0e0e0e] text-white rounded-[28px] md:rounded-[32px] border border-white/10`}
         >
             {/* Minimalist Top Bar */}
             <div className="px-6 py-4 flex items-center justify-between shrink-0 bg-[#0e0e0e]/95 backdrop-blur-md border-b border-white/5 z-20">
                 <div className="flex items-center gap-2">
-                    <span className="font-google text-lg tracking-tight text-white font-medium uppercase tracking-[0.1em]">BET AI Master</span>
+                    <span className="font-gemini text-lg tracking-tight text-white font-semibold uppercase tracking-[0.1em]">BET AI Master</span>
                     {isAdminPath && (
                         <div className="flex items-center px-1.5 py-0.5 rounded bg-gradient-to-r from-[#4285f4] via-[#9162f1] to-[#d96570] shadow-lg shadow-purple-500/20 border border-white/10 ml-1">
                             <span className="text-[9px] font-black text-white leading-none">PRO</span>
@@ -252,8 +290,8 @@ export default function AIChat({ rawDate, mode = 'visible' }: AIChatProps) {
 
                         <div className="flex flex-col gap-2 md:gap-3">
                             {[
-                                { text: isTikTokMode ? "Partidos virales para mañana" : "Analiza los 3 mejores partidos de hoy", icon: <Sparkles className="w-4 h-4 text-cyan-400" /> },
-                                { text: isTikTokMode ? "Combinada TikTok extrema" : "¿Cual es la selección mas clara?", icon: <Database className="w-4 h-4 text-amber-400" /> },
+                                { text: selectedMode !== 'STANDARD_TODAY' ? "Partidos virales clave" : "Analiza los 3 mejores partidos de hoy", icon: <Sparkles className="w-4 h-4 text-cyan-400" /> },
+                                { text: selectedMode !== 'STANDARD_TODAY' ? "Combinada rápida Ligas Top" : "¿Cual es la selección mas clara?", icon: <Database className="w-4 h-4 text-amber-400" /> },
                                 { text: "Crea una combinada segura (Cuota 2-3)", icon: <LayoutGrid className="w-4 h-4 text-emerald-400" /> },
                             ].map((item, idx) => (
                                 <button
@@ -331,7 +369,7 @@ export default function AIChat({ rawDate, mode = 'visible' }: AIChatProps) {
             {/* Input Bar - Fixed at bottom of the card */}
             <div className="p-4 md:p-6 bg-gradient-to-t from-[#0e0e0e] to-transparent shrink-0">
                 <div className="max-w-4xl mx-auto">
-                    <div className="flex flex-col bg-[#1e1f20] rounded-[24px] md:rounded-[28px] p-1 border border-white/5 shadow-2xl focus-within:bg-[#242528] transition-all">
+                    <div className="flex flex-col bg-[#1e1f20] rounded-[24px] md:rounded-[28px] p-1 border border-white/5 shadow-2xl focus-within:bg-[#242528] focus-within:border-white/10 transition-all outline-none">
                         <textarea
                             ref={inputRef}
                             rows={1}
@@ -345,7 +383,7 @@ export default function AIChat({ rawDate, mode = 'visible' }: AIChatProps) {
                             }}
                             disabled={effectiveMode === 'disabled'}
                             placeholder={effectiveMode === 'disabled' ? "Chat bloqueado temporalmente..." : "Pregúntale a BET AI..."}
-                            className={`w-full bg-transparent border-none focus:ring-0 text-[16px] py-4 px-5 resize-none scrollbar-hide text-gray-200 placeholder:text-gray-500 ${effectiveMode === 'disabled' ? 'opacity-40 cursor-not-allowed' : ''}`}
+                            className={`w-full bg-transparent border-none focus:ring-0 focus:outline-none outline-none text-[16px] py-4 px-5 resize-none scrollbar-hide text-gray-200 placeholder:text-gray-500 ${effectiveMode === 'disabled' ? 'opacity-40 cursor-not-allowed' : ''}`}
                         />
 
                         <div className="flex items-center justify-between px-2 pb-2">
@@ -356,26 +394,97 @@ export default function AIChat({ rawDate, mode = 'visible' }: AIChatProps) {
                                 </span>
                             </div>
 
-                            <div className="flex items-center gap-1.5">
-                                {/* Mode Toggle */}
+                            <div className="flex items-center gap-1.5 relative mode-selector-container">
+                                {/* Gemini-style Model/Mode Selector */}
                                 <button
                                     onClick={() => {
                                         if (effectiveMode === 'disabled') return;
-                                        if (!canUseTomorrow && !isTikTokMode) return;
-                                        setIsTikTokMode(!isTikTokMode);
+                                        setIsModeSelectorOpen(!isModeSelectorOpen);
                                         triggerTouchFeedback();
                                     }}
-                                    disabled={(!canUseTomorrow && !isTikTokMode) || effectiveMode === 'disabled'}
-                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-bold transition-all
-                                        ${isTikTokMode
-                                            ? 'bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/30'
-                                            : !canUseTomorrow
-                                                ? 'bg-white/5 text-gray-700 cursor-not-allowed'
-                                                : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}
+                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-bold transition-all border
+                                        ${selectedMode === 'STANDARD_TODAY'
+                                            ? 'bg-white/5 text-gray-400 border-white/5 hover:bg-white/10'
+                                            : selectedMode === 'VIRAL_TODAY'
+                                                ? 'bg-cyan-500/10 text-cyan-300 border-cyan-500/20'
+                                                : 'bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/20'}`}
                                 >
                                     <Database className="w-3.5 h-3.5" />
-                                    {isTikTokMode ? 'MAÑANA' : 'HOY'}
+                                    <span>
+                                        {selectedMode === 'STANDARD_TODAY' && 'HOY (EXTENDIDO)'}
+                                        {selectedMode === 'VIRAL_TODAY' && 'HOY (LIGAS TOP)'}
+                                        {selectedMode === 'VIRAL_TOMORROW' && 'MAÑANA (VIRAL)'}
+                                    </span>
+                                    <ChevronDown className={`w-3 h-3 transition-transform duration-300 ${isModeSelectorOpen ? 'rotate-180' : ''}`} />
                                 </button>
+
+                                {/* Dropdown Menu */}
+                                {isModeSelectorOpen && (
+                                    <div className="absolute bottom-full right-0 mb-3 w-[260px] bg-[#1e1f20] rounded-[24px] border border-white/10 shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                                        <div className="p-3 border-b border-white/5 bg-white/5">
+                                            <span className="text-[10px] font-black text-gray-500 px-3 uppercase tracking-widest">Fuentes de Datos</span>
+                                        </div>
+                                        <div className="p-2">
+                                            {/* OPTION 1: STANDARD TODAY */}
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedMode('STANDARD_TODAY');
+                                                    setIsModeSelectorOpen(false);
+                                                    triggerTouchFeedback();
+                                                }}
+                                                className={`w-full flex items-center justify-between p-3 rounded-[16px] transition-all
+                                                    ${selectedMode === 'STANDARD_TODAY' ? 'bg-white/5' : 'hover:bg-white/5'}`}
+                                            >
+                                                <div className="flex flex-col items-start gap-0.5">
+                                                    <span className={`text-xs font-bold ${selectedMode === 'STANDARD_TODAY' ? 'text-white' : 'text-gray-400'}`}>Hoy (EXTENDIDO)</span>
+                                                    <span className="text-[10px] text-gray-500 text-left">Acceso a la parrilla completa de partidos</span>
+                                                </div>
+                                                {selectedMode === 'STANDARD_TODAY' && <Sparkles className="w-4 h-4 text-cyan-400" />}
+                                            </button>
+
+                                            {/* OPTION 2: VIRAL TODAY (Top Leagues from yesterday's TikTok) */}
+                                            {availableModes.viral_today && (
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedMode('VIRAL_TODAY');
+                                                        setIsModeSelectorOpen(false);
+                                                        triggerTouchFeedback();
+                                                    }}
+                                                    className={`w-full flex items-center justify-between p-3 rounded-[16px] transition-all mt-1
+                                                        ${selectedMode === 'VIRAL_TODAY' ? 'bg-white/5' : 'hover:bg-white/5'}`}
+                                                >
+                                                    <div className="flex flex-col items-start gap-0.5">
+                                                        <span className={`text-xs font-bold ${selectedMode === 'VIRAL_TODAY' ? 'text-cyan-300' : 'text-gray-400'}`}>Hoy (LIGAS TOP)</span>
+                                                        <span className="text-[10px] text-gray-500 text-left line-clamp-1">Los mejores partidos detectados ayer</span>
+                                                    </div>
+                                                    {selectedMode === 'VIRAL_TODAY' && <Sparkles className="w-4 h-4 text-cyan-400" />}
+                                                </button>
+                                            )}
+
+                                            {/* OPTION 3: VIRAL TOMORROW (Only if processed) */}
+                                            <button
+                                                onClick={() => {
+                                                    if (!availableModes.viral_tomorrow) return;
+                                                    setSelectedMode('VIRAL_TOMORROW');
+                                                    setIsModeSelectorOpen(false);
+                                                    triggerTouchFeedback();
+                                                }}
+                                                disabled={!availableModes.viral_tomorrow}
+                                                className={`w-full flex items-center justify-between p-3 rounded-[16px] transition-all mt-1
+                                                    ${selectedMode === 'VIRAL_TOMORROW' ? 'bg-white/5' : 'hover:bg-white/5'}
+                                                    ${!availableModes.viral_tomorrow ? 'opacity-30 grayscale cursor-not-allowed' : ''}`}
+                                            >
+                                                <div className="flex flex-col items-start gap-0.5">
+                                                    <span className={`text-xs font-bold ${selectedMode === 'VIRAL_TOMORROW' ? 'text-fuchsia-300' : 'text-gray-400'}`}>Mañana (VIRAL)</span>
+                                                    <span className="text-[10px] text-gray-500 text-left line-clamp-1">
+                                                        {availableModes.viral_tomorrow ? 'Anticípate a los bombazos de mañana' : 'Disponible en cuanto se procese'}
+                                                    </span>
+                                                </div>
+                                                {selectedMode === 'VIRAL_TOMORROW' && <Sparkles className="w-4 h-4 text-fuchsia-400" />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
 
                                 <button
                                     onClick={handleSend}
@@ -398,10 +507,10 @@ export default function AIChat({ rawDate, mode = 'visible' }: AIChatProps) {
             </div>
 
             <style jsx global>{`
-                @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
                 
-                .font-google {
-                    font-family: 'Roboto', sans-serif;
+                .font-gemini {
+                    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
                 }
 
                 @keyframes float {
@@ -418,6 +527,12 @@ export default function AIChat({ rawDate, mode = 'visible' }: AIChatProps) {
                 .scrollbar-hide {
                     -ms-overflow-style: none;
                     scrollbar-width: none;
+                }
+                
+                .ai-message-content {
+                    font-size: 15px;
+                    line-height: 1.6;
+                    letter-spacing: -0.01em;
                 }
             `}</style>
         </div>

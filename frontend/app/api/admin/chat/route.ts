@@ -24,17 +24,22 @@ export async function POST(req: Request) {
             }
         }
 
-        // --- PASO 1: ROUTER INTELIGENTE ---
+        // --- PASO 1: ROUTER INTELIGENTE CON MEMORIA ---
         if (!includeContext) {
             const routerSystemPrompt = `Eres "BET AI ASSISTANT". 
-            Tu objetivo es ahorrar tokens. 
-            Analiza el mensaje del usuario y decide:
-            1. Si es un saludo, una pregunta sobre tus capacidades o algo general que NO requiere ver partidos específicos, RESPONDE DIRECTAMENTE de forma breve.
-            2. Si el usuario pide analizar partidos, cuotas, predicciones o algo que requiera ver la base de datos de hoy o mañana, responde ÚNICAMENTE con la palabra: "NEED_CONTEXT_DATA".`.trim();
+            Tu objetivo es ahorrar tokens y decidir el flujo de datos.
+            
+            HISTORIAL RECIENTE Y CONTEXTO:
+            - Analiza los últimos mensajes para saber de qué se está hablando.
+            - Si el usuario hace preguntas de seguimiento ("¿y sus cuotas?", "¿qué opinas de ese pick?", "dime más") sobre un tema ya tratado, decide si necesitas volver a leer la base de datos.
+            
+            REGLAS DE DECISIÓN:
+            1. Si es un saludo, charla general o seguimiento de algo que NO requiere datos nuevos, RESPONDE DIRECTAMENTE.
+            2. Si se pide analizar partidos nuevos, actualizar cuotas o predicciones específicas de hoy/mañana, responde: "NEED_CONTEXT_DATA".`.trim();
 
             const routerContents = [
                 { role: 'user', parts: [{ text: routerSystemPrompt }] },
-                ...history.slice(-3).map((msg: any) => ({
+                ...history.slice(-5).map((msg: any) => ({
                     role: msg.role === 'user' ? 'user' : 'model',
                     parts: [{ text: msg.content }]
                 })),
@@ -58,7 +63,7 @@ export async function POST(req: Request) {
             }
 
             const usage = routerResult.usageMetadata || { promptTokenCount: 0, candidatesTokenCount: 0 };
-            await trackAIUsage(usage.promptTokenCount, usage.candidatesTokenCount, isTikTok ? "TikTok (Tomorrow)" : "Standard (Today)", userId);
+            await trackAIUsage(usage.promptTokenCount, usage.candidatesTokenCount, isTikTok ? "Chat History" : "Chat History", userId);
 
             return NextResponse.json({
                 content: firstChoice,
