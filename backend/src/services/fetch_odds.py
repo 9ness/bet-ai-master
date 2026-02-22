@@ -175,6 +175,9 @@ class SportsDataService:
         self.internal_football = 0
         self.internal_basketball = 0
         
+        # [FIX] Inicializar lista balanceada para todos los deportes y fechas
+        all_matches = []
+        
         # 1. Verificar IP antes de empezar
         self._verify_ip()
         
@@ -216,12 +219,7 @@ class SportsDataService:
         print(f"  [>] Consultando API ({sport}) para: {date_str}")
         
         try:
-            # OPTIMIZATION: Call by Date only (1 Call instead of N Leagues)
             params = {"date": date_str, "timezone": "Europe/Madrid"}
-            
-            url_list = f"{base_url}/{endpoint}"
-            # resp = requests.get(url_list, headers=self.headers, params=params)
-            resp = self._call_api(url_list, params=params, sport=sport)
             
             url_list = f"{base_url}/{endpoint}"
             resp = self._call_api(url_list, params=params, sport=sport)
@@ -311,9 +309,6 @@ class SportsDataService:
                 passed_filter_count += 1
                 # print(f"       [+] Candidato: {home} vs {away} ({datetime.fromtimestamp(match_ts).strftime('%H:%M')})")
 
-                # Fetch Odds (Filtered)
-                odds = self._get_odds(sport, base_url, fix_id, whitelist_markets, bookmaker_id)
-                
                 # Fetch Odds (Filtered)
                 odds = self._get_odds(sport, base_url, fix_id, whitelist_markets, bookmaker_id)
                         

@@ -8,11 +8,7 @@ import os
 import json
 import argparse
 
-def main():
-    parser = argparse.ArgumentParser(description='Bet AI Master Logic')
-    parser.add_argument('--mode', type=str, default='all', choices=['all', 'fetch', 'analyze'], help='Mode of operation: fetch, analyze, or all')
-    args = parser.parse_args()
-    
+def main(args):
     print(f"--- BETTING ADVISOR AI STARTED (Mode: {args.mode}) ---")
     
     # Initialize Redis early for caching
@@ -91,17 +87,22 @@ def main():
     # print(f"Check results in: {os.path.abspath(os.path.join('data', 'daily_bets.json'))}") # Ya no es la fuente de verdad
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Bet AI Master Logic')
+    parser.add_argument('--mode', type=str, default='all', choices=['all', 'fetch', 'analyze'], help='Mode of operation: fetch, analyze, or all')
+    args = parser.parse_args()
+
     try:
-        main()
+        main(args)
         # Logging is now handled inside main() to differentiate modes
     except Exception as e:
         print(f"[CRITICAL] Main Script Failed: {e}")
         rs = RedisService()
         if rs.is_active: 
              # Log correctly based on mode
-             if 'fetch' in str(args.mode):
+             mode_str = str(args.mode) if 'args' in locals() else "unknown"
+             if 'fetch' in mode_str:
                  rs.log_status("Daily Fetch", "ERROR", str(e))
-             elif 'analyze' in str(args.mode):
+             elif 'analyze' in mode_str:
                  rs.log_status("Daily Analysis", "ERROR", str(e))
              else:
                  # In 'all' mode, we might not know exactly, but usually it's the current active part
